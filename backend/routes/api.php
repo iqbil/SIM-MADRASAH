@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\Api\V1\AccountRoleController;
+use App\Http\Controllers\Api\V1\AccountUserController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\GoogleAuthController;
 use App\Http\Middleware\RequirePasswordChanged;
@@ -23,4 +25,17 @@ Route::prefix('v1')->name('api.v1.')->group(function (): void {
             Route::put('password', [AuthController::class, 'changePassword'])->middleware('throttle:auth.password')->name('password.update');
         });
     });
+});
+
+Route::prefix('v1/accounts')->name('api.v1.accounts.')->middleware(['auth:api', RequirePasswordChanged::class, 'throttle:120,1'])->group(function (): void {
+    Route::get('people', [AccountUserController::class, 'people']);
+    Route::get('audit', [AccountUserController::class, 'audit']);
+    Route::get('users', [AccountUserController::class, 'index']);
+    Route::post('users', [AccountUserController::class, 'store']);
+    Route::get('users/{user}', [AccountUserController::class, 'show'])->whereNumber('user');
+    Route::put('users/{user}', [AccountUserController::class, 'update'])->whereNumber('user');
+    Route::post('users/{user}/{action}', [AccountUserController::class, 'action'])->whereNumber('user');
+    Route::get('roles', [AccountRoleController::class, 'index']);
+    Route::post('roles', [AccountRoleController::class, 'store']);
+    Route::put('roles/{role}', [AccountRoleController::class, 'update'])->whereNumber('role');
 });
