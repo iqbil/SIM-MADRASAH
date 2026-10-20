@@ -42,13 +42,17 @@ export function clearAuthCookies(response: NextResponse): void {
   }
 }
 
-export function isSameOrigin(request: NextRequest): boolean {
+export function isSameOrigin(
+  request: NextRequest,
+  contentTypes = ["application/json"],
+): boolean {
   const expected = process.env.APP_URL
     ? new URL(process.env.APP_URL).origin
     : request.nextUrl.origin;
   return (
     request.headers.get("origin") === expected &&
-    request.headers.get("content-type")?.split(";")[0].trim() ===
-      "application/json"
+    contentTypes.includes(
+      request.headers.get("content-type")?.split(";")[0].trim() ?? "",
+    )
   );
 }

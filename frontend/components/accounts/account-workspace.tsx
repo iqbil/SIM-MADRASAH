@@ -2,13 +2,10 @@
 
 import {
   AlertCircle,
-  ArrowLeft,
   ArrowRight,
-  Check,
   Copy,
   History,
   KeyRound,
-  LoaderCircle,
   Plus,
   RefreshCw,
   Search,
@@ -19,16 +16,12 @@ import {
 } from "lucide-react";
 import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { ConfirmationDialog } from "@/components/layout/confirmation-dialog";
+import { FormDialog } from "@/components/layout/form-dialog";
+import { Pager } from "@/components/layout/pager";
+import { ReasonField as Reason } from "@/components/layout/reason-field";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import {
-  AlertDialog,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -68,7 +61,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Textarea } from "@/components/ui/textarea";
 import {
   type AccountRole,
   type AuditEntry,
@@ -868,43 +860,6 @@ function Status({ user }: { user: ManagedUser }) {
     </Badge>
   );
 }
-function Pager({
-  meta,
-  setPage,
-}: {
-  meta: PageMeta;
-  setPage: (page: number) => void;
-}) {
-  return (
-    <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t pt-4">
-      <p className="text-[11px] text-muted-foreground">
-        {meta.total} hasil · Halaman {meta.page} dari {meta.last_page}
-      </p>
-      <div className="flex gap-2">
-        <Button
-          variant="outline"
-          size="icon"
-          className="size-11"
-          aria-label="Halaman sebelumnya"
-          disabled={meta.page <= 1}
-          onClick={() => setPage(meta.page - 1)}
-        >
-          <ArrowLeft className="size-3.5" />
-        </Button>
-        <Button
-          variant="outline"
-          size="icon"
-          className="size-11"
-          aria-label="Halaman berikutnya"
-          disabled={meta.page >= meta.last_page}
-          onClick={() => setPage(meta.page + 1)}
-        >
-          <ArrowRight className="size-3.5" />
-        </Button>
-      </div>
-    </div>
-  );
-}
 
 function UserEditor({
   current,
@@ -974,185 +929,126 @@ function UserEditor({
     }
   }
   return (
-    <Dialog
-      open
-      onOpenChange={(open) => {
-        if (!open && !busy) close();
-      }}
+    <FormDialog
+      title={current ? "Ubah akun pengguna" : "Tambah pengguna"}
+      description={
+        current
+          ? "Perubahan email akan mencabut sesi, tautan Google, dan verifikasi email."
+          : "Satu orang menggunakan satu akun. Password sementara dibuat otomatis dan wajib diganti saat login pertama."
+      }
+      busy={busy}
+      onClose={close}
+      onSubmit={submit}
+      submitLabel={current ? "Simpan perubahan" : "Buat akun"}
     >
-      <DialogContent
-        showCloseButton={!busy}
-        className="flex max-h-[calc(100dvh-2rem)] max-w-lg flex-col gap-0 overflow-hidden p-0 max-sm:top-auto max-sm:bottom-0 max-sm:w-full max-sm:translate-y-0 max-sm:rounded-b-none"
-      >
-        <DialogHeader className="border-b p-5 pr-14">
-          <DialogTitle>
-            {current ? "Ubah akun pengguna" : "Tambah pengguna"}
-          </DialogTitle>
-          <DialogDescription>
-            {current
-              ? "Perubahan email akan mencabut sesi, tautan Google, dan verifikasi email."
-              : "Satu orang menggunakan satu akun. Password sementara dibuat otomatis dan wajib diganti saat login pertama."}
-          </DialogDescription>
-        </DialogHeader>
-        <form
-          onSubmit={submit}
-          className="flex min-h-0 flex-col overflow-hidden"
-        >
-          <div className="min-h-0 overflow-y-auto overscroll-contain">
-            <fieldset disabled={busy} className="min-w-0 space-y-4 p-5">
-              {error && (
-                <Alert variant="destructive">
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
-              {!current && (
-                <div className="space-y-2">
-                  <Label htmlFor="person">Identitas pengguna</Label>
-                  <Select value={personId} onValueChange={setPersonId}>
-                    <SelectTrigger id="person" className="h-11! w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="new">Buat identitas baru</SelectItem>
-                      {people.map((person) => (
-                        <SelectItem key={person.id} value={String(person.id)}>
-                          {person.full_name} (#{person.id})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Input
-                    aria-label="Cari identitas yang sudah ada"
-                    placeholder="Cari identitas yang sudah ada…"
-                    value={personQuery}
-                    onChange={(event) => setPersonQuery(event.target.value)}
-                    className="h-11"
-                  />
-                  <p className="text-[10px] leading-5 text-muted-foreground">
-                    Pilih identitas yang sudah ada agar profil pegawai/wali
-                    tetap menggunakan akun yang sama.
-                  </p>
-                </div>
-              )}
-              {[
-                {
-                  name: "name",
-                  label: "Nama tampilan",
-                  value: current?.name ?? "",
-                  max: 200,
-                },
-                {
-                  name: "username",
-                  label: "Username",
-                  value: current?.username ?? "",
-                  max: 100,
-                },
-                {
-                  name: "email",
-                  label: "Email (opsional)",
-                  value: current?.email ?? "",
-                  max: 254,
-                },
-              ].map((field) => (
-                <div key={field.name} className="space-y-2">
-                  <Label htmlFor={field.name}>{field.label}</Label>
-                  <Input
-                    id={field.name}
-                    name={field.name}
-                    type={field.name === "email" ? "email" : "text"}
-                    defaultValue={field.value}
-                    maxLength={field.max}
-                    required={field.name !== "email"}
-                    className="h-11"
-                    autoComplete="off"
-                    disabled={busy}
-                  />
-                </div>
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+      {!current && (
+        <div className="space-y-2">
+          <Label htmlFor="person">Identitas pengguna</Label>
+          <Select value={personId} onValueChange={setPersonId}>
+            <SelectTrigger id="person" className="h-11! w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="new">Buat identitas baru</SelectItem>
+              {people.map((person) => (
+                <SelectItem key={person.id} value={String(person.id)}>
+                  {person.full_name} (#{person.id})
+                </SelectItem>
               ))}
-              {assign && (
-                <fieldset className="space-y-2">
-                  <legend className="mb-2 text-xs font-medium">
-                    Role pengguna
-                  </legend>
-                  <ScrollArea className="h-44 rounded-xl border">
-                    <div className="grid grid-cols-1 gap-1 p-2 sm:grid-cols-2">
-                      {roles
-                        .filter(
-                          (role) =>
-                            role.is_active &&
-                            (actorIsSuper || role.code !== "super_admin"),
+            </SelectContent>
+          </Select>
+          <Input
+            aria-label="Cari identitas yang sudah ada"
+            placeholder="Cari identitas yang sudah ada…"
+            value={personQuery}
+            onChange={(event) => setPersonQuery(event.target.value)}
+            className="h-11"
+          />
+          <p className="text-[10px] leading-5 text-muted-foreground">
+            Pilih identitas yang sudah ada agar profil pegawai/wali tetap
+            menggunakan akun yang sama.
+          </p>
+        </div>
+      )}
+      {[
+        {
+          name: "name",
+          label: "Nama tampilan",
+          value: current?.name ?? "",
+          max: 200,
+        },
+        {
+          name: "username",
+          label: "Username",
+          value: current?.username ?? "",
+          max: 100,
+        },
+        {
+          name: "email",
+          label: "Email (opsional)",
+          value: current?.email ?? "",
+          max: 254,
+        },
+      ].map((field) => (
+        <div key={field.name} className="space-y-2">
+          <Label htmlFor={field.name}>{field.label}</Label>
+          <Input
+            id={field.name}
+            name={field.name}
+            type={field.name === "email" ? "email" : "text"}
+            defaultValue={field.value}
+            maxLength={field.max}
+            required={field.name !== "email"}
+            className="h-11"
+            autoComplete="off"
+            disabled={busy}
+          />
+        </div>
+      ))}
+      {assign && (
+        <fieldset className="space-y-2">
+          <legend className="mb-2 text-xs font-medium">Role pengguna</legend>
+          <ScrollArea className="h-44 rounded-xl border">
+            <div className="grid grid-cols-1 gap-1 p-2 sm:grid-cols-2">
+              {roles
+                .filter(
+                  (role) =>
+                    role.is_active &&
+                    (actorIsSuper || role.code !== "super_admin"),
+                )
+                .map((role) => (
+                  <Label
+                    key={role.id}
+                    className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg px-2 text-xs hover:bg-muted"
+                  >
+                    <Checkbox
+                      checked={roleIds.includes(role.id)}
+                      disabled={busy}
+                      onCheckedChange={(checked) =>
+                        setRoleIds(
+                          checked
+                            ? [...roleIds, role.id]
+                            : roleIds.filter((id) => id !== role.id),
                         )
-                        .map((role) => (
-                          <Label
-                            key={role.id}
-                            className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg px-2 text-xs hover:bg-muted"
-                          >
-                            <Checkbox
-                              checked={roleIds.includes(role.id)}
-                              disabled={busy}
-                              onCheckedChange={(checked) =>
-                                setRoleIds(
-                                  checked
-                                    ? [...roleIds, role.id]
-                                    : roleIds.filter((id) => id !== role.id),
-                                )
-                              }
-                            />
-                            {role.name}
-                          </Label>
-                        ))}
-                    </div>
-                  </ScrollArea>
-                </fieldset>
-              )}
-              <Reason disabled={busy} />
-            </fieldset>
-          </div>
-          <DialogFooter className="relative z-10 mx-0 mb-0 shrink-0 rounded-none p-4 pb-[max(1rem,env(safe-area-inset-bottom))] [&>button]:min-h-11">
-            <Button
-              type="button"
-              variant="outline"
-              className="h-11"
-              disabled={busy}
-              onClick={close}
-            >
-              Batal
-            </Button>
-            <Button type="submit" className="h-11" disabled={busy}>
-              {busy ? (
-                <LoaderCircle className="size-4 animate-spin" />
-              ) : (
-                <Check className="size-4" />
-              )}{" "}
-              {current ? "Simpan perubahan" : "Buat akun"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+                      }
+                    />
+                    {role.name}
+                  </Label>
+                ))}
+            </div>
+          </ScrollArea>
+        </fieldset>
+      )}
+      <Reason disabled={busy} />
+    </FormDialog>
   );
 }
 
-function Reason({ disabled }: { disabled: boolean }) {
-  return (
-    <div className="space-y-2">
-      <Label htmlFor="reason">Alasan / dasar perubahan</Label>
-      <Textarea
-        id="reason"
-        name="reason"
-        placeholder="Tuliskan dasar perubahan, minimal 10 karakter…"
-        minLength={10}
-        maxLength={1000}
-        required
-        disabled={disabled}
-        className="min-h-20"
-      />
-      <p className="text-[10px] leading-5 text-muted-foreground">
-        Dicatat dalam audit. Jangan memasukkan password atau data konseling.
-      </p>
-    </div>
-  );
-}
 function ActionDialog({
   action,
   target,
@@ -1191,74 +1087,48 @@ function ActionDialog({
     }
   }
   return (
-    <AlertDialog
-      open
-      onOpenChange={(open) => {
-        if (!open && !busy) close();
-      }}
+    <ConfirmationDialog
+      title={actionLabels[action]}
+      description={
+        <>
+          {target.name} · {target.username}.{" "}
+          {action === "reset-password"
+            ? "Password lama diganti, seluruh sesi dicabut, dan password sementara berlaku 24 jam untuk satu kali login."
+            : action === "unlink-google"
+              ? "Tautan Google dan verifikasi email akan dicabut agar tidak terhubung otomatis kembali."
+              : action === "verify-email"
+                ? "Lanjutkan hanya setelah kepemilikan email dan identitas telah diverifikasi."
+                : "Tindakan ini akan mencabut sesi login pengguna."}
+        </>
+      }
+      busy={busy}
+      onClose={close}
+      onSubmit={submit}
+      disabled={identity && !confirmed}
+      destructive={
+        action !== "verify-email" &&
+        !(action === "status" && target.status !== "active")
+      }
     >
-      <AlertDialogContent className="flex max-w-md flex-col gap-0 overflow-hidden p-0">
-        <AlertDialogHeader className="shrink-0 border-b p-5 text-left place-items-start">
-          <AlertDialogTitle>{actionLabels[action]}</AlertDialogTitle>
-          <AlertDialogDescription>
-            {target.name} · {target.username}.{" "}
-            {action === "reset-password"
-              ? "Password lama diganti, seluruh sesi dicabut, dan password sementara berlaku 24 jam untuk satu kali login."
-              : action === "unlink-google"
-                ? "Tautan Google dan verifikasi email akan dicabut agar tidak terhubung otomatis kembali."
-                : action === "verify-email"
-                  ? "Lanjutkan hanya setelah kepemilikan email dan identitas telah diverifikasi."
-                  : "Tindakan ini akan mencabut sesi login pengguna."}
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <form
-          onSubmit={submit}
-          className="flex min-h-0 flex-col overflow-hidden"
-        >
-          <div className="min-h-0 overflow-y-auto overscroll-contain">
-            <fieldset disabled={busy} className="min-w-0 space-y-4 p-5">
-              {error && (
-                <Alert variant="destructive">
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
-              {identity && (
-                <Label className="flex min-h-12 items-center gap-3 rounded-xl border bg-muted/30 p-3 text-xs leading-6">
-                  <Checkbox
-                    checked={confirmed}
-                    onCheckedChange={(value) => setConfirmed(value === true)}
-                  />
-                  Saya telah memeriksa identitas dan bukti kepemilikan
-                  akun/email.
-                </Label>
-              )}
-              <Reason disabled={busy} />
-            </fieldset>
-          </div>
-          <AlertDialogFooter className="relative z-10 mx-0 mb-0 shrink-0 rounded-none p-4 [&>button]:min-h-11">
-            <AlertDialogCancel disabled={busy} className="h-11">
-              Batal
-            </AlertDialogCancel>
-            <Button
-              type="submit"
-              variant={
-                action === "verify-email" ||
-                (action === "status" && target.status !== "active")
-                  ? "default"
-                  : "destructive"
-              }
-              className="h-11"
-              disabled={busy || (identity && !confirmed)}
-            >
-              {busy && <LoaderCircle className="size-4 animate-spin" />}{" "}
-              Konfirmasi tindakan
-            </Button>
-          </AlertDialogFooter>
-        </form>
-      </AlertDialogContent>
-    </AlertDialog>
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+      {identity && (
+        <Label className="flex min-h-12 items-center gap-3 rounded-xl border bg-muted/30 p-3 text-xs leading-6">
+          <Checkbox
+            checked={confirmed}
+            onCheckedChange={(value) => setConfirmed(value === true)}
+          />
+          Saya telah memeriksa identitas dan bukti kepemilikan akun/email.
+        </Label>
+      )}
+      <Reason disabled={busy} />
+    </ConfirmationDialog>
   );
 }
+
 function RoleEditor({
   current,
   catalog,
@@ -1300,126 +1170,88 @@ function RoleEditor({
     }
   }
   return (
-    <Dialog
-      open
-      onOpenChange={(open) => {
-        if (!open && !busy) close();
-      }}
+    <FormDialog
+      title={current ? "Ubah role" : "Tambah role"}
+      description={"Atur hak akses pengelolaan akun sesuai tugas petugas."}
+      busy={busy}
+      onClose={close}
+      onSubmit={submit}
+      submitLabel={"Simpan role"}
     >
-      <DialogContent
-        showCloseButton={!busy}
-        className="flex max-h-[calc(100dvh-2rem)] max-w-lg flex-col gap-0 overflow-hidden p-0 max-sm:top-auto max-sm:bottom-0 max-sm:w-full max-sm:translate-y-0 max-sm:rounded-b-none"
-      >
-        <DialogHeader className="border-b p-5 pr-14">
-          <DialogTitle>
-            {current ? "Atur role & izin" : "Tambah role"}
-          </DialogTitle>
-          <DialogDescription>
-            Pengaturan ini mengatur akses pengelolaan akun. Role tidak otomatis
-            memberikan akses ke BK, honor, atau data siswa.
-          </DialogDescription>
-        </DialogHeader>
-        <form
-          onSubmit={submit}
-          className="flex min-h-0 flex-col overflow-hidden"
-        >
-          <div className="min-h-0 overflow-y-auto overscroll-contain">
-            <fieldset disabled={busy} className="min-w-0 space-y-4 p-5">
-              {error && (
-                <Alert variant="destructive">
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
-              {[
-                {
-                  name: "code",
-                  label: "Kode role",
-                  max: 50,
-                  value: current?.code ?? "",
-                },
-                {
-                  name: "name",
-                  label: "Nama role",
-                  max: 100,
-                  value: current?.name ?? "",
-                },
-                {
-                  name: "description",
-                  label: "Deskripsi",
-                  max: 1000,
-                  value: current?.description ?? "",
-                },
-              ].map((field) => (
-                <div key={field.name} className="space-y-2">
-                  <Label htmlFor={field.name}>{field.label}</Label>
-                  <Input
-                    id={field.name}
-                    name={field.name}
-                    defaultValue={field.value}
-                    required={field.name !== "description"}
-                    maxLength={field.max}
-                    className="h-11"
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+      {[
+        {
+          name: "code",
+          label: "Kode role",
+          max: 50,
+          value: current?.code ?? "",
+        },
+        {
+          name: "name",
+          label: "Nama role",
+          max: 100,
+          value: current?.name ?? "",
+        },
+        {
+          name: "description",
+          label: "Deskripsi",
+          max: 1000,
+          value: current?.description ?? "",
+        },
+      ].map((field) => (
+        <div key={field.name} className="space-y-2">
+          <Label htmlFor={field.name}>{field.label}</Label>
+          <Input
+            id={field.name}
+            name={field.name}
+            defaultValue={field.value}
+            required={field.name !== "description"}
+            maxLength={field.max}
+            className="h-11"
+          />
+        </div>
+      ))}
+      <Label className="flex min-h-11 items-center gap-3 text-xs">
+        <Checkbox
+          checked={active}
+          onCheckedChange={(value) => setActive(value === true)}
+        />
+        Role aktif
+      </Label>
+      <fieldset>
+        <legend className="mb-2 text-xs font-medium">
+          Izin pengelolaan akun
+        </legend>
+        <ScrollArea className="h-52 rounded-xl border">
+          <div className="space-y-1 p-2">
+            {catalog.permissions
+              .filter((p) => ownPermissions.includes(p.code))
+              .map((p) => (
+                <Label
+                  key={p.code}
+                  className="flex min-h-11 items-center gap-3 rounded-lg px-2 text-xs leading-5 hover:bg-muted"
+                >
+                  <Checkbox
+                    checked={permissions.includes(p.code)}
+                    onCheckedChange={(checked) =>
+                      setPermissions(
+                        checked
+                          ? [...permissions, p.code]
+                          : permissions.filter((code) => code !== p.code),
+                      )
+                    }
                   />
-                </div>
+                  {p.name}
+                </Label>
               ))}
-              <Label className="flex min-h-11 items-center gap-3 text-xs">
-                <Checkbox
-                  checked={active}
-                  onCheckedChange={(value) => setActive(value === true)}
-                />
-                Role aktif
-              </Label>
-              <fieldset>
-                <legend className="mb-2 text-xs font-medium">
-                  Izin pengelolaan akun
-                </legend>
-                <ScrollArea className="h-52 rounded-xl border">
-                  <div className="space-y-1 p-2">
-                    {catalog.permissions
-                      .filter((p) => ownPermissions.includes(p.code))
-                      .map((p) => (
-                        <Label
-                          key={p.code}
-                          className="flex min-h-11 items-center gap-3 rounded-lg px-2 text-xs leading-5 hover:bg-muted"
-                        >
-                          <Checkbox
-                            checked={permissions.includes(p.code)}
-                            onCheckedChange={(checked) =>
-                              setPermissions(
-                                checked
-                                  ? [...permissions, p.code]
-                                  : permissions.filter(
-                                      (code) => code !== p.code,
-                                    ),
-                              )
-                            }
-                          />
-                          {p.name}
-                        </Label>
-                      ))}
-                  </div>
-                </ScrollArea>
-              </fieldset>
-              <Reason disabled={busy} />
-            </fieldset>
           </div>
-          <DialogFooter className="relative z-10 mx-0 mb-0 shrink-0 rounded-none p-4 pb-[max(1rem,env(safe-area-inset-bottom))] [&>button]:min-h-11">
-            <Button
-              type="button"
-              variant="outline"
-              className="h-11"
-              onClick={close}
-              disabled={busy}
-            >
-              Batal
-            </Button>
-            <Button type="submit" className="h-11" disabled={busy}>
-              {busy && <LoaderCircle className="size-4 animate-spin" />}Simpan
-              role
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+        </ScrollArea>
+      </fieldset>
+      <Reason disabled={busy} />
+    </FormDialog>
   );
 }

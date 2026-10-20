@@ -58,6 +58,9 @@ export function safeReturnTo(value: string | null | undefined): string {
     value === "/akun" ||
     value === "/pengguna" ||
     value === "/ganti-password" ||
+    /^\/data-master\/(institution|students|guardians|employees|positions|subjects|references|imports)$/.test(
+      value,
+    ) ||
     /^\/dashboard(?:\/[^?#]*)?$/.test(value)
   ) {
     return value;

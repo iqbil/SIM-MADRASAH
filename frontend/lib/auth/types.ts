@@ -27,4 +27,10 @@ export interface TokenResponse {
 export interface ApiError {
   message?: string;
   errors?: Record<string, string[]>;
+  duplicate_candidates?: {
+    id: number;
+    full_name: string;
+    birth_date: string | null;
+    is_active: boolean;
+  }[];
 }

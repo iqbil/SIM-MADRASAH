@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { createServer } from "node:http";
+import { handleMaster, resetMaster } from "./master-api.mjs";
 
 const roles = [
   ["kepala_madrasah", "Kepala Madrasah"],
@@ -178,11 +179,46 @@ function json(response, status, payload) {
 
 createServer(async (request, response) => {
   const url = new URL(request.url, "http://127.0.0.1:43990");
-  let raw = "";
-  for await (const chunk of request) raw += chunk;
-  const body = raw ? JSON.parse(raw) : {};
+  const chunks = [];
+  for await (const chunk of request) chunks.push(chunk);
+  const raw = Buffer.concat(chunks);
+  const multipart = request.headers["content-type"]?.startsWith(
+    "multipart/form-data",
+  );
+  const form = multipart
+    ? await new Request(url, {
+        method: "POST",
+        headers: { "Content-Type": request.headers["content-type"] },
+        body: raw,
+      }).formData()
+    : null;
+  const body = !multipart && raw.length ? JSON.parse(raw.toString()) : {};
+  const masterSession = [...sessions].find(
+    (record) =>
+      record.access === request.headers.authorization?.replace("Bearer ", "") &&
+      !record.expired &&
+      !record.revoked,
+  );
+  if (
+    await handleMaster({
+      pathname: url.pathname,
+      method: request.method,
+      params: url.searchParams,
+      body,
+      form,
+      username: masterSession?.user.username,
+      send: (status, payload, type) => {
+        if (type) {
+          response.writeHead(status, { "Content-Type": type });
+          response.end(payload);
+        } else json(response, status, payload);
+      },
+    })
+  )
+    return;
   if (url.pathname === "/health") return json(response, 200, { ok: true });
   if (url.pathname === "/__test/reset") {
+    resetMaster();
     managedUsers = [
       {
         id: 1,

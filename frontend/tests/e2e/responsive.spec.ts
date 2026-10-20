@@ -202,8 +202,9 @@ test("pending forms stay open and shadcn notifications survive page navigation",
     .getByRole("button", { name: "Simpan role", exact: true })
     .click();
   await expect(
-    dialog.getByRole("button", { name: "Simpan role", exact: true }),
+    dialog.getByRole("button", { name: "Menyimpan…", exact: true }),
   ).toBeDisabled();
+  await expect(dialog.locator("form")).toHaveAttribute("aria-busy", "true");
   await page.keyboard.press("Escape");
   await expect(dialog).toBeVisible();
   release();

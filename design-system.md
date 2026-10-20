@@ -1,6 +1,6 @@
 # Design System — SIM Madrasah MTs Al Karimiyyah
 
-Versi 1.3 · 20 Oktober 2026 · Berlaku untuk seluruh `frontend/`.
+Versi 1.4 · 20 Oktober 2026 · Berlaku untuk seluruh `frontend/`.
 
 Dokumen ini menjadi pedoman implementasi UI/UX dari autentikasi hingga seluruh modul madrasah. Perubahan berikutnya wajib mengacu ke pedoman ini. Ketentuan bisnis, otorisasi, dan data mengikuti SRS serta kontrak API; design system mengatur cara pengguna berinteraksi dengan ketentuan tersebut.
 
@@ -35,6 +35,11 @@ Pedoman berlaku langsung untuk halaman baru dan komponen yang diubah. Bagian lam
 | Loading halaman | `frontend/components/layout/page-skeleton.tsx` |
 | Breakpoint sidebar | `frontend/hooks/use-mobile.ts` |
 | Referensi form akun, role, konfirmasi | `frontend/components/accounts/account-workspace.tsx` |
+| Dialog form lintas fitur | `frontend/components/layout/form-dialog.tsx` |
+| Konfirmasi tindakan lintas fitur | `frontend/components/layout/confirmation-dialog.tsx` |
+| Pagination dan alasan perubahan | `frontend/components/layout/pager.tsx`, `frontend/components/layout/reason-field.tsx` |
+| Data master, form domain, relasi dan impor | `frontend/components/master/`, `frontend/lib/master-data.ts` |
+| Request sesi dan loading data bersama | `frontend/lib/api-client.ts`, `frontend/hooks/use-async-data.ts`, `frontend/hooks/use-dialog-focus.ts` |
 | Nama role dan tujuan ruang kerja | `frontend/lib/auth/roles.ts` |
 
 Alur pemilihan komponen: periksa komponen lokal → cari komponen shadcn yang sesuai → tambahkan jika belum tersedia → susun menjadi komponen fitur. Jangan membuat dialog, dropdown, checkbox, atau toast sendiri dengan `div` dan event handler.
@@ -69,8 +74,8 @@ Hindari abstraksi yang membutuhkan banyak flag untuk perilaku yang tidak berkait
 | Input password dan tombol keluar | `PasswordInput`, `LogoutButton` | Gunakan perilaku tampil/sembunyi password serta alur keluar yang sudah ada. |
 | Memuat shell/halaman | `ShellSkeleton`, `PageSkeleton`, primitive `Skeleton` | Gunakan fallback yang sesuai. Bila bentuk halaman berbeda, susun skeleton dari primitive yang ada tanpa membuat primitive loading kedua. |
 | Dashboard awal kosong | `EmptyDashboard` dan primitive `Empty` | `EmptyDashboard` khusus konteks dashboard role; daftar kosong modul lain disusun dari `Empty` dengan isi yang relevan. |
-| Dialog, konfirmasi, detail | `Dialog`, `AlertDialog`, `Sheet`, `ScrollArea` | Pakai struktur pada §8. `ActionDialog`, `UserEditor`, `RoleEditor`, dan `Reason` di fitur akun adalah referensi domain, belum komponen umum yang dapat diimpor. Ekstrak bagian yang sama bila diperlukan fitur kedua. |
-| Daftar, status, pagination | `Table`, `Badge`, serta pola kartu mobile dan fungsi `Pager` pada fitur akun | Gunakan primitive lokal; ekstrak `Pager` bila dipakai modul lain, jangan menyalin fungsinya. |
+| Dialog, konfirmasi, detail | `Dialog`, `AlertDialog`, `Sheet`, `ScrollArea` | Pakai struktur pada §8. `UserEditor`, `RoleEditor`, dan `ActionDialog` tetap memuat aturan akun; kerangka tampilannya memakai `FormDialog`/`ConfirmationDialog` bersama. `ReasonField` menjadi kolom alasan lintas fitur. Jangan mengimpor workspace akun untuk menggunakan pola umum. |
+| Daftar, status, pagination | `Table`, `Badge`, pola kartu mobile, dan `Pager` bersama di `components/layout/pager.tsx` | Pakai metadata halaman/jumlah hasil yang nyata dan nonaktifkan pagination saat pending. Jangan menyalin fungsi pagination ke modul lain. |
 | Form dan notifikasi | `Label`, `Input`, `Textarea`, `Select`, `Checkbox`, `Button`, `Alert`, `Toaster` | Satu pola label/error/pending. `Toaster` hanya pada root layout, fitur memakai `toast` yang sama. |
 
 Inventaris ini menyatakan komponen yang benar-benar ada saat revisi ini. Jangan menganggap nama pola sebagai komponen yang sudah diekspor, dan jangan mengimpor seluruh workspace akun untuk memakai satu bagian tampilan. Lokasi fitur tetap mengikuti domain; komponen lintas fitur ditempatkan di direktori bersama yang sudah tersedia dan sesuai fungsinya.
@@ -175,7 +180,7 @@ Gunakan `AppHeader` pada seluruh halaman portal. Konten navbar mengikuti batas l
 ### Menu sidebar dan modul yang belum tersedia
 
 - Kelompok modul memakai `Collapsible` shadcn bersama komponen `Sidebar`. Kelompok dapat dibuka dengan keyboard dan pada mode ikon membuka sidebar desktop kembali; drawer tetap dapat digulir pada mobile/tablet.
-- Menu operasional yang sudah tersedia tetap berupa `Link` dengan status aktif dan `aria-current`. Menu yang belum memiliki halaman berupa tombol **disabled**, tanpa `href`, dengan ikon jam dan nama aksesibel `Nama menu — Segera hadir`. Keterangan status tersedia di awal kelompok modul; jangan membuat tautan `#`, halaman kosong, atau toast saat menu diklik.
+- Menu Data Master sudah aktif pada `/data-master/{section}` untuk delapan bagian katalog; `href` didefinisikan pada katalog sidebar yang sama. Menu operasional yang sudah tersedia tetap berupa `Link` dengan status aktif dan `aria-current`. Menu yang belum memiliki halaman berupa tombol **disabled**, tanpa `href`, dengan ikon jam dan nama aksesibel `Nama menu — Segera hadir`. Keterangan status tersedia di awal kelompok modul; jangan membuat tautan `#`, halaman kosong, atau toast saat menu diklik.
 - Katalog tunggal berada di `lib/navigation/sidebar.ts`; hanya mencakup fitur baseline SRS. PPDB, akun siswa, ujian online, rapor, SPP, pembayaran digital, DOCX, disposisi, dan fitur lain yang nonaktif tidak ditampilkan.
 - Visibilitas modul berasal dari `navigation` pada respons pengguna Laravel. Jika field tidak tersedia/kosong, sembunyikan modul. Menu akun memakai `accounts.view` dari `permissions`. Jangan menambahkan fallback yang memberikan akses berdasarkan nama role di frontend.
 - Perubahan `navigation` juga diperiksa oleh `SessionMonitor` pada pemeriksaan sesi berkala (60 detik saat tab terlihat), `pageshow`, dan saat tab kembali terlihat; jika berubah, muat ulang konteks dashboard.
@@ -247,6 +252,17 @@ Komponen fitur baru ditempatkan menurut domain (`components/attendance`, `compon
 - Tangani loading, kosong, gagal, pending, sukses, tanpa izin, dan sesi habis dengan pola §9. Jangan membuat state sukses palsu atau tautan ke halaman modul yang belum tersedia.
 - Uji halaman baru berdampingan dengan minimal satu halaman sejenis yang sudah ada. Jika komponen bersama berubah, periksa seluruh pemanggil yang relevan, termasuk login, dashboard, dan pengelolaan akun bila terdampak.
 - Jika halaman lama menyimpang dari pedoman, gunakan pola kanonik dokumen ini dan perbaiki komponen bersama yang digunakan dalam cakupan perubahan. Jangan menyalin ketidakkonsistenan lama ke modul baru atau menyatakan semua halaman lama telah seragam tanpa pemeriksaan.
+
+### Pola Data Master
+
+- Delapan bagian memakai `MasterWorkspace` dan shell portal yang sama. Jabatan/kategori serta referensi status menggunakan `Tabs`; daftar memakai kartu mobile dan tabel mulai `md`.
+- `MasterEditor`, `MasterRelations`, dan `MasterImports` hanya memuat kebutuhan domain. Gunakan `FormDialog`, `ConfirmationDialog`, `ReasonField`, dan `Pager` bersama; jangan menggandakan kerangka tersebut pada fitur berikutnya.
+- `MasterField` merender konfigurasi field menjadi kontrol shadcn, termasuk label, format, dan error field. `RecordPicker` mencari referensi di server dan mempertahankan pilihan; jangan memuat seluruh katalog tanpa batas.
+- Muat detail terbaru sebelum edit. Kirim versi record dan identitas sesuai kontrak backend. Konflik tidak menimpa data: pertahankan isian, jelaskan masalah, dan sediakan tindakan memuat ulang secara eksplisit.
+- Identitas orang terdaftar dapat digunakan ulang. Kandidat duplikasi ditampilkan untuk ditinjau; membuat orang yang berbeda dengan nama/tanggal lahir sama membutuhkan dasar pemeriksaan yang diaudit.
+- Hubungan wali baru berstatus pending. Verifikasi memakai checkbox pemeriksaan identitas dan `ConfirmationDialog`; pencabutan serta akhir riwayat juga memakai konfirmasi, tanpa menumpuk overlay.
+- Impor mengikuti template → unggah → pratinjau → konfirmasi → hasil. Tampilkan status antrean sebenarnya, baris valid/invalid, pagination pratinjau, dan unduhan laporan. Tombol konfirmasi tidak aktif ketika validasi belum selesai atau masih ada baris bermasalah.
+- Upload dan unduhan melewati BFF privat. Token tetap pada cookie HttpOnly; kredensial backend tidak dikirim ke kode browser. Saat upload gagal, retry memakai operation key yang sama selama berkas/sumber belum berubah.
 
 ## 7. Form, validasi, dan tindakan
 
@@ -396,3 +412,4 @@ Perubahan token/layout tidak dilakukan pada satu halaman saja. Perbarui sumber b
 | 1.1 | 20 Oktober 2026 | Navbar bersama, ukuran badge role, kontrol mobile, menu akun responsif, dan pengujian nama panjang serta akses keyboard. |
 | 1.2 | 20 Oktober 2026 | Katalog sidebar baseline SRS, kelompok Collapsible shadcn, status menu belum tersedia, dan akses navigasi dari backend berdasarkan role serta mandat/grant aktif. |
 | 1.3 | 20 Oktober 2026 | Aturan wajib reuse sebelum membuat komponen, inventaris sumber yang tersedia, ekstraksi pola lintas fitur, kontrak konsistensi antarhalaman, dan kewajiban shadcn sepanjang pengembangan. |
+| 1.4 | 20 Oktober 2026 | Halaman Data Master aktif, kerangka form/konfirmasi, alasan dan pagination bersama yang digunakan akun serta master, pencarian referensi, konflik versi, dan alur pratinjau impor. |

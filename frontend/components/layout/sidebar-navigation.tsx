@@ -106,7 +106,14 @@ export function SidebarNavigation({
           <SidebarGroupContent>
             <SidebarMenu className="gap-1">
               {sections.map((section) => (
-                <Collapsible key={section.id} asChild className="group/section">
+                <Collapsible
+                  key={section.id}
+                  defaultOpen={section.items.some(
+                    (item) => item.href === pathname,
+                  )}
+                  asChild
+                  className="group/section"
+                >
                   <SidebarMenuItem>
                     <CollapsibleTrigger asChild>
                       <SidebarMenuButton
@@ -143,22 +150,37 @@ export function SidebarNavigation({
                           <SidebarMenuSubItem key={item.id}>
                             <SidebarMenuSubButton
                               asChild
-                              className="h-auto min-h-11 gap-2 py-2 text-xs"
+                              isActive={item.href === pathname}
+                              className="h-auto min-h-11 gap-2 py-2 text-sm data-[active=true]:bg-primary/8 data-[active=true]:font-medium data-[active=true]:text-primary [&>span:last-child]:overflow-visible [&>span:last-child]:text-clip [&>span:last-child]:whitespace-normal"
                             >
-                              <button
-                                type="button"
-                                disabled
-                                aria-label={`${item.label} — Segera hadir`}
-                                className="w-full text-left disabled:cursor-not-allowed disabled:opacity-70"
-                              >
-                                <span className="min-w-0 flex-1 whitespace-normal leading-5">
-                                  {item.label}
-                                </span>
-                                <Clock3
-                                  className="size-3.5 shrink-0"
-                                  aria-hidden="true"
-                                />
-                              </button>
+                              {item.href ? (
+                                <Link
+                                  href={item.href}
+                                  aria-current={
+                                    item.href === pathname ? "page" : undefined
+                                  }
+                                  onClick={() => setOpenMobile(false)}
+                                >
+                                  <span className="min-w-0 flex-1 whitespace-normal leading-5">
+                                    {item.label}
+                                  </span>
+                                </Link>
+                              ) : (
+                                <button
+                                  type="button"
+                                  disabled
+                                  aria-label={`${item.label} — Segera hadir`}
+                                  className="w-full text-left disabled:cursor-not-allowed disabled:opacity-70"
+                                >
+                                  <span className="min-w-0 flex-1 whitespace-normal leading-5">
+                                    {item.label}
+                                  </span>
+                                  <Clock3
+                                    className="size-3.5 shrink-0"
+                                    aria-hidden="true"
+                                  />
+                                </button>
+                              )}
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
                         ))}

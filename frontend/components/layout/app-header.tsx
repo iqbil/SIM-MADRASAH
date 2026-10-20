@@ -24,6 +24,7 @@ import {
 import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { initials } from "@/lib/auth/roles";
 import type { AuthRole, AuthUser } from "@/lib/auth/types";
+import { MASTER_SECTIONS, type MasterSection } from "@/lib/master-data";
 
 export function AppHeader({
   user,
@@ -34,8 +35,12 @@ export function AppHeader({
   role?: AuthRole;
   pathname: string;
 }) {
-  const title =
-    pathname === "/pengguna"
+  const masterSection = pathname.startsWith("/data-master/")
+    ? pathname.split("/")[2]
+    : "";
+  const title = Object.hasOwn(MASTER_SECTIONS, masterSection)
+    ? MASTER_SECTIONS[masterSection as MasterSection].title
+    : pathname === "/pengguna"
       ? "Pengelolaan akun"
       : pathname === "/akun"
         ? "Akun saya"

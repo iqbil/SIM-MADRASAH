@@ -176,11 +176,11 @@ test("menu groups remain usable on mobile and tablet, and planned items never li
     if ((await group.getAttribute("aria-expanded")) !== "true")
       await group.click();
     await expect(
-      nav.getByRole("button", {
-        name: "Data siswa — Segera hadir",
+      nav.getByRole("link", {
+        name: "Data siswa",
         exact: true,
       }),
-    ).toBeDisabled();
+    ).toHaveAttribute("href", "/data-master/students");
     const box = await group.boundingBox();
     expect(box?.height).toBeGreaterThanOrEqual(44);
     expect(
@@ -193,7 +193,9 @@ test("menu groups remain usable on mobile and tablet, and planned items never li
       .evaluateAll((elements) =>
         elements.map((element) => element.getAttribute("href")),
       );
-    expect(links).toEqual(["/dashboard/super_admin", "/pengguna", "/akun"]);
+    expect(links).toContain("/data-master/students");
+    expect(links).toContain("/dashboard/super_admin");
+    expect(links).not.toContain("#");
     await page.screenshot({
       path: `test-results/screenshots/sidebar-${width}.png`,
     });
@@ -265,7 +267,7 @@ test("collapsed sidebar groups keep accessible names and support keyboard expans
   await expect(toggle).toHaveAttribute("aria-expanded", "true");
   await expect(group).toHaveAttribute("aria-expanded", "true");
   await expect(
-    nav.getByRole("button", { name: "Data siswa — Segera hadir", exact: true }),
+    nav.getByRole("link", { name: "Data siswa", exact: true }),
   ).toBeVisible();
   await group.focus();
   await page.keyboard.press("Space");

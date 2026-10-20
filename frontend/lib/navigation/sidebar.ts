@@ -19,6 +19,7 @@ interface SidebarItem {
   id: string;
   label: string;
   access: string;
+  href?: string;
 }
 
 export interface SidebarSection {
@@ -37,20 +38,52 @@ export const SIDEBAR_SECTIONS: SidebarSection[] = [
     items: [
       {
         id: "institution",
+        href: "/data-master/institution",
         label: "Identitas madrasah",
         access: "master.manage",
       },
-      { id: "students", label: "Data siswa", access: "master.manage" },
-      { id: "guardians", label: "Orang tua & wali", access: "master.manage" },
-      { id: "employees", label: "Data pegawai", access: "master.manage" },
+      {
+        id: "students",
+        href: "/data-master/students",
+        label: "Data siswa",
+        access: "master.manage",
+      },
+      {
+        id: "guardians",
+        href: "/data-master/guardians",
+        label: "Orang tua & wali",
+        access: "master.manage",
+      },
+      {
+        id: "employees",
+        href: "/data-master/employees",
+        label: "Data pegawai",
+        access: "master.manage",
+      },
       {
         id: "positions",
+        href: "/data-master/positions",
         label: "Jabatan & kategori pegawai",
         access: "master.manage",
       },
-      { id: "subjects", label: "Mata pelajaran", access: "master.manage" },
-      { id: "references", label: "Referensi status", access: "master.manage" },
-      { id: "imports", label: "Impor data", access: "master.manage" },
+      {
+        id: "subjects",
+        href: "/data-master/subjects",
+        label: "Mata pelajaran",
+        access: "master.manage",
+      },
+      {
+        id: "references",
+        href: "/data-master/references",
+        label: "Referensi status",
+        access: "master.manage",
+      },
+      {
+        id: "imports",
+        href: "/data-master/imports",
+        label: "Impor data",
+        access: "master.manage",
+      },
     ],
   },
   {

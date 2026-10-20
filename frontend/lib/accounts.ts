@@ -1,4 +1,4 @@
-import { AuthRequestError, renewSession } from "@/lib/auth/client";
+import { apiRequest, requestError } from "@/lib/api-client";
 
 export interface AccountRole {
   id: number;
@@ -59,44 +59,10 @@ export async function accountRequest<T>(
   method = "GET",
   data?: unknown,
 ): Promise<T> {
-  async function send() {
-    try {
-      return await fetch(`/api/accounts/${path}`, {
-        method,
-        cache: "no-store",
-        headers: { "Content-Type": "application/json" },
-        body: data === undefined ? undefined : JSON.stringify(data),
-        signal: AbortSignal.timeout(15_000),
-      });
-    } catch {
-      throw new AuthRequestError(503, {
-        message: "Layanan madrasah belum dapat dihubungi.",
-      });
-    }
-  }
-  let response = await send();
-  if (response.status === 401) {
-    const result = await renewSession();
-    if (result.redirect === "/ganti-password") {
-      window.location.assign(result.redirect);
-      throw new AuthRequestError(403, {
-        message: "Anda wajib mengganti password.",
-      });
-    }
-    response = await send();
-  }
-  const payload = await response.json();
-  if (!response.ok) throw new AuthRequestError(response.status, payload);
-  return payload;
+  return apiRequest<T>("accounts", path, method, data);
 }
 
-export function accountError(error: unknown): string {
-  if (error instanceof AuthRequestError) {
-    const detail = Object.values(error.payload.errors ?? {}).flat()[0];
-    return detail ?? error.message;
-  }
-  return "Permintaan belum berhasil. Silakan coba kembali.";
-}
+export const accountError = requestError;
 
 export function formatDate(value: string | null): string {
   return value
