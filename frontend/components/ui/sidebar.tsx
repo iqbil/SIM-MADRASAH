@@ -255,9 +255,10 @@ function Sidebar({
 function SidebarTrigger({
   className,
   onClick,
+  children,
   ...props
 }: React.ComponentProps<typeof Button>) {
-  const { toggleSidebar, ready } = useSidebar();
+  const { toggleSidebar, ready, isMobile, openMobile, open } = useSidebar();
 
   return (
     <Button
@@ -266,6 +267,7 @@ function SidebarTrigger({
       variant="ghost"
       size="icon-sm"
       disabled={!ready}
+      aria-expanded={isMobile ? openMobile : open}
       className={cn(className)}
       onClick={(event) => {
         onClick?.(event);
@@ -273,7 +275,7 @@ function SidebarTrigger({
       }}
       {...props}
     >
-      <PanelLeftIcon />
+      {children ?? <PanelLeftIcon />}
       <span className="sr-only">Buka atau tutup menu</span>
     </Button>
   );

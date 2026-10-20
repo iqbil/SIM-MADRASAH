@@ -1,36 +1,84 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Frontend SIM Madrasah
 
-## Getting Started
+Pedoman UI/UX wajib: [Design System](../design-system.md). Semua halaman menggunakan
+komponen shadcn/ui lokal dan token tema bersama, termasuk modal dan notifikasi.
 
-First, run the development server:
+## Hydration error dengan atribut `bis_*`
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+Jika overlay Next.js menampilkan `bis_skin_checked`, `bis_register`, atau
+`__processed_*`, bandingkan halaman yang sama dengan profil browser baru tanpa
+ekstensi. Atribut tersebut tidak dihasilkan frontend ini; ekstensi dapat mengubah
+HTML sebelum React melakukan hydration. Nama komponen pada stack menunjukkan
+lokasi perbedaan HTML dan belum tentu sumber masalahnya.
+
+Sumber konkret yang ditemukan pada lingkungan pengembangan ini adalah **Urban VPN
+Proxy 5.14.4**, ID `eppiocemhmnlbhjplcgkofciiegomcon`, di profil Brave Flatpak.
+Kode `ad-blocker/content.js` miliknya memuat penulisan `bis_skin_checked` dan
+`bis_register`. Manifest mendaftarkan script pada `document_start` untuk halaman
+HTTP/HTTPS. Temuan ini berasal dari paket ekstensi lokal, bukan tebakan dari nama
+atribut; status browser/profil lain tetap perlu diperiksa tersendiri.
+
+Untuk Brave, buka alamat berikut melalui address bar:
+
+```text
+brave://extensions/?id=eppiocemhmnlbhjplcgkofciiegomcon
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Nonaktifkan Urban VPN Proxy pada halaman tersebut untuk memverifikasi penyebab,
+lalu tutup dan buka kembali tab aplikasi. Untuk penggunaan selanjutnya, batasi
+izin membaca/mengubah situs menjadi **Saat diklik** jika opsi tersedia, sehingga
+content script tidak otomatis berjalan pada localhost. Profil baru perlu tetap
+diperiksa jika sinkronisasi atau pengelolaan browser memasang kembali ekstensi.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Referensi identitas ekstensi: [Urban VPN Proxy di Chrome Web Store](https://chromewebstore.google.com/detail/urban-vpn-proxy/eppiocemhmnlbhjplcgkofciiegomcon).
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Nonaktifkan akses ekstensi yang memodifikasi halaman pada origin development
+(`localhost:3000`/`127.0.0.1:3000`, sesuaikan port), lalu tekan `Ctrl+Shift+R`.
+Incognito dapat dipakai jika ekstensi tidak diizinkan berjalan di sana.
+Jika browser bersih masih error, lanjutkan pemeriksaan SSR/client pada
+[panduan diagnosis design system](../design-system.md#12-ssr-hydration-dan-diagnosis-error).
 
-## Learn More
+Pengujian login normal, callback Google gagal, dan pemberitahuan password:
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+NEXT_TEST_DEV=1 pnpm exec playwright test tests/e2e/hydration.spec.ts
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Tes memakai Chromium tanpa ekstensi dan API fixture; tes tidak menonaktifkan
+ekstensi pada browser pribadi Anda. Penyebab eksternal perlu ditangani pada
+browser tersebut. Peringatan tidak disembunyikan dengan suppression global.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Referensi: [Next.js — hydration error](https://nextjs.org/docs/messages/react-hydration-error).
 
-## Deploy on Vercel
+## Menjalankan proyek
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Gunakan pnpm sesuai versi pada `package.json`. Untuk checkout baru, pasang
+paket menggunakan lockfile dan siapkan `.env.local` dari `.env.example` bila
+belum ada. Arahkan API ke backend Laravel yang berjalan. Kredensial Google dan
+secret JWT tetap berada di backend, tidak di variabel `NEXT_PUBLIC_*`.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+pnpm install --frozen-lockfile
+pnpm dev
+```
+
+Buka [localhost:3000](http://localhost:3000). Dokumentasi Next.js versi yang
+terpasang tersedia di `node_modules/next/dist/docs/`; baca sebelum mengubah
+perilaku rendering karena versi proyek dapat berbeda dari dokumentasi versi lama.
+
+## Pemeriksaan frontend
+
+```bash
+pnpm lint
+pnpm build
+pnpm exec playwright test
+```
+
+Playwright menjalankan API fixture pada port 43990 dan frontend produksi pada
+port 3410. Build harus tersedia sebelum tes produksi. Untuk memeriksa mode
+development, tambahkan `NEXT_TEST_DEV=1`; output Next.js development terisolasi
+pada `.next-e2e` sehingga tidak memakai direktori server development pribadi.
+Tes menggunakan akun fixture, bukan database madrasah yang sebenarnya.
+
+Browser Playwright harus tersedia. Jika perlu, set
+`PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` ke executable Chromium yang terpasang.

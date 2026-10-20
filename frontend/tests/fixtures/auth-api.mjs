@@ -48,19 +48,23 @@ function user(login) {
   return {
     id: 1,
     username: login,
-    name: "Ahmad Ramadani",
+    name:
+      login === "nama_panjang" ? "NamaPengguna".repeat(12) : "Ahmad Ramadani",
     email: `${login}@madrasah.test`,
     email_verified: true,
     must_change_password: login === "sementara",
     permissions: login === "super_admin" ? accountPermissions : [],
     roles:
-      login === "super_admin"
-        ? [{ code: "super_admin", name: "Super Admin" }]
-        : login === "multi"
-          ? roles
-          : roles.filter(
-              (role) => role.code === (login === "sementara" ? "guru" : login),
-            ),
+      login === "nama_panjang"
+        ? roles.filter((role) => role.code === "tenaga_kependidikan")
+        : login === "super_admin"
+          ? [{ code: "super_admin", name: "Super Admin" }]
+          : login === "multi"
+            ? roles
+            : roles.filter(
+                (role) =>
+                  role.code === (login === "sementara" ? "guru" : login),
+              ),
   };
 }
 
@@ -282,6 +286,7 @@ createServer(async (request, response) => {
         ...roles.map((role) => role.code),
         "multi",
         "tanpa_role",
+        "nama_panjang",
         "sementara",
         "super_admin",
       ].includes(login)

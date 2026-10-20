@@ -8,7 +8,6 @@ import {
   GraduationCap,
   House,
   Layers3,
-  LockKeyhole,
   ShieldCheck,
   UserRound,
   UsersRound,
@@ -17,11 +16,10 @@ import {
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import type { CSSProperties, ReactNode } from "react";
-import { LogoutButton } from "@/components/auth/logout-button";
 import { SessionMonitor } from "@/components/auth/session-monitor";
 import { Brand } from "@/components/brand";
+import { AppHeader } from "@/components/layout/app-header";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -36,10 +34,8 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Separator } from "@/components/ui/separator";
 import {
   Sidebar,
   SidebarContent,
@@ -54,7 +50,6 @@ import {
   SidebarMenuItem,
   SidebarProvider,
   SidebarRail,
-  SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
 import { initials, ROLE_COOKIE, roleHref } from "@/lib/auth/roles";
@@ -95,41 +90,7 @@ export function AppShell({
       </a>
       <AppSidebar user={user} role={role} pathname={pathname} />
       <SidebarInset className="min-w-0 bg-background">
-        <header className="sticky top-0 z-20 flex h-16 shrink-0 items-center justify-between gap-3 border-b bg-white/95 px-4 backdrop-blur-md sm:px-6 lg:h-[72px] lg:px-8">
-          <div className="flex min-w-0 items-center gap-3">
-            <SidebarTrigger
-              className="size-11 -ml-1 text-muted-foreground"
-              aria-label="Buka atau tutup menu"
-            />
-            <Separator
-              orientation="vertical"
-              className="mr-1 hidden h-5! sm:block"
-            />
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium">
-                {pathname === "/pengguna"
-                  ? "Pengelolaan akun"
-                  : pathname === "/akun"
-                    ? "Akun saya"
-                    : "Beranda"}
-              </p>
-              <p className="mt-0.5 truncate text-[10px] text-muted-foreground sm:hidden">
-                MTs Al Karimiyyah
-              </p>
-            </div>
-          </div>
-          <div className="flex min-w-0 items-center gap-3">
-            {role && (
-              <Badge
-                variant="outline"
-                className="hidden max-w-44 truncate rounded-full border-primary/15 bg-primary/5 px-3 py-1.5 text-[11px] font-normal text-primary sm:block"
-              >
-                {role.name}
-              </Badge>
-            )}
-            <UserMenu user={user} />
-          </div>
-        </header>
+        <AppHeader user={user} role={role} pathname={pathname} />
         <main
           id="main-content"
           className="mx-auto flex w-full min-w-0 max-w-[1440px] flex-1 flex-col gap-6 p-4 py-6 sm:p-6 lg:p-8 xl:p-10"
@@ -346,47 +307,5 @@ function HelpMenu() {
         </DialogHeader>
       </DialogContent>
     </Dialog>
-  );
-}
-
-function UserMenu({ user }: { user: AuthUser }) {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          className="h-11 gap-2 rounded-full px-1.5"
-          aria-label="Menu akun"
-        >
-          <Avatar className="size-8">
-            <AvatarFallback className="bg-[#edf1eb] text-[11px] font-semibold text-primary">
-              {initials(user.name)}
-            </AvatarFallback>
-          </Avatar>
-          <ChevronsUpDown className="mr-1 size-3.5 text-muted-foreground" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-64 p-2">
-        <DropdownMenuLabel className="px-2 py-2">
-          <p className="truncate text-sm font-medium">{user.name}</p>
-          <p className="mt-1 truncate text-xs font-normal text-muted-foreground">
-            {user.email ?? user.username}
-          </p>
-        </DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem asChild className="min-h-11 gap-3">
-          <Link href="/akun">
-            <UserRound className="size-4" /> Akun saya
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild className="min-h-11 gap-3">
-          <Link href="/ganti-password">
-            <LockKeyhole className="size-4" /> Ganti password
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <LogoutButton compact />
-      </DropdownMenuContent>
-    </DropdownMenu>
   );
 }
