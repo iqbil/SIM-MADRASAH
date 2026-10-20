@@ -23,7 +23,9 @@ export function SessionMonitor({ user }: { user: AuthUser }) {
         else if (
           JSON.stringify(result.data.roles) !== JSON.stringify(user.roles) ||
           JSON.stringify(result.data.permissions) !==
-            JSON.stringify(user.permissions)
+            JSON.stringify(user.permissions) ||
+          JSON.stringify(result.data.navigation) !==
+            JSON.stringify(user.navigation)
         )
           window.location.replace("/dashboard");
       } catch (error) {
@@ -54,6 +56,6 @@ export function SessionMonitor({ user }: { user: AuthUser }) {
       document.removeEventListener("visibilitychange", check);
       window.removeEventListener("pageshow", check);
     };
-  }, [user.roles, user.permissions]);
+  }, [user.roles, user.permissions, user.navigation]);
   return null;
 }

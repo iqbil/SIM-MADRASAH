@@ -44,8 +44,86 @@ let events = [];
 const sessions = new Set();
 let refreshCount = 0;
 
+const navigationDefaults = {
+  super_admin: [
+    "master.manage",
+    "academic.manage",
+    "attendance.manage",
+    "website.edit",
+    "reports.view",
+    "system.manage",
+  ],
+  operator: [
+    "master.manage",
+    "academic.manage",
+    "attendance.manage",
+    "website.edit",
+    "reports.view",
+    "system.manage",
+  ],
+  kepala_madrasah: [
+    "academic.view",
+    "attendance.reports",
+    "reports.view",
+    "attendance.own",
+    "payroll.own",
+  ],
+  guru: [
+    "academic.view",
+    "teaching.own",
+    "students.attendance",
+    "questions.own",
+    "attendance.own",
+    "payroll.own",
+  ],
+  wali_kelas: [
+    "academic.view",
+    "students.attendance",
+    "class.own",
+    "bk.shared",
+    "attendance.own",
+    "payroll.own",
+  ],
+  guru_bk: ["attendance.own", "payroll.own"],
+  tenaga_kependidikan: ["attendance.own", "payroll.own"],
+  bendahara: ["attendance.own", "payroll.own"],
+  petugas_tu: [
+    "letters.manage",
+    "website.edit",
+    "attendance.own",
+    "payroll.own",
+  ],
+  orang_tua_wali: [],
+};
+const navigationProfiles = {
+  bk_berizin: { role: "guru_bk", navigation: ["bk.internal", "bk.share"] },
+  bendahara_bermandat: {
+    role: "bendahara",
+    navigation: [
+      "payroll.calculate",
+      "payroll.rates",
+      "payroll.review",
+      "payroll.adjust",
+    ],
+  },
+  kepala_bermandat: {
+    role: "kepala_madrasah",
+    navigation: [
+      "payroll.approve",
+      "website.publish",
+      "teaching.verify",
+      "reports.export",
+    ],
+  },
+  wali_terverifikasi: {
+    role: "orang_tua_wali",
+    navigation: ["guardian.portal", "bk.shared"],
+  },
+  akses_dicabut: { role: "guru", navigation: [] },
+};
 function user(login) {
-  return {
+  const profile = navigationProfiles[login];
+  const account = {
     id: 1,
     username: login,
     name:
@@ -66,6 +144,15 @@ function user(login) {
                   role.code === (login === "sementara" ? "guru" : login),
               ),
   };
+  if (profile)
+    account.roles = roles.filter((role) => role.code === profile.role);
+  account.navigation = [
+    ...new Set(
+      account.roles.flatMap((role) => navigationDefaults[role.code] ?? []),
+    ),
+  ];
+  if (profile) account.navigation = profile.navigation;
+  return account;
 }
 
 function issue(account, session) {
@@ -134,6 +221,10 @@ createServer(async (request, response) => {
   }
   if (url.pathname === "/__test/revoke") {
     for (const session of sessions) session.revoked = true;
+    return json(response, 200, {});
+  }
+  if (url.pathname === "/__test/revoke-navigation") {
+    for (const session of sessions) session.user.navigation = [];
     return json(response, 200, {});
   }
   if (url.pathname === "/__test/stats")
@@ -289,6 +380,7 @@ createServer(async (request, response) => {
         "nama_panjang",
         "sementara",
         "super_admin",
+        ...Object.keys(navigationProfiles),
       ].includes(login)
     )
       return json(response, 401, { message: "Kredensial tidak valid." });

@@ -25,7 +25,7 @@ use App\Models\StudentEnrollment;
 use App\Models\User;
 use App\Models\UserRole;
 use Carbon\CarbonImmutable;
-use Database\Seeders\DatabaseSeeder;
+use Database\Seeders\ReferenceDataSeeder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -259,9 +259,9 @@ class MysqlModelTest extends TestCase
     {
         $users = User::query()->count();
         $rates = DB::table('honor_rates')->count();
-        $this->seed(DatabaseSeeder::class);
+        $this->seed(ReferenceDataSeeder::class);
         AttendanceStatus::query()->where('domain', 'employee')->where('code', 'hadir')->update(['name' => 'Hadir dikonfigurasi']);
-        $this->seed(DatabaseSeeder::class);
+        $this->seed(ReferenceDataSeeder::class);
 
         $this->assertDatabaseCount('attendance_statuses', 9);
         $this->assertDatabaseCount('student_statuses', 4);

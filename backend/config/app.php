@@ -61,7 +61,8 @@ return [
     |
     | Here you may specify the default timezone for your application, which
     | will be used by the PHP date and date-time functions. The timezone
-    | is set to "UTC" by default as it is suitable for most use cases.
+    | must remain UTC because domain DATETIME(6) values and auth expiry times
+    | are stored in UTC. Convert to Asia/Jakarta when displaying local time.
     |
     */
 

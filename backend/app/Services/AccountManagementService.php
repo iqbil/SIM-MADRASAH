@@ -103,7 +103,7 @@ class AccountManagementService
             if ($role) {
                 $role = Role::query()->lockForUpdate()->findOrFail($role->id);
             }
-            abort_if($role?->code === 'super_admin' || $data['code'] === 'super_admin', 422, 'Role Super Admin dilindungi dan dikelola melalui bootstrap.');
+            abort_if($role?->code === 'super_admin' || $data['code'] === 'super_admin', 422, 'Role Super Admin dilindungi dan dibuat melalui seeder awal.');
             abort_if(in_array($data['code'], ['siswa', 'student'], true), 422, 'Role login siswa belum diaktifkan.');
             $allowed = AccountAccess::permissions($actor);
             abort_if(array_diff($data['permission_codes'], $allowed) !== [], 403, 'Anda tidak dapat memberikan izin yang tidak Anda miliki.');

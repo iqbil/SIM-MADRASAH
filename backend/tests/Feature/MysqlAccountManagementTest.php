@@ -12,6 +12,8 @@ use App\Models\User;
 use App\Models\UserRole;
 use App\Services\AccountAccess;
 use Database\Seeders\AccountAccessSeeder;
+use Database\Seeders\DatabaseSeeder;
+use Database\Seeders\SuperAdminSeeder;
 use Illuminate\Support\Facades\Hash;
 use Tests\MysqlAuthTestCase;
 
@@ -130,23 +132,57 @@ class MysqlAccountManagementTest extends MysqlAuthTestCase
         $this->getJson('/api/v1/accounts/users', $userHeaders)->assertForbidden();
     }
 
-    public function test_bootstrap_creates_one_google_eligible_owner_and_private_credentials(): void
+    public function test_database_seeder_creates_one_google_eligible_owner_without_credentials_file(): void
     {
-        $path = sys_get_temp_dir().'/sim-bootstrap-'.bin2hex(random_bytes(8)).'.txt';
+        config(['accounts.initial_admin.email' => 'owner@example.test', 'accounts.initial_admin.password' => 'Initial-password-123!']);
+        $this->seed(DatabaseSeeder::class);
+        $owner = User::query()->where('email', 'owner@example.test')->firstOrFail();
+        $this->assertTrue(AccountAccess::isSuper($owner));
+        $this->assertNotNull($owner->email_verified_at);
+        $this->assertFalse($owner->must_change_password);
+        $this->assertTrue($owner->canSignIn());
+        $this->assertTrue(Hash::check('Initial-password-123!', $owner->password));
+        $this->assertNotContains('bk.read', AccountAccess::permissions($owner));
+        $this->assertDatabaseHas('audit_logs', ['event' => 'accounts.seeded', 'actor_user_id' => $owner->id]);
+        $this->assertFileDoesNotExist(storage_path('app/private/bootstrap-credentials.txt'));
+
+        $owner->forceFill(['password' => 'Changed-password-456!', 'status' => 'disabled', 'email_verified_at' => null])->save();
+        $passwordHash = $owner->password;
+        $this->seed(DatabaseSeeder::class);
+        $owner->refresh();
+        $this->assertSame($passwordHash, $owner->password);
+        $this->assertSame('disabled', $owner->status);
+        $this->assertNull($owner->email_verified_at);
+        $this->assertDatabaseCount('users', 1);
+        $this->assertDatabaseCount('user_roles', 1);
+        $this->assertSame(1, AuditLog::query()->where('event', 'accounts.seeded')->count());
+    }
+
+    public function test_owner_seeder_supports_google_login_without_a_configured_password(): void
+    {
+        config(['accounts.initial_admin.email' => 'owner@example.test', 'accounts.initial_admin.password' => null]);
+        $this->seed(SuperAdminSeeder::class);
+        $owner = User::query()->where('email', 'owner@example.test')->firstOrFail();
+        $this->assertTrue($owner->canSignIn());
+        $this->assertNotNull($owner->email_verified_at);
+        $this->assertFalse($owner->must_change_password);
+        $this->assertNotEmpty($owner->password);
+        $this->assertFalse(Hash::check('', $owner->password));
+    }
+
+    public function test_owner_seeder_does_not_promote_an_existing_account_with_the_same_email(): void
+    {
+        $user = User::factory()->create(['email' => 'owner@example.test']);
+        config(['accounts.initial_admin.email' => $user->email]);
         try {
-            $this->artisan('accounts:bootstrap', ['--email' => 'owner@example.test', '--credentials-file' => $path])->assertSuccessful();
-            $owner = User::query()->where('email', 'owner@example.test')->firstOrFail();
-            $this->assertTrue(AccountAccess::isSuper($owner));
-            $this->assertNotNull($owner->email_verified_at);
-            $this->assertFalse($owner->must_change_password);
-            $this->assertTrue($owner->canSignIn());
-            $this->assertSame(0600, fileperms($path) & 0777);
-            $this->assertStringContainsString('Password:', file_get_contents($path));
-            $this->artisan('accounts:bootstrap', ['--email' => 'owner@example.test', '--credentials-file' => $path])->assertFailed();
-            $this->assertDatabaseCount('users', 1);
-        } finally {
-            @unlink($path);
+            $this->seed(SuperAdminSeeder::class);
+            $this->fail('An existing user must not be promoted by the owner seeder.');
+        } catch (\RuntimeException $exception) {
+            $this->assertStringContainsString('Email/username sudah digunakan', $exception->getMessage());
         }
+        $this->assertFalse(AccountAccess::isSuper($user));
+        $this->assertDatabaseCount('users', 1);
+        $this->assertDatabaseCount('user_roles', 0);
     }
 
     public function test_email_verification_and_google_unlink_are_explicit_and_audited(): void

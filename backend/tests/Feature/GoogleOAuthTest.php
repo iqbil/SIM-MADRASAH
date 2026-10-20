@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\OAuthAccount;
 use App\Models\User;
+use Database\Seeders\SuperAdminSeeder;
 use GuzzleHttp\Client;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
@@ -41,6 +42,23 @@ class GoogleOAuthTest extends MysqlAuthTestCase
         $this->getJson('/api/v1/auth/me', ['Authorization' => 'Bearer '.$response->json('data.access_token')])->assertOk();
         $this->getJson('/api/v1/auth/google/callback?state='.$state.'&code=google-code')->assertUnauthorized();
         $this->assertDatabaseCount('auth_sessions', 1);
+    }
+
+    public function test_seeded_owner_can_login_with_google_without_a_password(): void
+    {
+        $this->freezeTime();
+        config(['accounts.initial_admin.email' => 'owner@example.test', 'accounts.initial_admin.password' => null]);
+        $this->seed(SuperAdminSeeder::class);
+        $owner = User::query()->where('email', 'owner@example.test')->firstOrFail();
+        $this->mockGoogle($owner->email);
+        $state = $this->startGoogle();
+        $response = $this->getJson('/api/v1/auth/google/callback?state='.$state.'&code=google-code')
+            ->assertOk()->assertJsonPath('data.user.id', $owner->id)
+            ->assertJsonPath('data.expires_in', 900)
+            ->assertJsonPath('data.refresh_expires_in', 7200);
+        $this->getJson('/api/v1/auth/me', ['Authorization' => 'Bearer '.$response->json('data.access_token')])
+            ->assertOk()->assertJsonPath('data.id', $owner->id);
+        $this->assertDatabaseCount('users', 1);
     }
 
     public function test_wrong_missing_and_expired_state_are_rejected_before_google_requests(): void

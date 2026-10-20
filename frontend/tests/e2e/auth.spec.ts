@@ -36,7 +36,7 @@ test("mobile login is accessible, has no overflow, and supports help and passwor
   await expect
     .poll(() =>
       page
-        .getByAltText("Ilustrasi lingkungan sekolah")
+        .getByRole("img", { name: /lingkungan sekolah/i })
         .evaluate((image) => (image as HTMLImageElement).naturalWidth),
     )
     .toBeGreaterThan(0);

@@ -12,6 +12,7 @@ export interface AuthUser {
   must_change_password: boolean;
   roles: AuthRole[];
   permissions?: string[];
+  navigation?: string[];
 }
 
 export interface TokenResponse {

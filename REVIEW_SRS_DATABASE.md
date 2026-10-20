@@ -1,18 +1,66 @@
 # Review SRS dan rancangan database SIM Madrasah
 
-Tanggal review awal: 14 Oktober 2026. Pembaruan status: **20 Oktober 2026**.
+Tanggal review awal: 14 Oktober 2026. Pembaruan terakhir: **20 Oktober 2026 — penyelarasan dengan implementasi JWT, Google OAuth, akun dan sidebar**.
 
-Catatan: temuan R-01–R-09 di bagian historis menilai dokumen sebelum revisi v1.2. Status terbaru ada di bagian berikut; pernyataan mengenai keputusan terbuka, stack Inertia, SQLite, atau migration yang belum tersedia pada review awal tidak menggambarkan baseline saat ini. Rujukan nomor baris lama hanya berlaku pada dokumen yang ditinjau saat itu. Nama file laporan dipertahankan untuk menjaga rujukan.
+Bagian status terbaru menilai kode/dokumen saat pembaruan ini. Temuan R-01–R-09 dalam bagian historis tetap merupakan rekaman sebelum revisi v1.2; pernyataan Inertia, keputusan terbuka, SQLite, migration belum tersedia, dan belum dijalankannya tes pada review awal tidak berlaku sebagai status aplikasi sekarang. Bukti pengujian lama dipisahkan dari audit dokumentasi ini.
 
 ## Status terbaru — 20 Oktober 2026
 
-Dokumen acuan saat ini:
+Acuan:
 
-- [SRS revisi v1.2 dengan addendum absensi 20 Oktober 2026](SRS_SIM_Madrasah_MTs_Al_Karimiyyah_2026_2027_Revisi_v1_2.docx).
-- [Kamus database kanonik](backend/database/database.MD), termasuk §8.1 untuk foto/GPS dan §21 untuk migration serta bukti pengujian.
-- [Migration tambahan foto dan GPS](backend/database/migrations/2026_10_20_000001_add_photo_and_gps_to_employee_attendance.php).
+- [SRS revisi v1.2 dengan addendum foto/GPS dan autentikasi JWT/Google](SRS_SIM_Madrasah_MTs_Al_Karimiyyah_2026_2027_Revisi_v1_2.docx).
+- [Kamus database kanonik](backend/database/database.MD), terutama §1.3 (kontrak auth), §4.1 (tabel JWT/OAuth), §8.1 (foto/GPS), §21 (migration), dan §22 (status implementasi).
+- [API Laravel](backend/routes/api.php), [layanan token](backend/app/Services/JwtTokenService.php), [autentikasi](backend/app/Services/AuthenticationService.php), serta [BFF/cookie frontend](frontend/lib/auth/cookies.ts).
+- [Design system](design-system.md) versi 1.3: shadcn sejak awal, penggunaan ulang komponen dan konsistensi seluruh halaman.
 
-**Penilaian terkini:** cakupan dan struktur utama SRS, kamus database, serta migration sudah selaras. Baseline menggunakan Laravel API + Next.js/React + MySQL 8.4; DEC-01–DEC-19 telah ditetapkan sebagai default implementasi berversi. Kelengkapan struktur database tidak berarti seluruh layanan bisnis, keamanan akses, atau kriteria UAT telah diimplementasikan dan lulus.
+**Penilaian:** cakupan 15 modul dan fondasi data tetap konsisten. Kontrak autentikasi dokumen kini mengikuti kode JWT HS256 + Google OAuth opsional melalui BFF Next.js, sesuai permintaan pemilik proyek. DEC-08 diperjelas untuk pemulihan akun yang tersedia dan DEC-13 diperbarui untuk JWT/BFF; 17 keputusan lain, termasuk DEC-16 foto/GPS, dipertahankan. Struktur database, menu placeholder atau tes auth tidak menyatakan layanan bisnis seluruh modul maupun UAT telah selesai.
+
+### Autentikasi yang sudah diimplementasikan
+
+| Bagian | Kontrak aktual dan sumber |
+| --- | --- |
+| Login | Username/email + password; user/person aktif, siswa-only ditolak. Guard api JWT HS256 memeriksa signature, issuer, audience, subject, sid/jti, waktu dan sesi aktif. `AuthenticationService`, `JwtTokenService`, `config/auth.php`. |
+| Durasi dan rotasi | Access default 15 menit; sesi/refresh absolut 120 menit sejak login. Refresh acak 32 byte hanya disimpan sebagai SHA-256, sekali pakai, rotasi JWT/jti+refresh. Rotasi tidak memperpanjang batas sesi dan membuat access lama tidak berlaku. Replay mencabut sesi. `config/jwt.php`, `JwtTokenService`. |
+| Google | Socialite dengan state/PKCE, transaksi maksimal 600 detik. Hanya akun lokal aktif/email terverifikasi yang sama dan tidak wajib ganti sandi. Tautan subject dibuat pada login sah pertama; tidak ada registrasi otomatis atau penyimpanan token Google. Callback BFF harus cocok dengan APP_URL, GOOGLE_REDIRECT_URI dan Google Console. |
+| Browser/BFF | madrasah_access/madrasah_refresh berupa cookie HttpOnly, host-only, SameSite=Lax dan Secure di production; Max-Age mengikuti sisa refresh, bukan memperpanjang JWT. BFF mengirim bearer ke Laravel; UI tidak menerima JSON token atau menyimpannya di localStorage/sessionStorage. Mutasi BFF memeriksa Origin+application/json dan menolak dengan 403. |
+| OAuth/session Laravel | Middleware web/session Laravel hanya untuk transaksi Google. BFF menyimpan cookie transaksi dalam madrasah_google, Path=/api/auth/google, 600 detik, lalu menghapusnya setelah callback. Session tersebut bukan autentikasi API utama. |
+| Pencabutan | Logout per sesi dan logout-all API; disable, reset/ganti sandi, perubahan email dan aksi administratif terkait mencabut sesi sesuai kode. Semua akses tetap memeriksa status akun/person. |
+| Password sementara | Pembuatan/reset oleh petugas menghasilkan sandi 24 jam sekali login. Sesi hanya dapat profil me, ganti sandi dan logout; domain/refresh/Google diblokir sampai diganti. Ganti sandi memerlukan sandi lama, konfirmasi, minimal 12 karakter besar/kecil+angka dan maksimal 72 byte; berhasil mencabut sesi. |
+| Rate limit dan data privat | Login 5/menit per login+IP dan 20/menit per IP; refresh 30/IP, Google 10/IP, password 5/akun. Laravel API dan BFF auth/account memakai private,no-store; data personal Next.js tidak di-cache lintas pengguna. Penerusan IP/trusted proxy pada deployment BFF perlu verifikasi tersendiri. |
+| Waktu | config/app.php UTC; DATETIME(6)/claim/expiry internal UTC, penyajian Asia/Jakarta. Perbaikan ini mencegah JWT baru dianggap kedaluwarsa akibat selisih zona waktu. |
+
+JWT_SECRET dan GOOGLE_CLIENT_SECRET tetap pada env backend; GOOGLE_CLIENT_ID adalah identitas publik, bukan private key JWT. HS256 memakai shared secret dan tidak memerlukan pasangan public/private key. Dokumentasi dan `.env.example` hanya menyebut nama variabel/default tanpa menyalin nilai rahasia. Nama variabel lain: JWT_ISSUER/AUDIENCE/ACCESS_TTL/REFRESH_TTL, GOOGLE_AUTH_ENABLED/REDIRECT_URI, API_BASE_URL dan APP_URL BFF.
+
+### Akun awal, role dan navigasi
+
+- `DatabaseSeeder` menjalankan referensi status/jenis soal dan `SuperAdminSeeder`; `AccountAccessSeeder` menyiapkan 10 role termasuk Super Admin serta 10 izin accounts.*.
+- `backend/config/accounts.php` membaca INITIAL_ADMIN_EMAIL/NAME/USERNAME/PASSWORD. Akun awal dibuat aktif dengan email terverifikasi. Password env dihash; bila kosong, sandi acak tidak ditampilkan dan Google yang dikonfigurasi menjadi jalur login awal. Mengubah env/seeder tidak mengganti sandi akun lama. Seeder berhenti bila grant Super Admin sudah ada dan menolak benturan identitas; tidak mempromosikan/menimpa akun lama.
+- API/UI pengelolaan akun tersedia: daftar/detail/create/update, role accounts.*, status, verifikasi email melalui konfirmasi identitas, reset password akun lain, pencabutan sesi, Google unlink, audit serta lock_version. Tidak ada hard delete atau signup publik. Self-reset melalui aksi admin ditolak; menu ganti sandi meminta sandi lama.
+- Perubahan email menghapus tautan OAuth/verifikasi lokal; Google unlink mengosongkan email_verified_at dan mencabut sesi, sehingga tidak langsung tertaut ulang tanpa verifikasi.
+- Role Super Admin dilindungi dan tidak memberi bypass BK internal/honor. `NavigationAccess` menggabungkan role aktif serta permission/mandat/grant/relasi yang dikenali; cookie ruang kerja bukan sumber izin. `AuthUserResource.navigation` menentukan menu dan SessionMonitor memuat ulang konteks bila akses berubah.
+- Sidebar, navbar, shell, login, akun dan dashboard awal memakai komponen shadcn. Menu domain yang belum memiliki halaman disabled tanpa href. Perincian akses baca guru/wali, konfigurasi mandat/kategori melalui UI, serta otorisasi tindakan/objek domain tetap pekerjaan modul berikutnya; visibilitas menu bukan Policy data.
+
+### Perubahan rancangan fisik auth
+
+Migration [2026_10_20_020000_create_jwt_authentication_tables.php](backend/database/migrations/2026_10_20_020000_create_jwt_authentication_tables.php) menambah auth_sessions, auth_refresh_tokens dan oauth_accounts. Ada 3 FK RESTRICT, unique public_id/token_hash/provider-subject/user-provider dan indeks sesi/expiry; migration ini tidak menambah CHECK. Validasi token, rotasi dan status dijalankan guard/service.
+
+Snapshot baseline+foto/GPS sebelumnya berisi 120 tabel domain, 373 FK, 320 CHECK. Dengan tambahan auth, inventaris migration menjadi **123 tabel domain + 8 infrastruktur = 131 tabel, 376 FK dan 320 CHECK**. Penjumlahan ini berdasarkan file migration; bukan pemeriksaan ulang skema produksi atau klaim bahwa semua tabel sudah terisi/setup operasional.
+
+### Tindak lanjut temuan
+
+| Temuan | Status sekarang |
+| --- | --- |
+| R-01: kategori pegawai historis | Rancangan/struktur employee_category_assignments dan snapshot tersedia; kalkulator honor historis tetap perlu implementasi/tes bisnis. |
+| R-02: koreksi penerima honor | Struktur batch debit/kredit dan referensi asal ada; service approval/apply atomik serta pengajuan paralel belum menjadi bukti UAT. |
+| R-03: snapshot laporan | report_dataset_rows dan consistent snapshot dirancang; worker dan uji koreksi selama ekstraksi belum selesai. |
+| R-04: kelas historis | class_periods.grade_snapshot ada pada kamus/migration; penggunaan oleh laporan domain tetap perlu diuji. |
+| R-05: pembulatan honor | Floor JP tiga desimal dan half-up rupiah per sumber ditetapkan; kalkulator/prorata/uji batas masih pekerjaan domain honor. |
+| R-06/07: arsitektur dan stack | Laravel API + Next.js/React + MySQL sudah menjadi baseline; auth diselaraskan ke JWT/Google/BFF. Tidak diarahkan kembali ke Inertia atau autentikasi sesi SPA lama. |
+| R-08: jobs.attempts | Kamus memakai U16 sesuai migration infrastruktur. |
+| R-09: kamus kanonik | Sumber tunggal backend/database/database.MD; rujukan lokasi lama tidak menjadi salinan aktif. |
+| R-10: dokumentasi auth tertinggal kode | Ditangani pada pembaruan ini: FR-01, NFR-04, arsitektur, DEC-08/13, AC-25/31/36–39, tabel JWT/OAuth, endpoint, cookie dan status implementasi. |
+| R-11: izin domain dan cakupan data | UI role mengelola accounts.*; mandat kategori/objek/penugasan domain belum punya alur admin lengkap. Pemeriksaan objek API domain tetap wajib saat halaman diaktifkan. |
+| R-12: pemulihan/aksi auth lanjutan | Reset email mandiri dan penetapan sandi pertama Google-only tanpa sandi lama belum tersedia. Logout-all hanya API Laravel, belum BFF/UI khusus. Deduplikasi refresh Next.js hanya satu proses; deployment multi-instance memerlukan peninjauan. |
 
 ### Addendum absensi pegawai
 
@@ -25,27 +73,16 @@ Konfirmasi pemilik proyek membatasi foto + GPS pada **masuk dan pulang pegawai**
 - `employee_attendance_captures` menyimpan satu bukti per absensi–aksi, koordinat, akurasi, waktu pengambilan, metadata kompresi, actor, operation key, dan snapshot policy. Migration menambahkan 3 FK dan 7 CHECK.
 - DEC-16 dan policy absensi memakai versi efektif baru. Flag SQL pada policy lama tetap 0/0 agar histori tidak diwajibkan bukti retroaktif; setup policy addendum baru wajib mengisi 1/1. Tanggal berlaku operasional diisi saat onboarding.
 
-SRS memperbarui FR-05-01/02, NFR-05, DEC-16, AC-06/32 serta menambahkan FR-05-04–06, BR-24/25, dan AC-33–35. Perbandingan isi memastikan 18 DEC lainnya, kebutuhan absensi siswa, dan kebutuhan honor tetap sama.
-
-### Tindak lanjut temuan review awal
-
-| Temuan | Status pada baseline saat ini |
-| --- | --- |
-| R-01: kategori pegawai historis | Ditangani dalam desain dan struktur `employee_category_assignments` serta snapshot sumber honor. Pemilihan kategori sesuai tanggal tetap perlu layanan dan tes bisnis. |
-| R-02: koreksi penerima honor | Alur batch debit/kredit, referensi asal, dan struktur adjustment sudah ditetapkan. Approval/apply atomik serta pengajuan paralel belum dibuktikan pada layanan bisnis. |
-| R-03: snapshot laporan | `report_dataset_rows` dan ekstraksi melalui consistent snapshot pada satu koneksi sudah dirancang. Worker dan uji perubahan data selama ekstraksi masih diperlukan. |
-| R-04: tingkat kelas historis | `class_periods.grade_snapshot` tersedia dalam kamus dan migration. Laporan harus memakai snapshot periode. |
-| R-05: pembulatan honor | Floor JP tiga desimal dan half-up rupiah per sumber sudah ditetapkan; total menjumlah hasil sumber. Implementasi kalkulator dan uji batas tetap diperlukan. |
-| R-06: status arsitektur SRS | Baseline ditetapkan sebagai Laravel API + Next.js/React + MySQL, dengan kontrak autentikasi dan API dalam dokumen. |
-| R-07: perbedaan stack repository | Pilihan Next.js telah diselaraskan dengan SRS; tidak perlu mengalihkan frontend ke Inertia. Implementasi autentikasi/API sesuai baseline masih merupakan pekerjaan berikutnya. |
-| R-08: tipe `jobs.attempts` | Kamus saat ini sudah memakai U16 sesuai migration infrastruktur. |
-| R-09: lokasi kamus database | Sumber kanonik ada di `backend/database/database.MD`. Path lama `backend/datatabase/database.MD` dan catatan `docs/REVISI_SRS_DATABASE_v1_2.md` tidak tersedia pada pemeriksaan ini; gunakan tautan acuan yang ada di bagian atas laporan. |
+SRS memperbarui FR-05-01/02, NFR-05, DEC-16, AC-06/32 serta menambahkan FR-05-04–06, BR-24/25, dan AC-33–35. Pada tahap addendum foto/GPS, 18 DEC selain DEC-16 dipertahankan. Pembaruan auth berikutnya hanya menyelaraskan DEC-08/13; ketentuan foto/GPS, absensi siswa dan honor tetap sama.
 
 ### Bukti dan batas verifikasi
 
-Hasil sesi pengembangan 20 Oktober 2026: 46 tes lulus pada MySQL 9.5.0 terisolasi, termasuk 23 tes baru metadata bukti/policy foto-GPS. Uji lifecycle tambahan juga lulus untuk upgrade dengan policy/absensi lama, rollback addendum, dan migrasi ulang; baris absensi dan flag policy lama dipertahankan. Skema akhir terverifikasi memiliki 120 tabel domain, 373 FK, dan 320 CHECK. Pint serta pemeriksaan sintaks PHP lulus. SRS berhasil dirender dan bagian revisi ditinjau.
+- **Bukti historis skema/addendum:** 46 tes pada MySQL 9.5.0 terisolasi, termasuk 23 tes metadata foto/GPS; lifecycle upgrade/rollback/migrate ulang mempertahankan absensi dan policy lama. Snapshot saat itu 120 tabel domain, 373 FK, 320 CHECK. Baseline sebelumnya diuji pada MySQL 8.4.11. Target produksi tetap MySQL 8.4.
+- **Bukti sesi auth/akun/navigation sebelumnya:** 56 tes backend/511 assertions dan 47 tes browser lulus. Suite terkait: MysqlAuthApiTest, GoogleOAuthTest, MysqlAccountManagementTest, NavigationAccessTest, serta frontend/tests/e2e. Build/lint frontend dan format PHP juga tercatat lulus pada sesi implementasi.
+- **Pembaruan ini:** membaca kode aktual dan migration, menyelaraskan ketiga dokumen, membandingkan 19 DEC, memeriksa XML/struktur DOCX dan render PDF SRS. Suite aplikasi tidak dijalankan ulang; hasil lama tidak diubah menjadi klaim eksekusi baru.
+- **Belum dibuktikan selesai:** OAuth Google nyata/deployment production, TLS/trusted proxy/CORS produksi, pemulihan email, seluruh layanan domain, kamera/GPS browser, kompresi byte foto/cleanup storage, worker impor/ekspor/backup, uji beban, restore dan UAT. Nominal tarif, kalender nyata dan mandat operasional tetap membutuhkan onboarding.
 
-Target produksi tetap MySQL 8.4; hasil pada 9.5.0 tidak menggantikan verifikasi versi produksi. Kamera/GPS browser, kompresi byte gambar, otorisasi API, cleanup storage, alur bisnis lintas modul, dan UAT belum dibuktikan oleh tes migration. Seeder/factory akun masih perlu disesuaikan dengan skema identitas baru dan seed baseline operasional belum tersedia. Database operasional tidak dimigrasikan dalam pekerjaan tersebut. Pembaruan laporan ini memeriksa dokumen/kode dan mencatat hasil sesi sebelumnya, tanpa menjalankan ulang suite pengujian.
+Pembaruan dokumen tidak mengubah kode aplikasi, `.env`, kredensial, migration atau data akun operasional. Bagian historis berikut dipertahankan untuk jejak review dan harus dibaca sesuai tanggalnya.
 
 ## Review historis — 14 Oktober 2026
 

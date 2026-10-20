@@ -12,6 +12,10 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 Sebelum mengubah UI frontend, baca [design-system.md](../design-system.md).
 Gunakan komponen shadcn/ui lokal, token tema, dan pola responsif yang ditetapkan di sana.
+Sebelum membuat komponen/file UI baru, cari dan baca komponen yang sudah ada.
+Ikuti urutan wajib pada §2.1: gunakan ulang → komposisi → perluas → ekstrak pola berulang → buat baru hanya jika kebutuhan belum tertampung.
+Jangan menyalin komponen layout, form, modal, notifikasi, atau pagination ke setiap halaman/modul.
+Semua halaman baru dan refactor wajib memakai shadcn sejak awal serta mengikuti kontrak konsistensi antarhalaman pada §6 dan checklist §13.
 Perubahan pola bersama harus diikuti pembaruan design system dan pemeriksaan halaman yang terdampak.
 Untuk error hydration dengan atribut `bis_*`, ikuti diagnosis browser di dokumen tersebut;
 jangan menambahkan suppression global atau pembersih DOM untuk menutupi injeksi ekstensi.

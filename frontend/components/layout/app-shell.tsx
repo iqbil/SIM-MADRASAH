@@ -6,19 +6,16 @@ import {
   ChevronsUpDown,
   CircleHelp,
   GraduationCap,
-  House,
   Layers3,
   ShieldCheck,
-  UserRound,
-  UsersRound,
   X,
 } from "lucide-react";
-import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import type { CSSProperties, ReactNode } from "react";
 import { SessionMonitor } from "@/components/auth/session-monitor";
 import { Brand } from "@/components/brand";
 import { AppHeader } from "@/components/layout/app-header";
+import { SidebarNavigation } from "@/components/layout/sidebar-navigation";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -40,9 +37,6 @@ import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarInset,
   SidebarMenu,
@@ -196,59 +190,7 @@ function AppSidebar({
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent className="px-2">
-        <SidebarGroup>
-          <SidebarGroupLabel className="mb-2 px-3 text-[10px] tracking-[0.14em] text-muted-foreground uppercase">
-            Menu utama
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu className="gap-1.5">
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  asChild
-                  tooltip="Beranda"
-                  isActive={pathname.startsWith("/dashboard")}
-                  className="h-11 gap-3 px-3 data-[active=true]:bg-primary/8 data-[active=true]:font-medium data-[active=true]:text-primary"
-                >
-                  <Link
-                    href={role ? roleHref(role) : "/dashboard"}
-                    onClick={() => setOpenMobile(false)}
-                  >
-                    <House className="size-[18px]" />
-                    <span>Beranda</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              {user.permissions?.includes("accounts.view") && (
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    asChild
-                    tooltip="Pengelolaan akun"
-                    isActive={pathname === "/pengguna"}
-                    className="h-11 gap-3 px-3 data-[active=true]:bg-primary/8 data-[active=true]:text-primary"
-                  >
-                    <Link href="/pengguna" onClick={() => setOpenMobile(false)}>
-                      <UsersRound className="size-[18px]" />
-                      <span>Pengelolaan akun</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )}
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  asChild
-                  tooltip="Akun saya"
-                  isActive={pathname === "/akun"}
-                  className="h-11 gap-3 px-3 data-[active=true]:bg-primary/8 data-[active=true]:text-primary"
-                >
-                  <Link href="/akun" onClick={() => setOpenMobile(false)}>
-                    <UserRound className="size-[18px]" />
-                    <span>Akun saya</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        <SidebarNavigation user={user} role={role} pathname={pathname} />
         <div className="mx-4 mt-auto mb-5 rounded-xl border border-primary/10 bg-primary/4 p-4 group-data-[collapsible=icon]:hidden">
           <ShieldCheck className="mb-2 size-5 text-primary" />
           <p className="text-xs font-medium">Akun pribadi, akses terjaga</p>

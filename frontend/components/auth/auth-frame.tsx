@@ -10,7 +10,7 @@ export function AuthFrame({ children }: { children: ReactNode }) {
       <div className="absolute inset-x-0 top-0 -z-10 h-[260px] overflow-hidden sm:h-[300px] lg:inset-0 lg:h-full">
         <Image
           src="/images/school-campus.png"
-          alt="Ilustrasi lingkungan sekolah"
+          alt="Lingkungan sekolah"
           fill
           priority
           sizes="100vw"
@@ -45,9 +45,6 @@ export function AuthFrame({ children }: { children: ReactNode }) {
             </span>
           </div>
         </div>
-        <p className="self-end text-[9px] text-white/85 lg:self-start lg:text-[10px]">
-          Ilustrasi lingkungan sekolah
-        </p>
       </div>
       <section className="relative -mt-7 flex min-h-[calc(100svh-218px)] flex-col rounded-t-[2rem] bg-white px-6 pt-7 pb-5 sm:px-10 lg:m-0 lg:min-h-svh lg:justify-center lg:rounded-none lg:bg-transparent lg:px-10 lg:py-10 xl:px-16">
         <Card className="mx-auto w-full max-w-[440px] overflow-visible rounded-none bg-white p-0 shadow-none ring-0 lg:rounded-[1.75rem] lg:p-9 lg:shadow-2xl lg:shadow-black/15 xl:p-10">
