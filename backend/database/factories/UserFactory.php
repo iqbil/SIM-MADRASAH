@@ -2,44 +2,45 @@
 
 namespace Database\Factories;
 
+use App\Models\Person;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
-/**
- * @extends Factory<User>
- */
+/** @extends Factory<User> */
 class UserFactory extends Factory
 {
-    /**
-     * The current password being used by the factory.
-     */
+    protected $model = User::class;
+
     protected static ?string $password;
 
-    /**
-     * Define the model's default state.
-     *
-     * @return array<string, mixed>
-     */
+    /** @return array<string, mixed> */
     public function definition(): array
     {
         return [
-            'name' => fake()->name(),
+            'person_id' => Person::factory(),
+            'name' => fn (array $attributes): string => Person::query()->findOrFail($attributes['person_id'])->full_name,
+            'username' => 'user_'.Str::lower(Str::random(20)),
             'email' => fake()->unique()->safeEmail(),
-            'email_verified_at' => now(),
+            'email_verified_at' => now('UTC'),
             'password' => static::$password ??= Hash::make('password'),
-            'remember_token' => Str::random(10),
+            'status' => 'active',
         ];
     }
 
-    /**
-     * Indicate that the model's email address should be unverified.
-     */
     public function unverified(): static
     {
-        return $this->state(fn (array $attributes) => [
-            'email_verified_at' => null,
-        ]);
+        return $this->state(fn (array $attributes): array => ['email_verified_at' => null]);
+    }
+
+    public function withoutEmail(): static
+    {
+        return $this->state(fn (array $attributes): array => ['email' => null, 'email_verified_at' => null]);
+    }
+
+    public function disabled(): static
+    {
+        return $this->state(fn (array $attributes): array => ['status' => 'disabled', 'disabled_at' => now('UTC')]);
     }
 }

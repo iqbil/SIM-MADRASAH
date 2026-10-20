@@ -47,7 +47,8 @@ class MysqlMigrationLifecycleTest extends TestCase
         $this->assertDatabaseHas('persons', ['id' => $person, 'full_name' => 'Akun lama', 'contact_email' => 'legacy@example.test']);
         $this->assertDatabaseCount('persons', 1);
 
-        $this->artisan('migrate:rollback', ['--step' => 1, '--force' => true])->assertSuccessful();
+        $addendumSteps = DB::table('migrations')->where('migration', '>=', '2026_10_20_000001_add_photo_and_gps_to_employee_attendance')->count();
+        $this->artisan('migrate:rollback', ['--step' => $addendumSteps, '--force' => true])->assertSuccessful();
         $this->assertFalse(Schema::hasTable('employee_attendance_captures'));
         $this->assertFalse(Schema::hasColumn('employee_attendance_policies', 'requires_photo'));
         $this->assertTrue(Schema::hasTable('employee_attendances'));
@@ -59,7 +60,8 @@ class MysqlMigrationLifecycleTest extends TestCase
         $this->assertDatabaseHas('employee_attendances', ['id' => $legacyAttendance, 'check_in_at' => '2026-10-19 00:00:00', 'recorded_by' => $legacy]);
         $this->assertDatabaseMissing('employee_attendance_captures', ['employee_attendance_id' => $legacyAttendance]);
 
-        $this->artisan('migrate:rollback', ['--step' => 14, '--force' => true])->assertSuccessful();
+        $domainSteps = DB::table('migrations')->where('migration', 'like', '2026_%')->count();
+        $this->artisan('migrate:rollback', ['--step' => $domainSteps, '--force' => true])->assertSuccessful();
         $this->assertFalse(Schema::hasTable('persons'));
         $this->assertFalse(Schema::hasColumn('users', 'person_id'));
         $this->assertDatabaseHas('users', ['id' => $legacy, 'name' => 'Akun lama', 'email' => 'legacy@example.test', 'password' => 'existing-password-hash']);
