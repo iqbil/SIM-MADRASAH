@@ -9,7 +9,12 @@ class MasterStatusRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        MasterDataAccess::authorize($this->user(), $this->route('resource', 'imports'), true);
+        if ($this->route('resource')) {
+            MasterDataAccess::authorize($this->user(), $this->route('resource'), true, 'status');
+        } else {
+            $batch = \App\Models\ImportBatche::query()->where('module', 'like', 'master.%')->findOrFail($this->route('batch'));
+            MasterDataAccess::authorizeImport($this->user(), substr($batch->module, 7));
+        }
 
         return true;
     }

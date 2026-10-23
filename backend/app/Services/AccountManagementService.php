@@ -105,13 +105,13 @@ class AccountManagementService
             }
             abort_if($role?->code === 'super_admin' || $data['code'] === 'super_admin', 422, 'Role Super Admin dilindungi dan dibuat melalui seeder awal.');
             abort_if(in_array($data['code'], ['siswa', 'student'], true), 422, 'Role login siswa belum diaktifkan.');
-            $allowed = AccountAccess::permissions($actor);
+            $allowed = AccountAccess::grantablePermissions($actor);
             abort_if(array_diff($data['permission_codes'], $allowed) !== [], 403, 'Anda tidak dapat memberikan izin yang tidak Anda miliki.');
             $before = $role ? [...$role->only(['code', 'name', 'is_active']), 'permission_codes' => $role->permissionAssignments()->with('permission')->get()->pluck('permission.code')->all()] : null;
             $role ??= new Role;
             $role->fill(collect($data)->only(['code', 'name', 'description', 'is_active'])->all())->save();
             $ids = Permission::query()->whereIn('code', $data['permission_codes'])->pluck('id')->all();
-            $catalog = Permission::query()->whereIn('code', array_keys(AccountAccess::PERMISSIONS))->pluck('id');
+            $catalog = Permission::query()->whereIn('code', array_keys(AccountAccess::managedPermissions()))->pluck('id');
             $role->permissionAssignments()->whereIn('permission_id', $catalog)->whereNotIn('permission_id', $ids)->delete();
             foreach ($ids as $id) {
                 $grant = RolePermission::query()->firstOrNew(['role_id' => $role->id, 'permission_id' => $id]);

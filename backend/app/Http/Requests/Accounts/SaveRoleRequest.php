@@ -21,7 +21,7 @@ class SaveRoleRequest extends FormRequest
         return ['code' => ['required', 'string', 'max:50', 'regex:/^[a-z][a-z0-9_]*$/', Rule::unique('roles', 'code')->ignore($this->route('role'))],
             'name' => ['required', 'string', 'max:100'], 'description' => ['nullable', 'string', 'max:1000'],
             'is_active' => ['required', 'boolean'], 'permission_codes' => ['present', 'array'],
-            'permission_codes.*' => ['string', 'distinct', Rule::in(array_keys(AccountAccess::PERMISSIONS))],
+            'permission_codes.*' => ['string', 'distinct', Rule::in(array_keys(AccountAccess::managedPermissions()))],
             'reason' => ['required', 'string', 'min:10', 'max:1000']];
     }
 }

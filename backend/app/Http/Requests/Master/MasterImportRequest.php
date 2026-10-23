@@ -10,7 +10,7 @@ class MasterImportRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        MasterDataAccess::authorize($this->user(), 'imports', true);
+        MasterDataAccess::authorizeImport($this->user(), (string) $this->input('resource'));
 
         return true;
     }

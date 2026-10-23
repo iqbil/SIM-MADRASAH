@@ -55,6 +55,7 @@ class SuperAdminSeeder extends Seeder
                     'role_id' => $role->id, 'permission_id' => $permission->id, 'created_by' => $user->id,
                 ]);
             }
+            AccountAccessSeeder::seedOperatorMasterPermissions($user);
             $service->audit(
                 $user, 'accounts.seeded', 'user', $user->id,
                 'Pembuatan Super Admin awal melalui seeder.', null,

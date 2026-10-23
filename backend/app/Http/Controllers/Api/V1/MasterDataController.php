@@ -20,12 +20,10 @@ class MasterDataController extends Controller
 {
     public function options(Request $request): JsonResponse
     {
-        MasterDataAccess::authorize($request->user(), 'students');
-        $manage = MasterDataAccess::manages($request->user());
+        $options = MasterDataAccess::options($request->user());
+        abort_unless($options['resources'] !== [], 403);
 
-        return response()->json(['data' => ['can_manage' => $manage, 'resources' => $manage ? array_keys(MasterDataCatalog::MODELS) : ['students'],
-            'student_scope' => $manage ? 'all' : 'active_assignments', 'can_import' => $manage,
-            'import_resources' => $manage ? ['students', 'guardians', 'employees', 'subjects'] : []]]);
+        return response()->json(['data' => $options]);
     }
 
     public function institution(Request $request): JsonResponse|MasterDataResource
@@ -85,7 +83,7 @@ class MasterDataController extends Controller
 
     public function status(MasterStatusRequest $request, string $resource, int $record, MasterDataService $service): MasterDataResource
     {
-        MasterDataAccess::authorize($request->user(), $resource, true);
+        MasterDataAccess::authorize($request->user(), $resource, true, 'status');
         $data = $request->validated();
 
         return new MasterDataResource($service->status($request->user(), $resource, $record, $data, $request));
@@ -93,7 +91,7 @@ class MasterDataController extends Controller
 
     public function people(Request $request): JsonResponse
     {
-        MasterDataAccess::authorize($request->user(), 'people', true);
+        abort_unless(MasterDataAccess::manages($request->user()), 403);
         $data = $request->validate(['q' => ['required', 'string', 'min:2', 'max:100'], 'birth_date' => ['nullable', 'date_format:Y-m-d']]);
         $query = Person::query()->where('full_name', 'like', '%'.addcslashes($data['q'], '%_\\').'%');
         if (isset($data['birth_date'])) {

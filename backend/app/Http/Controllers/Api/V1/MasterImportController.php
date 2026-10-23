@@ -19,7 +19,7 @@ class MasterImportController extends Controller
 {
     public function template(Request $request, string $resource): StreamedResponse
     {
-        MasterDataAccess::authorize($request->user(), 'imports', true);
+        MasterDataAccess::authorizeImport($request->user(), $resource);
         $columns = MasterImportService::columns($resource);
 
         return response()->streamDownload(function () use ($columns): void {
@@ -31,10 +31,11 @@ class MasterImportController extends Controller
 
     public function index(Request $request): AnonymousResourceCollection
     {
-        MasterDataAccess::authorize($request->user(), 'imports', true);
+        $resources = MasterDataAccess::options($request->user())['import_resources'];
+        abort_unless($resources !== [], 403);
         $request->validate(['page' => ['nullable', 'integer', 'min:1']]);
 
-        return MasterImportResource::collection(ImportBatche::query()->where('module', 'like', 'master.%')->latest('id')->paginate(25));
+        return MasterImportResource::collection(ImportBatche::query()->whereIn('module', array_map(fn (string $resource): string => 'master.'.$resource, $resources))->latest('id')->paginate(25));
     }
 
     public function store(MasterImportRequest $request, MasterImportService $service): JsonResponse
@@ -44,16 +45,14 @@ class MasterImportController extends Controller
 
     public function show(Request $request, int $batch): MasterImportResource
     {
-        MasterDataAccess::authorize($request->user(), 'imports', true);
 
-        return new MasterImportResource($this->batch($batch));
+        return new MasterImportResource($this->batch($request, $batch));
     }
 
     public function rows(Request $request, int $batch): JsonResponse
     {
-        MasterDataAccess::authorize($request->user(), 'imports', true);
         $request->validate(['page' => ['nullable', 'integer', 'min:1'], 'status' => ['nullable', 'in:pending,valid,invalid,imported,skipped,failed']]);
-        $model = $this->batch($batch);
+        $model = $this->batch($request, $batch);
         MasterImportService::requirePayload($model);
         $query = $model->rows()->orderBy('row_number');
         if ($request->filled('status')) {
@@ -69,8 +68,7 @@ class MasterImportController extends Controller
 
     public function errors(Request $request, int $batch): StreamedResponse
     {
-        MasterDataAccess::authorize($request->user(), 'imports', true);
-        $model = $this->batch($batch);
+        $model = $this->batch($request, $batch);
         MasterImportService::requirePayload($model);
 
         return response()->streamDownload(function () use ($model): void {
@@ -87,14 +85,16 @@ class MasterImportController extends Controller
 
     public function confirm(MasterStatusRequest $request, int $batch, MasterImportService $service): JsonResponse
     {
-        MasterDataAccess::authorize($request->user(), 'imports', true);
         $data = $request->validated();
 
         return (new MasterImportResource($service->confirm($request->user(), $batch, $data, $request)))->response()->setStatusCode(202);
     }
 
-    private function batch(int $id): ImportBatche
+    private function batch(Request $request, int $id): ImportBatche
     {
-        return ImportBatche::query()->where('module', 'like', 'master.%')->findOrFail($id);
+        $batch = ImportBatche::query()->where('module', 'like', 'master.%')->findOrFail($id);
+        MasterDataAccess::authorizeImport($request->user(), substr($batch->module, 7));
+
+        return $batch;
     }
 }

@@ -22,6 +22,19 @@ class AccountAccess
         'accounts.audit' => 'Melihat jejak audit pengelolaan akun',
     ];
 
+    /** @return array<string, string> */
+    public static function managedPermissions(): array
+    {
+        return [...self::PERMISSIONS, ...MasterDataAccess::catalog()];
+    }
+
+    /** @return array<int, string> */
+    public static function grantablePermissions(User $user): array
+    {
+        return array_values(array_unique([...self::permissions($user), ...MasterDataAccess::permissions($user),
+            ...(self::isSuper($user) ? array_keys(MasterDataAccess::catalog()) : [])]));
+    }
+
     public static function activeGrants(User $user): HasMany
     {
         $at = now('UTC')->format('Y-m-d H:i:s.u');

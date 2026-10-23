@@ -11,8 +11,8 @@ use Illuminate\Database\Eloquent\Builder;
 class NavigationAccess
 {
     private const ROLE_MENUS = [
-        'super_admin' => ['master.manage', 'academic.manage', 'attendance.manage', 'website.edit', 'reports.view', 'system.manage'],
-        'operator' => ['master.manage', 'academic.manage', 'attendance.manage', 'website.edit', 'reports.view', 'system.manage'],
+        'super_admin' => ['academic.manage', 'attendance.manage', 'website.edit', 'reports.view', 'system.manage'],
+        'operator' => ['academic.manage', 'attendance.manage', 'website.edit', 'reports.view', 'system.manage'],
         'kepala_madrasah' => ['academic.view', 'attendance.reports', 'reports.view'],
         'guru' => ['academic.view', 'teaching.own', 'students.attendance', 'questions.own'],
         'wali_kelas' => ['academic.view', 'students.attendance', 'class.own', 'bk.shared'],
@@ -63,6 +63,14 @@ class NavigationAccess
                     $menus[] = self::MANDATE_MENUS[$code];
                 }
             }
+        }
+
+        $master = MasterDataAccess::options($user);
+        foreach ($master['resources'] as $resource) {
+            $menus[] = 'master.'.$resource.'.view';
+        }
+        if ($master['can_import']) {
+            $menus[] = 'master.imports';
         }
 
         $today = now('Asia/Jakarta')->toDateString();

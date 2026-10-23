@@ -19,11 +19,19 @@ class AccountAccessSeeder extends Seeder
         ] as $code => $name) {
             Role::query()->firstOrCreate(['code' => $code], ['name' => $name, 'is_active' => true]);
         }
-        foreach (AccountAccess::PERMISSIONS as $code => $description) {
+        foreach (AccountAccess::managedPermissions() as $code => $description) {
             Permission::query()->firstOrCreate(['code' => $code], [
-                'module' => 'accounts', 'action' => explode('.', $code)[1],
+                'module' => explode('.', $code)[0], 'action' => substr($code, strrpos($code, '.') + 1),
                 'description' => $description, 'is_sensitive' => $code !== 'accounts.view',
             ]);
         }
     }
+    public static function seedOperatorMasterPermissions(\App\Models\User $actor): void
+    {
+        $role = Role::query()->where('code', 'operator')->firstOrFail();
+        foreach (Permission::query()->whereIn('code', array_keys(\App\Services\MasterDataAccess::catalog()))->get() as $permission) {
+            \App\Models\RolePermission::query()->firstOrCreate(['role_id' => $role->id, 'permission_id' => $permission->id], ['created_by' => $actor->id]);
+        }
+    }
+
 }

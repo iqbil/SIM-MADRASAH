@@ -16,18 +16,81 @@ class MasterDataAccess
             ->with('role')->get()->pluck('role.code')->all();
     }
 
-    public static function manages(User $user): bool
+    /** @return array<string, string> */
+    public static function catalog(): array
     {
-        return $user->canSignIn() && count(array_intersect(self::roles($user), ['super_admin', 'operator'])) > 0;
+        $permissions = ['master.guardians.verify' => 'Memverifikasi hubungan wali dan siswa'];
+        foreach (['institution' => 'identitas madrasah', 'students' => 'siswa', 'guardians' => 'wali', 'employees' => 'pegawai',
+            'positions' => 'jabatan', 'employee-categories' => 'kategori pegawai', 'subjects' => 'mata pelajaran',
+            'student-statuses' => 'status siswa', 'attendance-statuses' => 'status kehadiran'] as $resource => $label) {
+            foreach (['view' => 'Melihat', 'manage' => 'Menambah dan mengubah', 'status' => 'Mengaktifkan dan menonaktifkan'] as $action => $verb) {
+                if ($resource !== 'institution' || $action !== 'status') {
+                    $permissions['master.'.$resource.'.'.$action] = $verb.' data '.$label;
+                }
+            }
+            if (in_array($resource, ['students', 'guardians', 'employees', 'subjects'], true)) {
+                $permissions['master.'.$resource.'.import'] = 'Mengimpor data '.$label;
+            }
+        }
+
+        return $permissions;
     }
 
-    public static function authorize(User $user, string $resource, bool $write = false): void
+    /** @return array<int, string> */
+    public static function permissions(User $user): array
     {
-        abort_unless($user->canSignIn(), 403);
-        if (self::manages($user)) {
-            return;
+        if (! $user->canSignIn() || $user->must_change_password) {
+            return [];
         }
-        abort_unless(! $write && $resource === 'students' && count(self::classPeriods($user)) > 0, 403, 'Data master ini di luar kewenangan Anda.');
+
+        return AccountAccess::activeGrants($user)->whereHas('role', fn (Builder $query): Builder => $query->where('is_active', true))
+            ->with('role.permissionAssignments.permission')->get()->flatMap(fn ($grant) => $grant->role->permissionAssignments->pluck('permission.code'))
+            ->filter(fn (string $code): bool => array_key_exists($code, self::catalog()))->unique()->values()->all();
+    }
+
+    public static function allows(User $user, string $resource, string $action): bool
+    {
+        $permissions = self::permissions($user);
+        if (in_array('master.'.$resource.'.'.$action, $permissions, true)) {
+            return true;
+        }
+
+        return $action === 'view' && in_array('master.'.$resource.'.manage', $permissions, true);
+    }
+
+    public static function manages(User $user, ?string $resource = null): bool
+    {
+        return $resource ? self::allows($user, $resource, 'manage') : collect(self::permissions($user))->contains(fn (string $code): bool => str_ends_with($code, '.manage'));
+    }
+
+    public static function authorize(User $user, string $resource, bool $write = false, ?string $action = null): void
+    {
+        $action ??= $write ? 'manage' : 'view';
+        abort_unless(self::allows($user, $resource, $action) || ($action === 'view' && $resource === 'students' && $user->canSignIn()
+            && ! $user->must_change_password && count(self::classPeriods($user)) > 0), 403, 'Data master ini di luar kewenangan Anda.');
+    }
+
+    public static function authorizeImport(User $user, string $resource): void
+    {
+        self::authorize($user, $resource, true);
+        self::authorize($user, $resource, true, 'import');
+    }
+
+    /** @return array<string, mixed> */
+    public static function options(User $user): array
+    {
+        $capabilities = [];
+        $scope = self::classPeriods($user);
+        foreach (array_keys(MasterDataCatalog::MODELS) as $resource) {
+            $capabilities[$resource] = ['view' => self::allows($user, $resource, 'view') || ($resource === 'students' && $scope !== []),
+                'manage' => self::allows($user, $resource, 'manage'), 'status' => self::allows($user, $resource, 'status')];
+        }
+        $imports = array_values(array_filter(['students', 'guardians', 'employees', 'subjects'], fn (string $resource): bool => self::allows($user, $resource, 'manage') && self::allows($user, $resource, 'import')));
+
+        return ['can_manage' => self::manages($user), 'capabilities' => $capabilities,
+            'resources' => array_keys(array_filter($capabilities, fn (array $item): bool => $item['view'])),
+            'student_scope' => self::allows($user, 'students', 'view') ? 'all' : 'active_assignments',
+            'can_verify_guardians' => self::allows($user, 'guardians', 'verify'), 'can_import' => $imports !== [], 'import_resources' => $imports];
     }
 
     /** @return array<int, int> */
@@ -58,7 +121,7 @@ class MasterDataAccess
 
     public static function scopeStudents(Builder $query, User $user): Builder
     {
-        if (self::manages($user)) {
+        if (self::allows($user, 'students', 'view')) {
             return $query;
         }
         $date = today('Asia/Jakarta')->toDateString();

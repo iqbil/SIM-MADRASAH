@@ -46,7 +46,7 @@ class MasterImportService
     /** @param array<string, mixed> $data */
     public function upload(User $actor, UploadedFile $upload, array $data, Request $request): ImportBatche
     {
-        MasterDataAccess::authorize($actor, 'imports', true);
+        MasterDataAccess::authorizeImport($actor, $data['resource']);
         $hash = hash_file('sha256', $upload->getRealPath());
         $path = null;
         try {
@@ -134,8 +134,8 @@ class MasterImportService
             }
             self::requirePayload($batch);
             $actor = $batch->requester;
-            MasterDataAccess::authorize($actor, 'imports', true);
             $resource = substr($batch->module, 7);
+            MasterDataAccess::authorizeImport($actor, $resource);
             $seen = [];
             $failed = 0;
             foreach ($batch->rows()->orderBy('row_number')->get() as $row) {
@@ -149,6 +149,17 @@ class MasterImportService
                         $values['person'] = Arr::only($raw, MasterDataCatalog::PERSON_FIELDS);
                     } else {
                         $values['person_id'] = (int) $values['person_id'];
+                    }
+                }
+                if ($target) {
+                    foreach ($values as $field => $value) {
+                        if ($field === 'person') {
+                            $values['person'] = array_replace($target->person->only(MasterDataCatalog::PERSON_FIELDS), array_filter($value, fn ($item): bool => $item !== null));
+                            $values['person']['birth_date'] = isset($value['birth_date']) ? $value['birth_date'] : $target->person->birth_date?->toDateString();
+                        } elseif ($value === null) {
+                            $existing = $target->getAttribute($field);
+                            $values[$field] = $existing instanceof \Carbon\CarbonInterface ? $existing->toDateString() : $existing;
+                        }
                     }
                 }
                 $validator = Validator::make(['external_id' => $raw['external_id'], ...$values], ['external_id' => ['required', 'string', 'max:150'], ...MasterDataCatalog::rules($resource, $target)]);
@@ -168,14 +179,17 @@ class MasterImportService
                 }
                 if (isset($values['person']) && ! isset($errors['person.full_name'])) {
                     $duplicates = $this->master->duplicatePeople($values['person'], $target?->person_id);
-                    $key = 'person:'.mb_strtolower($raw['full_name'] ?? '').':'.($raw['birth_date'] ?? '');
+                    $key = 'person:'.mb_strtolower($values['person']['full_name'] ?? '').':'.($values['person']['birth_date'] ?? '');
                     if ($duplicates || isset($seen[$key])) {
                         $errors['person'][] = 'Kandidat identitas ganda ditemukan. Gunakan person_id atau perbaiki berkas.';
                     }
                     $seen[$key] = $row->row_number;
                 }
+                if ($target && $resource === 'subjects' && $values['code'] !== $target->code) {
+                    $errors['code'][] = 'Kode referensi bersifat tetap. Buat referensi baru bila maknanya berubah.';
+                }
                 $hash = hash('sha256', json_encode($values, JSON_THROW_ON_ERROR));
-                $action = ! $target ? 'insert' : ($source->content_hash === $hash ? 'unchanged' : 'update');
+                $action = ! $target ? 'insert' : ($this->matchesTarget($target, $values) ? 'unchanged' : 'update');
                 if ($target) {
                     $values['expected_updated_at'] = $target->updated_at->toISOString();
                     if (isset($values['person'])) {
@@ -194,8 +208,8 @@ class MasterImportService
     public function confirm(User $actor, int $id, array $data, Request $request): ImportBatche
     {
         return DB::transaction(function () use ($actor, $id, $data, $request): ImportBatche {
-            MasterDataAccess::authorize($actor, 'imports', true);
             $batch = ImportBatche::query()->where('module', 'like', 'master.%')->lockForUpdate()->findOrFail($id);
+            MasterDataAccess::authorizeImport($actor, substr($batch->module, 7));
             if (in_array($batch->status, ['importing', 'completed'], true)) {
                 return $batch;
             }
@@ -219,8 +233,8 @@ class MasterImportService
             }
             self::requirePayload($batch);
             $actor = $batch->confirmer;
-            MasterDataAccess::authorize($actor, 'imports', true);
             $resource = substr($batch->module, 7);
+            MasterDataAccess::authorizeImport($actor, $resource);
             $inserted = $updated = 0;
             foreach ($batch->rows()->orderBy('row_number')->get() as $row) {
                 $source = $this->source($batch, $resource, $row->external_id);
@@ -228,6 +242,13 @@ class MasterImportService
                 $hash = $row->normalized_values['content_hash'];
                 $targetId = $source?->getAttribute(self::RESOURCES[$resource].'_id');
                 abort_unless($source?->id === $row->source_record_id, 409, 'Pemetaan sumber berubah sejak pratinjau. Unggah ulang berkas.');
+                if ($targetId) {
+                    $current = MasterDataCatalog::model($resource)->newQuery()->lockForUpdate()->findOrFail($targetId);
+                    MasterDataService::checkVersion($current, $values['expected_updated_at']);
+                    if (isset($values['person'])) {
+                        MasterDataService::checkVersion($current->person()->lockForUpdate()->firstOrFail(), $values['expected_person_updated_at']);
+                    }
+                }
                 if ($row->result_action !== 'unchanged') {
                     $target = $this->master->save($actor, $resource, $targetId, [...$values, 'reason' => $reason], Request::create('/queue/master-import', 'POST'));
                     if (! $source) {
@@ -243,6 +264,28 @@ class MasterImportService
             }
             $batch->update(['status' => 'completed', 'started_at' => $batch->confirmed_at, 'finished_at' => now('UTC'), 'inserted_rows' => $inserted, 'updated_rows' => $updated]);
         }, 3);
+    }
+
+    /** @param array<string, mixed> $values */
+    private function matchesTarget(\Illuminate\Database\Eloquent\Model $target, array $values): bool
+    {
+        foreach ($values as $field => $value) {
+            if ($field === 'person') {
+                if (! $this->matchesTarget($target->person, $value)) {
+                    return false;
+                }
+            } else {
+                $existing = $target->getAttribute($field);
+                if ($existing instanceof \Carbon\CarbonInterface) {
+                    $existing = $existing->toDateString();
+                }
+                if ($existing !== $value) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
     }
 
     private function source(ImportBatche $batch, string $resource, string $externalId): ?SourceRecord

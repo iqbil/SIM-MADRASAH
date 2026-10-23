@@ -12,11 +12,11 @@ class MasterDataResource extends JsonResource
     public function toArray(Request $request): array
     {
         if (! $request->attributes->has('master_can_manage')) {
-            $request->attributes->set('master_can_manage', MasterDataAccess::manages($request->user()));
+            $request->attributes->set('master_can_manage', MasterDataAccess::allows($request->user(), 'students', 'view'));
         }
         $manager = $request->attributes->get('master_can_manage');
         $person = $this->resource->relationLoaded('person') ? $this->resource->person : null;
-        if (! $manager) {
+        if ($this->resource instanceof \App\Models\Student && ! $manager) {
             return ['id' => $this->id, 'internal_code' => $this->internal_code, 'nis' => $this->nis, 'status_id' => $this->status_id,
                 'person' => ['full_name' => $person?->full_name, 'sex' => $person?->sex]];
         }
