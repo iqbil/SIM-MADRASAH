@@ -15,7 +15,7 @@ class MasterRelationController extends Controller
 {
     public function index(Request $request, int $owner, string $relation): AnonymousResourceCollection
     {
-        MasterDataAccess::authorize($request->user(), 'relations', true);
+        MasterDataAccess::authorizeRelation($request->user(), $relation, null, false);
         $request->validate(['page' => ['nullable', 'integer', 'min:1']]);
         $model = MasterRelationService::owner($relation, $owner);
         $page = MasterRelationService::query($relation, $owner)->orderByDesc('effective_from')->orderByDesc('id')->paginate(25);

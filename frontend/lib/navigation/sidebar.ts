@@ -40,49 +40,49 @@ export const SIDEBAR_SECTIONS: SidebarSection[] = [
         id: "institution",
         href: "/data-master/institution",
         label: "Identitas madrasah",
-        access: "master.manage",
+        access: "master.institution.view",
       },
       {
         id: "students",
         href: "/data-master/students",
         label: "Data siswa",
-        access: "master.manage",
+        access: "master.students.view",
       },
       {
         id: "guardians",
         href: "/data-master/guardians",
         label: "Orang tua & wali",
-        access: "master.manage",
+        access: "master.guardians.view",
       },
       {
         id: "employees",
         href: "/data-master/employees",
         label: "Data pegawai",
-        access: "master.manage",
+        access: "master.employees.view",
       },
       {
         id: "positions",
         href: "/data-master/positions",
         label: "Jabatan & kategori pegawai",
-        access: "master.manage",
+        access: "master.positions.view",
       },
       {
         id: "subjects",
         href: "/data-master/subjects",
         label: "Mata pelajaran",
-        access: "master.manage",
+        access: "master.subjects.view",
       },
       {
         id: "references",
         href: "/data-master/references",
         label: "Referensi status",
-        access: "master.manage",
+        access: "master.student-statuses.view",
       },
       {
         id: "imports",
         href: "/data-master/imports",
         label: "Impor data",
-        access: "master.manage",
+        access: "master.imports",
       },
     ],
   },
@@ -391,6 +391,16 @@ export const SIDEBAR_SECTIONS: SidebarSection[] = [
 export function sidebarSections(user: AuthUser): SidebarSection[] {
   if (user.must_change_password) return [];
   const access = new Set(user.navigation ?? []);
+  if (access.has("master.manage")) {
+    access.add("master.institution.view");
+    access.add("master.students.view");
+    access.add("master.guardians.view");
+    access.add("master.employees.view");
+    access.add("master.positions.view");
+    access.add("master.subjects.view");
+    access.add("master.student-statuses.view");
+    access.add("master.imports");
+  }
   if (access.has("academic.manage") || access.has("academic.view"))
     access.add("academic.read");
   if (access.has("attendance.manage") || access.has("attendance.reports"))

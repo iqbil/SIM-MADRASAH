@@ -43,13 +43,23 @@ class MasterDataAccess
             return [];
         }
 
-        return AccountAccess::activeGrants($user)->whereHas('role', fn (Builder $query): Builder => $query->where('is_active', true))
+        $roles = self::roles($user);
+        $permissions = AccountAccess::activeGrants($user)->whereHas('role', fn (Builder $query): Builder => $query->where('is_active', true))
             ->with('role.permissionAssignments.permission')->get()->flatMap(fn ($grant) => $grant->role->permissionAssignments->pluck('permission.code'))
             ->filter(fn (string $code): bool => array_key_exists($code, self::catalog()))->unique()->values()->all();
+
+        if (array_intersect($roles, ['super_admin', 'operator']) !== []) {
+            return array_values(array_unique([...$permissions, ...array_keys(self::catalog())]));
+        }
+
+        return $permissions;
     }
 
     public static function allows(User $user, string $resource, string $action): bool
     {
+        if ($resource === 'relations') {
+            return self::manages($user);
+        }
         $permissions = self::permissions($user);
         if (in_array('master.'.$resource.'.'.$action, $permissions, true)) {
             return true;
@@ -66,8 +76,47 @@ class MasterDataAccess
     public static function authorize(User $user, string $resource, bool $write = false, ?string $action = null): void
     {
         $action ??= $write ? 'manage' : 'view';
+        if ($resource === 'relations') {
+            abort_unless(self::manages($user), 403, 'Data master ini di luar kewenangan Anda.');
+
+            return;
+        }
         abort_unless(self::allows($user, $resource, $action) || ($action === 'view' && $resource === 'students' && $user->canSignIn()
             && ! $user->must_change_password && count(self::classPeriods($user)) > 0), 403, 'Data master ini di luar kewenangan Anda.');
+    }
+
+    public static function authorizeRelation(User $user, string $relation, ?string $action = null, bool $write = false): void
+    {
+        abort_unless($user->canSignIn() && ! $user->must_change_password, 403, 'Data master ini di luar kewenangan Anda.');
+        if ($relation === 'guardian-links') {
+            if ($action === 'verify') {
+                abort_unless(self::allows($user, 'guardians', 'verify') || self::allows($user, 'students', 'manage') || self::allows($user, 'guardians', 'manage') || self::manages($user), 403, 'Data master ini di luar kewenangan Anda.');
+
+                return;
+            }
+            if ($write) {
+                abort_unless(self::allows($user, 'students', 'manage') || self::allows($user, 'guardians', 'manage') || self::manages($user), 403, 'Data master ini di luar kewenangan Anda.');
+
+                return;
+            }
+            abort_unless(self::allows($user, 'students', 'view') || self::allows($user, 'guardians', 'view') || self::manages($user), 403, 'Data master ini di luar kewenangan Anda.');
+
+            return;
+        }
+
+        if (in_array($relation, ['categories', 'positions'], true)) {
+            $required = $relation === 'categories' ? 'employee-categories' : 'positions';
+            if ($write) {
+                abort_unless(self::allows($user, 'employees', 'manage') || self::allows($user, $required, 'manage') || self::manages($user), 403, 'Data master ini di luar kewenangan Anda.');
+
+                return;
+            }
+            abort_unless(self::allows($user, 'employees', 'view') || self::allows($user, $required, 'view') || self::manages($user), 403, 'Data master ini di luar kewenangan Anda.');
+
+            return;
+        }
+
+        abort_unless(self::manages($user), 403, 'Data master ini di luar kewenangan Anda.');
     }
 
     public static function authorizeImport(User $user, string $resource): void

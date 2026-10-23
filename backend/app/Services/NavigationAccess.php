@@ -11,8 +11,8 @@ use Illuminate\Database\Eloquent\Builder;
 class NavigationAccess
 {
     private const ROLE_MENUS = [
-        'super_admin' => ['academic.manage', 'attendance.manage', 'website.edit', 'reports.view', 'system.manage'],
-        'operator' => ['academic.manage', 'attendance.manage', 'website.edit', 'reports.view', 'system.manage'],
+        'super_admin' => ['master.manage', 'academic.manage', 'attendance.manage', 'website.edit', 'reports.view', 'system.manage'],
+        'operator' => ['master.manage', 'academic.manage', 'attendance.manage', 'website.edit', 'reports.view', 'system.manage'],
         'kepala_madrasah' => ['academic.view', 'attendance.reports', 'reports.view'],
         'guru' => ['academic.view', 'teaching.own', 'students.attendance', 'questions.own'],
         'wali_kelas' => ['academic.view', 'students.attendance', 'class.own', 'bk.shared'],
@@ -66,6 +66,9 @@ class NavigationAccess
         }
 
         $master = MasterDataAccess::options($user);
+        if ($master['can_manage']) {
+            $menus[] = 'master.manage';
+        }
         foreach ($master['resources'] as $resource) {
             $menus[] = 'master.'.$resource.'.view';
         }

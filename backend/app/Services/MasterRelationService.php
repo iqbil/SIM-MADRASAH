@@ -39,7 +39,7 @@ class MasterRelationService
     public function save(User $actor, string $relation, int $id, ?int $linkId, ?string $action, array $data, Request $request): Model
     {
         return DB::transaction(function () use ($actor, $relation, $id, $linkId, $action, $data, $request): Model {
-            MasterDataAccess::authorize($actor, 'relations', true);
+            MasterDataAccess::authorizeRelation($actor, $relation, $action, true);
             $owner = self::owner($relation, $id, true);
             MasterDataService::checkVersion($owner, $data['expected_updated_at']);
             $query = self::query($relation, $id);

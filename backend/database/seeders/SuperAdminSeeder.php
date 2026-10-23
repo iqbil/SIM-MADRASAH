@@ -50,7 +50,7 @@ class SuperAdminSeeder extends Seeder
                 'user_id' => $user->id, 'role_id' => $role->id,
                 'effective_from' => now('UTC'), 'granted_by' => $user->id,
             ]);
-            foreach (Permission::query()->whereIn('code', array_keys(AccountAccess::PERMISSIONS))->get() as $permission) {
+            foreach (Permission::query()->whereIn('code', array_keys(AccountAccess::managedPermissions()))->get() as $permission) {
                 RolePermission::query()->forceCreate([
                     'role_id' => $role->id, 'permission_id' => $permission->id, 'created_by' => $user->id,
                 ]);

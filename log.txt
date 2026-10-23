@@ -1,0 +1,148 @@
+[LOG PERUBAHAN BACKEND & FRONTEND - FITUR DATA MASTER SIM MADRASAH]
+Tanggal/Waktu: 2026-10-23 20:45:00 +07:00
+Acuan Dokumen:
+- SRS_SIM_Madrasah_MTs_Al_Karimiyyah_2026_2027_Revisi_v1_2.docx (FR-02, BR-01, BR-20, BR-23, Bab II Hak Akses & Matriks Akses)
+- backend/database/database.MD (§4, §5, §21, §22)
+- REVIEW_SRS_DATABASE.md
+
+================================================================================
+RINGKASAN PERUBAHAN
+================================================================================
+Perbaikan dilakukan pada sisi backend dan frontend untuk menyelaraskan otorisasi, hak akses, dan sinkronisasi navigasi data master sesuai dengan SRS:
+
+A. SISI BACKEND:
+1. Memperbaiki otorisasi hubungan relasi master data (wali siswa, kategori pegawai, dan jabatan pegawai) yang sebelumnya selalu gagal dengan HTTP 403 Forbidden.
+2. Memperbaiki resolusi izin/permission untuk role bawaan `super_admin` dan `operator` agar mencakup seluruh katalog permission data master.
+3. Menyelaraskan emisi token menu navigasi data master pada backend agar kompatibel dengan ekspektasi frontend dan unit test `NavigationAccessTest`.
+4. Memperbarui seeder Super Admin agar secara otomatis mendapatkan seluruh izin pengelolaan akun dan master data.
+
+B. SISI FRONTEND:
+1. Menyelaraskan token izin akses sidebar (sidebar.ts) dengan izin granular yang dipancarkan backend:
+   - institution: master.institution.view
+   - students: master.students.view
+   - guardians: master.guardians.view
+   - employees: master.employees.view
+   - positions: master.positions.view
+   - subjects: master.subjects.view
+   - references: master.student-statuses.view
+   - imports: master.imports
+   Serta menambahkan pemetaan `master.manage` pada fungsi `sidebarSections()` sehingga Super Admin dan Operator secara otomatis memiliki akses ke seluruh item menu data master.
+2. Memperbarui route guard halaman data master (app/(portal)/data-master/[section]/page.tsx) agar memvalidasi permission view granular sesuai section yang dibuka (`master.<resource>.view` atau `master.manage`), mengizinkan peran yang memiliki hak baca seperti Guru/Wali Kelas untuk melihat data master terkait.
+3. Menambahkan tipe `MasterOptions` dan `ResourceCapability` pada `lib/master-data.ts`.
+4. Memperbarui `components/master/master-workspace.tsx`:
+   - Memanggil endpoint `/api/v1/master/options` saat inisialisasi komponen `MasterWorkspace`.
+   - Mengambil kapabilitas hak akses pengguna (`canManage` dan `canStatus`) dari options API.
+   - Mengontrol tombol-tombol mutasi data (Tambah, Ubah, Arsipkan/Nonaktifkan, Kelola Hubungan) agar hanya muncul bila pengguna memiliki kapabilitas `manage` atau `status`.
+   - Menghadirkan antarmuka read-only (hanya tabel data dan modal rincian/detail) untuk pengguna yang hanya memiliki izin `view` (seperti Guru dan Wali Kelas), sehingga selaras dengan SRS.
+   - Memperbarui label tombol rincian menjadi "Lihat" untuk mode read-only dan "Kelola" untuk pengguna dengan izin mutasi.
+
+================================================================================
+RINCIAN PERUBAHAN BERKAS
+================================================================================
+
+--- BACKEND ---
+
+1. backend/app/Services/MasterDataAccess.php
+   - Masalah:
+     * Pada method permissions(), jika role_permissions belum di-assign atau akun tidak memiliki baris penugasan izin eksplisit di database, peran super_admin dan operator tidak memiliki permission data master.
+     * Method allows() dan authorize() tidak menangani resource 'relations' karena 'relations' bukan resource model tunggal dan tidak ada di catalog().
+     * Belum ada method otorisasi spesifik untuk aksi-aksi sub-relasi master data (wali siswa, kategori pegawai, jabatan pegawai).
+   - Perubahan:
+     * permissions(): Menambahkan pengecekan peran super_admin dan operator sehingga pengguna aktif dengan peran tersebut otomatis mendapatkan seluruh izin dalam array_keys(self::catalog()).
+     * allows(): Menambahkan penanganan khusus bila resource adalah 'relations' dengan mengembalikan nilai self::manages($user).
+     * authorize(): Menambahkan penanganan bila resource adalah 'relations' dengan memastikan self::manages($user) aktif, mencegah HTTP 403 yang salah.
+     * authorizeRelation(): Menambahkan method baru authorizeRelation($user, $relation, $action, $write) untuk memvalidasi hak akses sub-relasi secara granular:
+       - 'guardian-links' aksi 'verify': memerlukan master.guardians.verify, master.students.manage, master.guardians.manage, atau manages().
+       - 'guardian-links' aksi mutasi (tambah, cabut, tutup): memerlukan master.students.manage, master.guardians.manage, atau manages().
+       - 'guardian-links' aksi baca (index): memerlukan master.students.view, master.guardians.view, atau manages().
+       - 'categories' dan 'positions': memerlukan master.employees.manage / master.employees.view atau manages().
+
+2. backend/app/Http/Controllers/Api/V1/MasterRelationController.php
+   - Masalah:
+     * Method index() sebelumnya memanggil MasterDataAccess::authorize($request->user(), 'relations', true) yang selalu memicu 403 Forbidden.
+   - Perubahan:
+     * Memperbarui index() agar memanggil MasterDataAccess::authorizeRelation($request->user(), $relation, null, false), mengizinkan pembacaan relasi sesuai hak akses parent.
+
+3. backend/app/Http/Requests/Master/SaveMasterRelationRequest.php
+   - Masalah:
+     * Method authorize() sebelumnya memanggil MasterDataAccess::authorize($this->user(), 'relations', true) yang memicu 403 Forbidden.
+   - Perubahan:
+     * Memperbarui authorize() agar memanggil MasterDataAccess::authorizeRelation($this->user(), (string) $this->route('relation'), (string) $this->route('action'), true), sehingga otorisasi dievaluasi sesuai jenis relasi dan aksi (misal verify vs store).
+
+4. backend/app/Services/MasterRelationService.php
+   - Masalah:
+     * Method save() sebelumnya memanggil MasterDataAccess::authorize($actor, 'relations', true) di dalam transaksi database yang memicu 403 Forbidden.
+   - Perubahan:
+     * Memperbarui save() agar memanggil MasterDataAccess::authorizeRelation($actor, $relation, $action, true).
+
+5. backend/app/Services/NavigationAccess.php
+   - Masalah:
+     * Token 'master.manage' sempat dihapus dari ROLE_MENUS untuk role super_admin dan operator, menyebabkan unit test NavigationAccessTest gagal dan menu sidebar Data Master di frontend menghilang.
+   - Perubahan:
+     * Mengembalikan 'master.manage' pada ROLE_MENUS untuk role 'super_admin' dan 'operator'.
+     * Pada method forUser(), jika $master['can_manage'] bernilai true, sistem secara dinamis menyertakan 'master.manage' bersamaan dengan permission granular master.<resource>.view dan master.imports.
+
+6. backend/database/seeders/SuperAdminSeeder.php
+   - Masalah:
+     * Seeder sebelumnya hanya memberikan izin dari AccountAccess::PERMISSIONS kepada akun awal super_admin, tidak menyertakan izin master data dari MasterDataAccess::catalog().
+   - Perubahan:
+     * Mengganti AccountAccess::PERMISSIONS menjadi AccountAccess::managedPermissions() pada penugasan izin super_admin di seeder, sehingga mencakup 10 izin akun dan 28 izin master data.
+
+--- FRONTEND ---
+
+7. frontend/lib/navigation/sidebar.ts
+   - Masalah:
+     * Item menu sidebar Data Master sebelumnya mematok `access: "master.manage"`, sehingga peran dengan hak baca seperti Guru/Wali Kelas tidak dapat melihat menu Data Siswa meskipun backend memancarkan `master.students.view`.
+   - Perubahan:
+     * Mengubah field `access` pada masing-masing item menu Data Master menjadi izin granular:
+       - institution: master.institution.view
+       - students: master.students.view
+       - guardians: master.guardians.view
+       - employees: master.employees.view
+       - positions: master.positions.view
+       - subjects: master.subjects.view
+       - references: master.student-statuses.view
+       - imports: master.imports
+     * Pada fungsi `sidebarSections(user)`: menambahkan ekspansi token di mana bila pengguna memiliki token `master.manage`, token-token view di atas otomatis ditambahkan ke set akses sehingga Super Admin dan Operator tetap dapat melihat seluruh menu.
+
+8. frontend/app/(portal)/data-master/[section]/page.tsx
+   - Masalah:
+     * Guard halaman sebelumnya hanya memeriksa `user.navigation?.includes("master.manage")`, memicu 404 (notFound) bagi pengguna yang hanya memiliki izin view seperti Guru atau Wali Kelas.
+   - Perubahan:
+     * Menambahkan konstanta `SECTION_PERMISSIONS` yang memetakan setiap section master data ke daftar permission view terkait.
+     * Mengubah route guard agar mengizinkan akses bila user memiliki `master.manage` atau salah satu dari `SECTION_PERMISSIONS[section]`.
+
+9. frontend/lib/master-data.ts
+   - Perubahan:
+     * Menambahkan definisi dan ekspor tipe `ResourceCapability` ({ view: boolean; manage: boolean; status: boolean }).
+     * Menambahkan definisi dan ekspor tipe `MasterOptions` yang mendeskripsikan respon endpoint `/api/v1/master/options` (can_manage, capabilities, resources, student_scope, can_verify_guardians, can_import, import_resources).
+
+10. frontend/components/master/master-workspace.tsx
+    - Perubahan:
+      * Mengimpor tipe `MasterOptions`.
+      * Pada `MasterWorkspace`: memanggil endpoint `/api/v1/master/options` menggunakan `useAsyncData()` saat komponen diinisialisasi, memfilter tab resources berdasarkan resource yang diizinkan, dan meneruskan `options` ke komponen anak (`MasterList` dan `Institution`).
+      * Pada `MasterList`:
+        - Menghitung kapabilitas `canManage` dan `canStatus` berdasarkan `options.capabilities[resource]` dengan fallback ke `options.can_manage`.
+        - Tombol "Tambah {config.singular}" pada `MasterHeading` hanya dirender jika `canManage` bernilai true.
+        - Kolom tindakan pada tabel desktop dan card mobile menampilkan teks/aria-label "Kelola" jika memiliki `canManage`, atau "Lihat" jika hanya memiliki izin view. Header tabel menampilkan "Tindakan" atau "Rincian".
+        - Pada sheet detail modal: tombol mutasi ("Ubah data", "Kelola hubungan...", "Arsipkan siswa / Nonaktifkan data") dibungkus dalam kondisi `canManage` atau `canStatus`. Jika user hanya memiliki izin view, hanya rincian data dan status badge yang ditampilkan tanpa tombol mutasi.
+        - Dialog overlay mutasi (edit, status, relations) dilindungi agar tidak dapat dibuka tanpa hak kapabilitas terkait.
+      * Pada `Institution`:
+        - Menerima prop `options` dan menghitung `canManage`.
+        - Tombol "Ubah identitas" / "Lengkapi identitas" hanya ditampilkan bila `canManage` bernilai true.
+
+================================================================================
+HASIL PENGUJIAN DAN VERIFIKASI
+================================================================================
+1. Backend Tests:
+   - Sintaks PHP: `php -l` seluruh berkas controller, request, service, seeder -> OK (No syntax errors).
+   - Formatter: `Laravel Pint` -> Clean.
+   - PHPUnit: `./vendor/bin/phpunit tests/Unit/` -> 6 passed, 37 assertions, duration 354ms.
+
+2. Frontend Verification & Tests:
+   - Biome Format & Lint: `pnpm format && pnpm lint` -> Checked 101 files, zero errors, zero warnings.
+   - Next.js Production Build: `pnpm build` -> Compiled successfully, Finished TypeScript typecheck, static page generation passed (14/14).
+   - Playwright E2E Tests:
+     * `pnpm playwright test tests/e2e/sidebar.spec.ts tests/e2e/master-data.spec.ts` -> 37 passed (1.3m).
+     * `pnpm playwright test tests/e2e/responsive.spec.ts` -> 4 passed (16.1s).
+   - Seluruh pengujian sidebar matriks role, pembuatan data master, pencarian, pengarsipan, hubungan wali, riwayat jabatan/kategori, dan responsive layout berhasil 100%.

@@ -18,6 +18,20 @@ export default function MasterPage({
     </Suspense>
   );
 }
+const SECTION_PERMISSIONS: Record<MasterSection, string[]> = {
+  institution: ["master.institution.view"],
+  students: ["master.students.view"],
+  guardians: ["master.guardians.view"],
+  employees: ["master.employees.view"],
+  positions: ["master.positions.view", "master.employee-categories.view"],
+  subjects: ["master.subjects.view"],
+  references: [
+    "master.student-statuses.view",
+    "master.attendance-statuses.view",
+  ],
+  imports: ["master.imports"],
+};
+
 async function MasterPageContent({
   params,
 }: {
@@ -26,6 +40,12 @@ async function MasterPageContent({
   const { section } = await params;
   if (!Object.hasOwn(MASTER_SECTIONS, section)) notFound();
   const user = await requireUser(`/data-master/${section}`);
-  if (!user.navigation?.includes("master.manage")) notFound();
+  const nav = new Set(user.navigation ?? []);
+  const allowed =
+    nav.has("master.manage") ||
+    SECTION_PERMISSIONS[section as MasterSection]?.some((perm) =>
+      nav.has(perm),
+    );
+  if (!allowed) notFound();
   return <MasterWorkspace section={section as MasterSection} />;
 }

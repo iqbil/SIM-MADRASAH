@@ -53,6 +53,7 @@ import {
   fieldValue,
   hasPerson,
   MASTER_SECTIONS,
+  type MasterOptions,
   type MasterPage,
   type MasterRecord,
   type MasterSection,
@@ -68,12 +69,47 @@ import {
 
 export function MasterWorkspace({ section }: { section: MasterSection }) {
   const config = MASTER_SECTIONS[section];
+  const { data: options, loading: optionsLoading } = useAsyncData(
+    useCallback(
+      () =>
+        masterRequest<{ data: MasterOptions }>("options")
+          .then((res) => res.data)
+          .catch(() => null),
+      [],
+    ),
+  );
+
   if (section === "imports") return <MasterImports />;
-  if (section === "institution") return <Institution />;
-  const resources = config.resources as Resource[];
-  if (resources.length === 1) return <MasterList resource={resources[0]} />;
+  if (section === "institution")
+    return (
+      <Institution
+        options={options ?? undefined}
+        loadingOptions={optionsLoading}
+      />
+    );
+
+  const configuredResources = config.resources as Resource[];
+  const allowedResources = options?.resources
+    ? configuredResources.filter((r) => options.resources?.includes(r))
+    : configuredResources;
+  const resources =
+    allowedResources.length > 0 ? allowedResources : configuredResources;
+
+  if (resources.length === 1)
+    return (
+      <MasterList
+        resource={resources[0]}
+        options={options ?? undefined}
+        loadingOptions={optionsLoading}
+      />
+    );
+
   return (
-    <Tabs defaultValue={resources[0]} className="space-y-6">
+    <Tabs
+      key={resources.join("-")}
+      defaultValue={resources[0]}
+      className="space-y-6"
+    >
       <TabsList className="grid h-auto w-full grid-cols-2 gap-1 rounded-xl p-1 sm:max-w-lg">
         {resources.map((resource) => (
           <TabsTrigger
@@ -87,7 +123,12 @@ export function MasterWorkspace({ section }: { section: MasterSection }) {
       </TabsList>
       {resources.map((resource) => (
         <TabsContent key={resource} value={resource}>
-          <MasterList resource={resource} pageTitle={config.title} />
+          <MasterList
+            resource={resource}
+            pageTitle={config.title}
+            options={options ?? undefined}
+            loadingOptions={optionsLoading}
+          />
         </TabsContent>
       ))}
     </Tabs>
@@ -101,9 +142,13 @@ type Overlay =
 function MasterList({
   resource,
   pageTitle,
+  options,
+  loadingOptions,
 }: {
   resource: Resource;
   pageTitle?: string;
+  options?: MasterOptions;
+  loadingOptions?: boolean;
 }) {
   const config = RESOURCE_CONFIG[resource];
   const focus = useDialogFocus();
@@ -118,6 +163,14 @@ function MasterList({
   const [opening, setOpening] = useState<number>();
   const [overlay, setOverlay] = useState<Overlay>(null);
   const [editorRevision, setEditorRevision] = useState(0);
+
+  const canManage = options
+    ? (options.capabilities?.[resource]?.manage ?? options.can_manage)
+    : false;
+  const canStatus = options
+    ? (options.capabilities?.[resource]?.status ?? options.can_manage)
+    : false;
+
   const loader = useCallback(() => {
     const params = new URLSearchParams({ page: String(page), q: search });
     if (active !== "all") params.set("is_active", active);
@@ -130,6 +183,7 @@ function MasterList({
     void reload();
   };
   async function inspect(id: number, kind: "detail" | "edit" = "detail") {
+    if (kind === "edit" && !canManage) return;
     setOpening(id);
     try {
       const result = await masterRequest<{ data: MasterRecord }>(
@@ -159,10 +213,15 @@ function MasterList({
         title={pageTitle ?? config.title}
         description={config.description}
         action={
-          <Button className="h-11" onClick={() => setOverlay({ kind: "edit" })}>
-            <Plus className="size-4" aria-hidden="true" />
-            Tambah {config.singular}
-          </Button>
+          canManage ? (
+            <Button
+              className="h-11"
+              onClick={() => setOverlay({ kind: "edit" })}
+            >
+              <Plus className="size-4" aria-hidden="true" />
+              Tambah {config.singular}
+            </Button>
+          ) : undefined
         }
       />
       <Card className="min-w-0 rounded-xl border py-0 ring-0">
@@ -287,11 +346,17 @@ function MasterList({
                       <Button
                         variant="outline"
                         className="h-11 w-full"
-                        aria-label={`Kelola ${recordName(record)}`}
+                        aria-label={`${opening === record.id ? "Memuat…" : loadingOptions ? "Memuat…" : canManage ? "Kelola" : "Lihat"} ${recordName(record)}`}
                         disabled={opening !== undefined}
                         onClick={() => void inspect(record.id)}
                       >
-                        {opening === record.id ? "Memuat…" : "Kelola"}
+                        {opening === record.id
+                          ? "Memuat…"
+                          : loadingOptions
+                            ? "Memuat…"
+                            : canManage
+                              ? "Kelola"
+                              : "Lihat"}
                       </Button>
                     </CardContent>
                   </Card>
@@ -304,7 +369,13 @@ function MasterList({
                       <TableHead>Nama</TableHead>
                       <TableHead>Kode / nomor</TableHead>
                       <TableHead>Status data</TableHead>
-                      <TableHead className="text-right">Tindakan</TableHead>
+                      <TableHead className="text-right">
+                        {loadingOptions
+                          ? "Tindakan"
+                          : canManage
+                            ? "Tindakan"
+                            : "Rincian"}
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -326,11 +397,17 @@ function MasterList({
                           <Button
                             variant="outline"
                             className="h-11"
-                            aria-label={`Kelola ${recordName(record)}`}
+                            aria-label={`${opening === record.id ? "Memuat…" : loadingOptions ? "Memuat…" : canManage ? "Kelola" : "Lihat"} ${recordName(record)}`}
                             disabled={opening !== undefined}
                             onClick={() => void inspect(record.id)}
                           >
-                            {opening === record.id ? "Memuat…" : "Kelola"}
+                            {opening === record.id
+                              ? "Memuat…"
+                              : loadingOptions
+                                ? "Memuat…"
+                                : canManage
+                                  ? "Kelola"
+                                  : "Lihat"}
                           </Button>
                         </TableCell>
                       </TableRow>
@@ -351,7 +428,7 @@ function MasterList({
           )}
         </CardContent>
       </Card>
-      {overlay?.kind === "edit" && (
+      {overlay?.kind === "edit" && canManage && (
         <MasterEditor
           key={`${overlay.record?.updated_at ?? "new"}-${editorRevision}`}
           resource={resource}
@@ -379,58 +456,70 @@ function MasterList({
                 {recordName(overlay.record)}
               </SheetTitle>
               <SheetDescription>
-                Rincian {config.singular} dan tindakan pengelolaan.
+                {canManage || canStatus
+                  ? `Rincian ${config.singular} dan tindakan pengelolaan.`
+                  : `Rincian data ${config.singular}.`}
               </SheetDescription>
             </SheetHeader>
             <div className="min-h-0 space-y-6 overflow-y-auto p-5">
               <StatusBadge record={overlay.record} />
               <RecordDetails record={overlay.record} resource={resource} />
-              <div className="flex flex-col gap-2">
-                <Button
-                  variant="outline"
-                  className="min-h-11"
-                  onClick={() =>
-                    setOverlay({ kind: "edit", record: overlay.record })
-                  }
-                >
-                  Ubah data
-                </Button>
-                {["students", "employees"].includes(resource) && (
-                  <Button
-                    variant="outline"
-                    className="min-h-11"
-                    onClick={() =>
-                      setOverlay({ kind: "relations", record: overlay.record })
-                    }
-                  >
-                    {resource === "students"
-                      ? "Kelola hubungan wali"
-                      : "Kelola kategori & jabatan"}
-                  </Button>
-                )}
-                <Button
-                  variant="outline"
-                  className="min-h-11"
-                  disabled={
-                    resource === "student-statuses" &&
-                    overlay.record.code === "active"
-                  }
-                  onClick={() =>
-                    setOverlay({ kind: "status", record: overlay.record })
-                  }
-                >
-                  {recordActive(overlay.record)
-                    ? resource === "students"
-                      ? "Arsipkan siswa"
-                      : "Nonaktifkan data"
-                    : "Aktifkan kembali"}
-                </Button>
-              </div>
+              {(canManage || canStatus) && (
+                <div className="flex flex-col gap-2">
+                  {canManage && (
+                    <Button
+                      variant="outline"
+                      className="min-h-11"
+                      onClick={() =>
+                        setOverlay({ kind: "edit", record: overlay.record })
+                      }
+                    >
+                      Ubah data
+                    </Button>
+                  )}
+                  {canManage &&
+                    ["students", "employees"].includes(resource) && (
+                      <Button
+                        variant="outline"
+                        className="min-h-11"
+                        onClick={() =>
+                          setOverlay({
+                            kind: "relations",
+                            record: overlay.record,
+                          })
+                        }
+                      >
+                        {resource === "students"
+                          ? "Kelola hubungan wali"
+                          : "Kelola kategori & jabatan"}
+                      </Button>
+                    )}
+                  {canStatus && (
+                    <Button
+                      variant="outline"
+                      className="min-h-11"
+                      disabled={
+                        resource === "student-statuses" &&
+                        overlay.record.code === "active"
+                      }
+                      onClick={() =>
+                        setOverlay({ kind: "status", record: overlay.record })
+                      }
+                    >
+                      {recordActive(overlay.record)
+                        ? resource === "students"
+                          ? "Arsipkan siswa"
+                          : "Nonaktifkan data"
+                        : "Aktifkan kembali"}
+                    </Button>
+                  )}
+                </div>
+              )}
             </div>
           </SheetContent>
         </Sheet>
       )}
-      {overlay?.kind === "status" && (
+      {overlay?.kind === "status" && canStatus && (
         <MasterStatus
           resource={resource}
           record={overlay.record}
@@ -438,7 +527,7 @@ function MasterList({
           onSaved={saved}
         />
       )}
-      {overlay?.kind === "relations" && (
+      {overlay?.kind === "relations" && canManage && (
         <MasterRelations
           resource={resource}
           owner={overlay.record}
@@ -569,12 +658,23 @@ function MasterStatus({
     </ConfirmationDialog>
   );
 }
-function Institution() {
+function Institution({
+  options,
+  loadingOptions,
+}: {
+  options?: MasterOptions;
+  loadingOptions?: boolean;
+}) {
   const [record, setRecord] = useState<MasterRecord | null>();
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [revision, setRevision] = useState(0);
+
+  const canManage = options
+    ? (options.capabilities?.institution?.manage ?? options.can_manage)
+    : false;
+
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -601,13 +701,15 @@ function Institution() {
         title={config.title}
         description={config.description}
         action={
-          <Button
-            className="h-11"
-            disabled={loading || Boolean(error)}
-            onClick={() => setEditing(true)}
-          >
-            {record ? "Ubah identitas" : "Lengkapi identitas"}
-          </Button>
+          canManage ? (
+            <Button
+              className="h-11"
+              disabled={loading || Boolean(loadingOptions) || Boolean(error)}
+              onClick={() => setEditing(true)}
+            >
+              {record ? "Ubah identitas" : "Lengkapi identitas"}
+            </Button>
+          ) : undefined
         }
       />
       {error ? (
@@ -623,7 +725,7 @@ function Institution() {
       ) : (
         <MasterEmpty />
       )}
-      {editing && (
+      {editing && canManage && (
         <MasterEditor
           key={`${record?.updated_at ?? "new"}-${revision}`}
           resource="institution"

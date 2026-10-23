@@ -10,6 +10,20 @@ export type Resource =
   | "student-statuses"
   | "attendance-statuses"
   | "institution";
+export type ResourceCapability = {
+  view: boolean;
+  manage: boolean;
+  status: boolean;
+};
+export type MasterOptions = {
+  can_manage: boolean;
+  capabilities?: Partial<Record<Resource, ResourceCapability>>;
+  resources?: Resource[];
+  student_scope?: "all" | "active_assignments";
+  can_verify_guardians?: boolean;
+  can_import?: boolean;
+  import_resources?: Resource[];
+};
 export type MasterRecord = {
   id: number;
   updated_at: string;

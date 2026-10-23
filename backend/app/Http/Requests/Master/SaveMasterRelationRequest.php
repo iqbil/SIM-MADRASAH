@@ -10,7 +10,7 @@ class SaveMasterRelationRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        MasterDataAccess::authorize($this->user(), 'relations', true);
+        MasterDataAccess::authorizeRelation($this->user(), (string) $this->route('relation'), (string) $this->route('action'), true);
 
         return true;
     }
