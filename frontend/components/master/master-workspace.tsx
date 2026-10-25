@@ -110,12 +110,12 @@ export function MasterWorkspace({ section }: { section: MasterSection }) {
       defaultValue={resources[0]}
       className="space-y-6"
     >
-      <TabsList className="grid h-auto w-full grid-cols-2 gap-1 rounded-xl p-1 sm:max-w-lg">
+      <TabsList className="h-14! w-full justify-start gap-1 rounded-xl bg-secondary p-1 sm:w-auto">
         {resources.map((resource) => (
           <TabsTrigger
             key={resource}
             value={resource}
-            className="min-h-11 whitespace-normal text-sm"
+            className="h-11! min-w-0 flex-1 px-3 text-xs sm:flex-none"
           >
             {RESOURCE_CONFIG[resource].title}
           </TabsTrigger>

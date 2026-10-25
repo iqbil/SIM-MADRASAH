@@ -233,7 +233,7 @@ export function AccountWorkspace({ user }: { user: AuthUser }) {
         </Alert>
       )}
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="mb-5 h-14! w-full justify-start gap-1 rounded-xl bg-[#eaf0e7] p-1 sm:w-auto">
+        <TabsList className="mb-5 h-14! w-full justify-start gap-1 rounded-xl bg-secondary p-1 sm:w-auto">
           <TabsTrigger
             value="users"
             className="h-11! min-w-0 flex-1 gap-1 px-2 text-[11px] sm:flex-none sm:gap-2 sm:px-3 sm:text-xs"

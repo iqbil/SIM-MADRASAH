@@ -171,4 +171,10 @@ class File extends DomainModel
     {
         return $this->hasOne(EmployeeAttendanceCapture::class, 'photo_file_id', 'id');
     }
+
+    /** @return HasMany<DataSubjectRequest, $this> */
+    public function dataSubjectRequests(): HasMany
+    {
+        return $this->hasMany(DataSubjectRequest::class, 'verification_evidence_file_id', 'id');
+    }
 }

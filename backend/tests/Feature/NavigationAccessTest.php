@@ -42,8 +42,8 @@ class NavigationAccessTest extends MysqlAuthTestCase
     public static function roleMenus(): array
     {
         return [
-            'super admin' => ['super_admin', ['master.manage', 'academic.manage', 'attendance.manage', 'website.edit', 'reports.view', 'system.manage']],
-            'operator' => ['operator', ['master.manage', 'academic.manage', 'attendance.manage', 'website.edit', 'reports.view', 'system.manage']],
+            'super admin' => ['super_admin', ['master.manage', 'master.institution.view', 'master.students.view', 'master.guardians.view', 'master.employees.view', 'master.positions.view', 'master.employee-categories.view', 'master.subjects.view', 'master.student-statuses.view', 'master.attendance-statuses.view', 'master.imports', 'academic.manage', 'attendance.manage', 'website.edit', 'reports.view', 'system.manage']],
+            'operator' => ['operator', ['master.manage', 'master.institution.view', 'master.students.view', 'master.guardians.view', 'master.employees.view', 'master.positions.view', 'master.employee-categories.view', 'master.subjects.view', 'master.student-statuses.view', 'master.attendance-statuses.view', 'master.imports', 'academic.manage', 'attendance.manage', 'website.edit', 'reports.view', 'system.manage']],
             'head' => ['kepala_madrasah', ['academic.view', 'attendance.reports', 'reports.view']],
             'teacher' => ['guru', ['academic.view', 'teaching.own', 'students.attendance', 'questions.own']],
             'homeroom teacher' => ['wali_kelas', ['academic.view', 'students.attendance', 'class.own', 'bk.shared']],

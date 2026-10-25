@@ -16,7 +16,7 @@ export class BackendError extends Error {
 
 export function backendUrl(
   path: string,
-  area: "auth" | "accounts" | "master" = "auth",
+  area: "auth" | "accounts" | "master" | "academic" = "auth",
 ): string {
   const base = process.env.API_BASE_URL ?? "http://127.0.0.1:8000/api/v1";
   return `${base.replace(/\/$/, "")}/${area}/${path}`;
@@ -25,7 +25,7 @@ export function backendUrl(
 export async function backendFetch(
   path: string,
   init: RequestInit = {},
-  area: "auth" | "accounts" | "master" = "auth",
+  area: "auth" | "accounts" | "master" | "academic" = "auth",
 ): Promise<Response> {
   try {
     return await fetch(backendUrl(path, area), {
@@ -45,7 +45,7 @@ export async function backendFetch(
 export async function backendJson<T>(
   path: string,
   init: RequestInit = {},
-  area: "auth" | "accounts" | "master" = "auth",
+  area: "auth" | "accounts" | "master" | "academic" = "auth",
 ): Promise<T> {
   const response = await backendFetch(path, init, area);
   let payload: T & ApiError;

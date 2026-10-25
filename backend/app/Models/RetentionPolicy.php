@@ -85,4 +85,10 @@ class RetentionPolicy extends DomainModel
     {
         return $this->hasMany(BackupRun::class, 'retention_policy_id', 'id');
     }
+
+    /** @return HasMany<DataProcessingRegister, $this> */
+    public function dataProcessingRegisters(): HasMany
+    {
+        return $this->hasMany(DataProcessingRegister::class, 'retention_policy_id', 'id');
+    }
 }

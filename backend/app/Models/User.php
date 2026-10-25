@@ -129,4 +129,10 @@ class User extends Authenticatable
     {
         return $this->hasMany(LetterDisposition::class, 'assigned_to_user_id', 'id');
     }
+
+    /** @return HasMany<UserNotification, $this> */
+    public function notifications(): HasMany
+    {
+        return $this->hasMany(UserNotification::class, 'recipient_user_id', 'id');
+    }
 }

@@ -96,4 +96,16 @@ class Student extends DomainModel
     {
         return $this->hasMany(SourceRecord::class, 'student_id', 'id');
     }
+
+    /** @return HasMany<StudentPublicationConsent, $this> */
+    public function publicationConsents(): HasMany
+    {
+        return $this->hasMany(StudentPublicationConsent::class, 'student_id', 'id');
+    }
+
+    /** @return HasMany<ContentStudentLink, $this> */
+    public function contentStudentLinks(): HasMany
+    {
+        return $this->hasMany(ContentStudentLink::class, 'student_id', 'id');
+    }
 }

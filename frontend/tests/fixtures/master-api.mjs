@@ -31,7 +31,11 @@ export function resetMaster() {
     is_active: true,
     updated_at: time(),
   });
-  people = [person(2001, "Bapak Ahmad"), person(2002, "Guru Ahmad")];
+  people = [
+    person(2001, "Bapak Ahmad"),
+    person(2002, "Guru Ahmad"),
+    person(2003, "Guru Siti"),
+  ];
   const student = (i) => {
     const p = person(i + 1000, `Siswa Contoh ${String(i).padStart(2, "0")}`);
     people.push(p);
@@ -86,6 +90,18 @@ export function resetMaster() {
         is_active: true,
         person_id: 2002,
         person: people[1],
+        updated_at: time(),
+      },
+      {
+        id: 2,
+        employee_number: "P-002",
+        nip: null,
+        nuptk: null,
+        joined_on: "2026-07-01",
+        left_on: null,
+        is_active: true,
+        person_id: 2003,
+        person: people[2],
         updated_at: time(),
       },
     ],

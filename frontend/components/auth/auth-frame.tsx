@@ -1,8 +1,23 @@
-import { BookOpen, GraduationCap, ShieldCheck } from "lucide-react";
+import { BellRing, CalendarCheck, ShieldCheck } from "lucide-react";
 import Image from "next/image";
 import type { ReactNode } from "react";
 import { Brand } from "@/components/brand";
 import { Card, CardContent } from "@/components/ui/card";
+
+const PORTAL_POINTS = [
+  {
+    icon: CalendarCheck,
+    text: "Jadwal, absensi, dan realisasi mengajar tercatat rapi.",
+  },
+  {
+    icon: BellRing,
+    text: "Pengumuman dan informasi perkembangan siswa untuk wali.",
+  },
+  {
+    icon: ShieldCheck,
+    text: "Akun pribadi dengan sesi login yang terlindungi.",
+  },
+] as const;
 
 export function AuthFrame({ children }: { children: ReactNode }) {
   return (
@@ -21,36 +36,47 @@ export function AuthFrame({ children }: { children: ReactNode }) {
       </div>
       <div className="relative flex h-[245px] flex-col justify-between p-6 pb-12 sm:h-[285px] sm:px-10 lg:h-auto lg:min-h-svh lg:p-12 xl:p-16">
         <Brand light />
-        <div className="hidden max-w-xl py-20 lg:block">
-          <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/10 px-4 py-2 text-[11px] font-medium tracking-[0.14em] text-white backdrop-blur-sm">
-            <GraduationCap className="size-4" /> PORTAL MADRASAH
-          </div>
-          <h2 className="text-[clamp(2.8rem,4.3vw,4.5rem)] leading-[1.12] font-semibold tracking-[-0.045em] text-white">
-            Tempat belajar.
-            <br />
-            Ruang bertumbuh.
-            <br />
-            <span className="text-[#e9d6a3]">Masa depan bersama.</span>
-          </h2>
-          <p className="mt-7 max-w-sm text-sm leading-7 text-white/80">
-            Menghubungkan keluarga besar madrasah dalam satu portal untuk
-            mendukung pendidikan yang lebih baik.
-          </p>
-          <div className="mt-9 flex items-center gap-5 text-xs text-white/80">
-            <span className="flex items-center gap-2">
-              <BookOpen className="size-4" /> Ilmu & akhlak
-            </span>
-            <span className="flex items-center gap-2">
-              <ShieldCheck className="size-4" /> Akses pribadi
-            </span>
+        <div className="hidden flex-1 items-center lg:flex">
+          <div className="max-w-md py-16">
+            <p className="text-[11px] font-semibold tracking-[0.18em] text-white/70 uppercase">
+              Portal internal madrasah
+            </p>
+            <span
+              aria-hidden="true"
+              className="mt-5 block h-[3px] w-12 rounded-full bg-[#e9d6a3]"
+            />
+            <h2 className="mt-6 text-[1.9rem] leading-tight font-semibold tracking-tight text-white xl:text-[2.15rem]">
+              Administrasi madrasah dalam satu portal.
+            </h2>
+            <p className="mt-4 max-w-sm text-sm leading-7 text-white/75">
+              MTs Al Karimiyyah mengelola data siswa, kehadiran, honor, dan
+              komunikasi dengan wali melalui satu sistem terpadu.
+            </p>
+            <ul className="mt-10 space-y-4">
+              {PORTAL_POINTS.map((point) => (
+                <li
+                  key={point.text}
+                  className="flex items-center gap-3 text-[13px] leading-6 text-white/85"
+                >
+                  <point.icon
+                    className="size-4 shrink-0 text-white/70"
+                    aria-hidden="true"
+                  />
+                  {point.text}
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
+        <p className="hidden text-[10px] tracking-wide text-white/60 lg:block">
+          © MTs Al Karimiyyah · Sistem Informasi Madrasah
+        </p>
       </div>
       <section className="relative -mt-7 flex min-h-[calc(100svh-218px)] flex-col rounded-t-[2rem] bg-white px-6 pt-7 pb-5 sm:px-10 lg:m-0 lg:min-h-svh lg:justify-center lg:rounded-none lg:bg-transparent lg:px-10 lg:py-10 xl:px-16">
         <Card className="mx-auto w-full max-w-[440px] overflow-visible rounded-none bg-white p-0 shadow-none ring-0 lg:rounded-[1.75rem] lg:p-9 lg:shadow-2xl lg:shadow-black/15 xl:p-10">
           <CardContent className="p-0">{children}</CardContent>
         </Card>
-        <footer className="mx-auto mt-auto pt-8 text-center text-[10px] text-muted-foreground lg:mt-0 lg:pt-6 lg:text-white/75">
+        <footer className="mx-auto mt-auto pt-8 text-center text-[10px] text-muted-foreground lg:hidden">
           © MTs Al Karimiyyah · Sistem Informasi Madrasah
         </footer>
       </section>

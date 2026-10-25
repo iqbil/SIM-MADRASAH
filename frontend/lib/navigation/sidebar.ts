@@ -93,33 +93,52 @@ export const SIDEBAR_SECTIONS: SidebarSection[] = [
     items: [
       {
         id: "years",
+        href: "/akademik/tahun-ajaran",
         label: "Tahun ajaran & semester",
-        access: "academic.manage",
+        access: "academic.years.view",
       },
-      { id: "classes", label: "Rombongan belajar", access: "academic.manage" },
+      {
+        id: "classes",
+        href: "/akademik/rombel",
+        label: "Rombongan belajar",
+        access: "academic.classes.view",
+      },
       {
         id: "enrollments",
+        href: "/akademik/keanggotaan",
         label: "Keanggotaan & riwayat siswa",
-        access: "academic.manage",
+        access: "academic.enrollments.view",
       },
       {
         id: "transitions",
+        href: "/akademik/mutasi",
         label: "Kenaikan & mutasi siswa",
-        access: "academic.manage",
+        access: "academic.enrollments.view",
       },
-      { id: "calendar", label: "Kalender akademik", access: "academic.read" },
+      {
+        id: "calendar",
+        href: "/akademik/kalender",
+        label: "Kalender akademik",
+        access: "academic.calendar.view",
+      },
       {
         id: "assignments",
-        label: "Penugasan mengajar",
-        access: "academic.manage",
+        href: "/akademik/penugasan",
+        label: "Penugasan mengajar & Wali kelas",
+        access: "academic.assignments.view",
       },
       {
-        id: "homeroom",
-        label: "Penugasan wali kelas",
-        access: "academic.manage",
+        id: "schedules",
+        href: "/akademik/jadwal",
+        label: "Jadwal pelajaran",
+        access: "academic.schedules.view",
       },
-      { id: "schedules", label: "Jadwal pelajaran", access: "academic.read" },
-      { id: "substitutes", label: "Guru pengganti", access: "academic.manage" },
+      {
+        id: "substitutes",
+        href: "/akademik/pengganti",
+        label: "Guru pengganti",
+        access: "academic.substitutes.view",
+      },
       { id: "my-class", label: "Kelas perwalian saya", access: "class.own" },
     ],
   },
@@ -397,12 +416,24 @@ export function sidebarSections(user: AuthUser): SidebarSection[] {
     access.add("master.guardians.view");
     access.add("master.employees.view");
     access.add("master.positions.view");
+    access.add("master.employee-categories.view");
     access.add("master.subjects.view");
     access.add("master.student-statuses.view");
+    access.add("master.attendance-statuses.view");
     access.add("master.imports");
   }
-  if (access.has("academic.manage") || access.has("academic.view"))
-    access.add("academic.read");
+  for (const token of ["academic.manage", "academic.view"]) {
+    if (access.has(token)) {
+      access.add("academic.years.view");
+      access.add("academic.classes.view");
+      access.add("academic.enrollments.view");
+      access.add("academic.calendar.view");
+      access.add("academic.assignments.view");
+      access.add("academic.schedules.view");
+      access.add("academic.substitutes.view");
+      access.add("academic.read");
+    }
+  }
   if (access.has("attendance.manage") || access.has("attendance.reports"))
     access.add("attendance.read");
   return SIDEBAR_SECTIONS.map((section) => ({

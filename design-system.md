@@ -1,6 +1,6 @@
 # Design System — SIM Madrasah MTs Al Karimiyyah
 
-Versi 1.4 · 20 Oktober 2026 · Berlaku untuk seluruh `frontend/`.
+Versi 1.7 · 25 Oktober 2026 · Berlaku untuk seluruh `frontend/`.
 
 Dokumen ini menjadi pedoman implementasi UI/UX dari autentikasi hingga seluruh modul madrasah. Perubahan berikutnya wajib mengacu ke pedoman ini. Ketentuan bisnis, otorisasi, dan data mengikuti SRS serta kontrak API; design system mengatur cara pengguna berinteraksi dengan ketentuan tersebut.
 
@@ -39,6 +39,7 @@ Pedoman berlaku langsung untuk halaman baru dan komponen yang diubah. Bagian lam
 | Konfirmasi tindakan lintas fitur | `frontend/components/layout/confirmation-dialog.tsx` |
 | Pagination dan alasan perubahan | `frontend/components/layout/pager.tsx`, `frontend/components/layout/reason-field.tsx` |
 | Data master, form domain, relasi dan impor | `frontend/components/master/`, `frontend/lib/master-data.ts` |
+| Modul Akademik & Kelas (tahun ajaran/semester, rombel, keanggotaan, mutasi, kalender, penugasan) | `frontend/components/academic/`, `frontend/lib/academic.ts`, BFF `frontend/app/api/academic/` |
 | Request sesi dan loading data bersama | `frontend/lib/api-client.ts`, `frontend/hooks/use-async-data.ts`, `frontend/hooks/use-dialog-focus.ts` |
 | Nama role dan tujuan ruang kerja | `frontend/lib/auth/roles.ts` |
 
@@ -239,8 +240,8 @@ Susunan halaman modul: konteks/judul → deskripsi singkat → aksi utama → ri
 - Pergantian role hanya menawarkan role milik pengguna. Role aktif adalah preferensi navigasi, bukan pemberian izin.
 - Dashboard awal tetap memakai `Empty` sampai tersedia data/modul nyata. Tautan cepat hanya menuju fitur yang sudah tersedia dan boleh diakses.
 - Halaman akun pribadi memakai informasi berlabel (`dl`) dan bagian keamanan terpisah.
-- Login/password/pembaruan sesi memakai `AuthFrame`; jangan menyalin layout foto ke tiap halaman.
-- Foto sekolah saat ini adalah ilustrasi dan harus disebut sebagai ilustrasi. Penggantian dengan foto asli dilakukan melalui aset bersama.
+- Login/password/pembaruan sesi memakai `AuthFrame`; panel identitasnya tidak disalin ke tiap halaman.
+- Latar `AuthFrame` memakai ilustrasi lingkungan sekolah dengan overlay hijau tua; teks panel kiri bersifat faktual dan institusional (overline, garis emas `#e9d6a3`, judul sekala sedang, daftar kemampuan portal) — tanpa tagline pemasaran, pill kaca, atau tipografi hero besar. Penggantian dengan foto asli madrasah dilakukan melalui aset bersama dengan pertimbangan beban muat (NFR-15).
 
 Komponen fitur baru ditempatkan menurut domain (`components/attendance`, `components/students`, dan seterusnya); komponen dasar tetap di `components/ui`. Jangan menaruh aturan bisnis domain ke dalam `Button`, `Dialog`, atau komponen UI dasar lainnya.
 
@@ -252,6 +253,15 @@ Komponen fitur baru ditempatkan menurut domain (`components/attendance`, `compon
 - Tangani loading, kosong, gagal, pending, sukses, tanpa izin, dan sesi habis dengan pola §9. Jangan membuat state sukses palsu atau tautan ke halaman modul yang belum tersedia.
 - Uji halaman baru berdampingan dengan minimal satu halaman sejenis yang sudah ada. Jika komponen bersama berubah, periksa seluruh pemanggil yang relevan, termasuk login, dashboard, dan pengelolaan akun bila terdampak.
 - Jika halaman lama menyimpang dari pedoman, gunakan pola kanonik dokumen ini dan perbaiki komponen bersama yang digunakan dalam cakupan perubahan. Jangan menyalin ketidakkonsistenan lama ke modul baru atau menyatakan semua halaman lama telah seragam tanpa pemeriksaan.
+
+### Bar tab (Tabs)
+Satu bar tab per halaman hanya untuk sub-cakupan dalam izin yang sama (mis. "Penugasan mengajar | Wali kelas", "Jabatan | Kategori pegawai", "Versi jadwal | Entri mingguan | Pertemuan").
+
+- `TabsList` WAJIB `h-14! w-full justify-start gap-1 rounded-xl bg-secondary p-1 sm:w-auto` — token `bg-secondary`, bukan hex.
+- `TabsTrigger` WAJIB `h-11! min-w-0 flex-1 px-3 text-xs sm:flex-none`; bila tab memuat ikon tambahkan `gap-1 px-2 text-[11px]` dan `sm:gap-2 sm:px-3 sm:text-xs`.
+- Perilaku: mobile — tab membagi lebar penuh dalam satu baris; desktop — pill kompak rata kiri menghugging label. Dilarang `grid grid-cols-N` atau lebar tetap yang merentangkan tab setengah bar.
+- Bila isi tab bergantung state lain (mis. versi jadwal terpilih), pakai `Tabs` terkontrol (`value`/`onValueChange`) agar seleksi tidak loncat saat dialog menutup.
+- Referensi: `components/accounts/account-workspace.tsx`, `components/master/master-workspace.tsx`, `components/academic/academic-assignments.tsx`, `components/academic/academic-schedules.tsx`, `components/academic/academic-substitutes.tsx`.
 
 ### Pola Data Master
 
@@ -413,3 +423,6 @@ Perubahan token/layout tidak dilakukan pada satu halaman saja. Perbarui sumber b
 | 1.2 | 20 Oktober 2026 | Katalog sidebar baseline SRS, kelompok Collapsible shadcn, status menu belum tersedia, dan akses navigasi dari backend berdasarkan role serta mandat/grant aktif. |
 | 1.3 | 20 Oktober 2026 | Aturan wajib reuse sebelum membuat komponen, inventaris sumber yang tersedia, ekstraksi pola lintas fitur, kontrak konsistensi antarhalaman, dan kewajiban shadcn sepanjang pengembangan. |
 | 1.4 | 20 Oktober 2026 | Halaman Data Master aktif, kerangka form/konfirmasi, alasan dan pagination bersama yang digunakan akun serta master, pencarian referensi, konflik versi, dan alur pratinjau impor. |
+| 1.5 | 24 Oktober 2026 | Tipografi panel auth desktop diganti konten institusional faktual (menggantikan tagline pemasaran/pill kaca/hero clamp); latar foto ilustrasi + overlay dipertahankan; tautan "Lupa password?" dirapatkan; © dipindah ke dasar panel kiri. |
+| 1.6 | 24 Oktober 2026 | Modul Akademik & Kelas aktif: menu sidebar granular `academic.*.view` dengan href `/akademik/[section]`; komponen `components/academic/` memakai `AcademicList`/`AcademicFormDialog` bersama (tabel desktop + kartu mobile + Pager + ReasonField + konflik versi); BFF `/api/academic` meniru allowlist master; `FilterSelect` shadcn untuk filter; pratinjau-konfirmasi mutasi memakai `ConfirmationDialog`. |
+| 1.7 | 25 Oktober 2026 | Pola bar tab dibakukan: pill kompak rata kiri pada desktop dan pembagian lebar penuh pada mobile (`h-14!`/`h-11!`/token `bg-secondary`), menggantikan pola `grid-cols-2` yang merentang tab; tab terkontrol untuk konten bergantung state; modul Jadwal pelajaran & Guru pengganti memakai pola ini. |

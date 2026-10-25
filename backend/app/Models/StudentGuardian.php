@@ -87,4 +87,10 @@ class StudentGuardian extends DomainModel
     {
         return $this->hasMany(BkSummaryRecipient::class, 'student_guardian_id', 'id');
     }
+
+    /** @return HasMany<StudentPublicationConsent, $this> */
+    public function givenPublicationConsents(): HasMany
+    {
+        return $this->hasMany(StudentPublicationConsent::class, 'given_by_guardian_id', 'id');
+    }
 }

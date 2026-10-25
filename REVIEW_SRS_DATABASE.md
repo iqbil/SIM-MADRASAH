@@ -1,10 +1,58 @@
 # Review SRS dan rancangan database SIM Madrasah
 
-Tanggal review awal: 14 Oktober 2026. Pembaruan terakhir: **20 Oktober 2026 — penyelarasan dengan implementasi JWT, Google OAuth, akun dan sidebar**.
+Tanggal review awal: 14 Oktober 2026. Pembaruan terakhir: **24 Oktober 2026 — penyelarasan dengan SRS v1.3 (kepatuhan UU PDP, notifikasi, uji keamanan independen, SOP absensi, performa frontend) beserta migration dan kamus database**.
 
 Bagian status terbaru menilai kode/dokumen saat pembaruan ini. Temuan R-01–R-09 dalam bagian historis tetap merupakan rekaman sebelum revisi v1.2; pernyataan Inertia, keputusan terbuka, SQLite, migration belum tersedia, dan belum dijalankannya tes pada review awal tidak berlaku sebagai status aplikasi sekarang. Bukti pengujian lama dipisahkan dari audit dokumentasi ini.
 
-## Status terbaru — 20 Oktober 2026
+## Pembaruan 24 Oktober 2026 — SRS v1.3 dan addendum database
+
+Acuan:
+
+- [SRS v1.3](SRS_SIM_Madrasah_MTs_Al_Karimiyyah.txt) — addendum 24 Oktober 2026: FR-16 (privasi/UU PDP No. 27/2022), FR-17 (notifikasi), BR-26–BR-28, NFR-15 (performa frontend), NFR-16 (uji keamanan independen), DEC-20/DEC-21, AC-40–AC-42, FR-05-07 (SOP absensi), penguatan FR-13-03.
+- [Kamus database kanonik](backend/database/database.MD) §2, §13.6 (baru), §14, §15.2, §17, §19, §21, §22.
+- Migration baru: `2026_10_24_000001_create_sim_privacy_consent_and_notifications_tables.php`; register DEC via `backend/database/seeders/BusinessDecisionSeeder.php` (onboarding).
+
+**Penilaian:** cakupan kini 17 kelompok kebutuhan (FR-01–FR-17) dan 21 DEC. Dampak skema v1.3 terbatas dan telah diturunkan: empat tabel privasi/persetujuan, satu tabel notifikasi, serta seed register keputusan. Modul inti (master, akademik, absensi, honor, soal, BK, TU) tidak berubah — FR-05-07 memakai mekanisme petugas/koreksi yang sudah ada, NFR-15/16 adalah kebutuhan uji/proses tanpa tabel baru.
+
+### Perubahan struktur dan data
+
+| SRS v1.3 | Penurunan database |
+| --- | --- |
+| FR-16-01 register dasar pemrosesan | `data_processing_registers` (domain, dasar hukum, kategori data, retensi, peran penanggung jawab). |
+| FR-16-04/DEC-21/FR-13-03 persetujuan publikasi siswa | `student_publication_consents` (per siswa–scope, berversi, marker aktif generated column, penarikan tercatat) + `content_student_links` (siswa yang tampak pada revisi konten; snapshot konsen saat publish). |
+| FR-16-03/BR-27 hak subjek data | `data_subject_requests` (akses/perbaikan/pembatasan/keberatan/penghapusan, verifikasi identitas, status, alasan penolakan wajib). |
+| FR-17/DEC-20 notifikasi | `notifications` in-app per penerima dengan `read_at`; payload hanya referensi entitas; tanpa tabel kanal eksternal (backlog). |
+| Register DEC-01–DEC-21 | `BusinessDecisionSeeder` (onboarding, idempoten): 22 baris `business_decisions` baseline; DEC-16 dua versi (v1 superseded 14 Okt, v2 baseline addendum 20 Okt dengan `supersedes_id`); DEC-20/21 efektif 24 Okt. Menutup poin "seed DEC" yang sebelumnya berstatus setup tertunda. Ditetapkan sebagai seeder, bukan migration: percobaan migration-seed membuat 24 tes error karena tes migration/absensi memigrasi skema dengan asumsi register kosong (dan rollback berbenturan FK `supersedes_id` self-reference). |
+
+Alur publish konten kini mewajibkan validasi konsen aktif untuk seluruh `content_student_links` (§13.6, §15.2); penarikan konsen memicu peninjauan konten terbit pada siklus publikasi berikutnya (BR-28).
+
+### Verifikasi yang dijalankan
+
+- Suite MySQL penuh (`phpunit.mysql.xml`) lulus **132 tes / 6358 assertions** pada MySQL 9.7.2 lokal terisolasi (database uji dibuat/dihapus khusus; database operasional `sim_madrasah` tidak disentuh). Target produksi tetap MySQL 8.4 — uji ulang versi produksi tetap perlu.
+- Uji negatif lulus: konsen aktif ganda ditolak `uq_spc_student_scope_active`; `consent_scope`/`link_type`/kategori notifikasi/`legal_basis` invalid ditolak CHECK; `data_subject_requests` status `rejected` tanpa alasan ditolak; tautan konten–siswa ganda ditolak `uq_csl_revision_student`. Penarikan konsen lalu pemberian konsen aktif baru berhasil (riwayat dipertahankan).
+- `BusinessDecisionSeeder` idempoten: dua kali eksekusi tetap 22 baris DEC dengan tanggal efektif benar.
+- Model Eloquent: 5 model baru (`DataProcessingRegister`, `StudentPublicationConsent`, `ContentStudentLink`, `DataSubjectRequest`, `UserNotification` → tabel `notifications`) + relasi balik pada User/Person/Student/StudentGuardian/ContentRevision/RetentionPolicy/File; `MysqlModelTest` memvalidasi seluruh tabel domain memiliki model dengan cast/relasi sesuai skema nyata — hitungan diperbarui 123 → 128.
+- Perbaikan tes yang tertinggal kode (bukan akibat v1.3): `NavigationAccessTest` kini mengharapkan token granular `master.*.view` + `master.imports` untuk super_admin/operator (drift sejak perubahan NavigationAccess 22–23 Oktober yang hanya diverifikasi tes Unit saat itu).
+- Pint + `php -l` lulus untuk seluruh berkas yang diubah.
+- Inventaris rancangan kini **128 tabel domain + 9 infrastruktur = 137 tabel, 393 FK, 330 CHECK** (menambah `personal_access_tokens` 20 Okt, seed izin master data 22 Okt, dan addendum v1.3 24 Okt ke inventaris §21 yang sebelumnya tertinggal).
+
+### Tindak lanjut temuan (v1.3)
+
+| Temuan | Status |
+| --- | --- |
+| Persetujuan publikasi foto siswa belum dimodelkan | Struktur tersedia (`student_publication_consents` + `content_student_links`); layanan publish yang memeriksa konsen, UI pendaftaran konsen, dan AC-40 tetap pekerjaan modul publikasi. |
+| Notifikasi tanpa keputusan eksplisit | DEC-20 menetapkan in-app baseline + kanal eksternal backlog; tabel `notifications` tersedia; layanan emisian/pembacaan dan UI menyusul modul terkait. |
+| UU PDP tanpa register/hak subjek data | Register pemrosesan, konsen, dan permintaan subjek data tersedia sebagai struktur; pengisian register data nyata, template persetujuan, dan petugas layanan adalah pekerjaan onboarding (§17.1). |
+| Uji keamanan independen (NFR-16) & performa frontend (NFR-15) | Non-skema; masuk Tahap 6/checklist rilis Bab IX SRS dan pemantauan §19/AC-42. Tidak ada tabel baru. |
+| SOP absensi foto/GPS (FR-05-07) | Tanpa perubahan skema; memakai `entry_mode=officer` + `attendance_corrections` yang sudah ada. SOP/petugas fallback adalah data onboarding. |
+
+**Modul manajemen akun dan data master:** SRS v1.3 tidak mengubah FR-01/FR-02, sehingga tidak ada revisi fungsional diperlukan pada `AuthenticationService`/`AccountManagementService`/`MasterData*`. Verifikasi: suite MySQL auth/akun/navigasi/master lulus penuh setelah perbaikan ekspektasi tes NavigationAccess; model `User` kini memiliki relasi `notifications()` untuk FR-17.
+
+**Tindak lanjut tahap pengembangan (24 Oktober 2026, malam):** API domain pertama sudah diimplementasikan — modul Akademik & Kelas (`/api/v1/academic`, 31 endpoint termasuk show) dengan otorisasi `academic.*` berbasis role, transaksi + penguncian parent, snapshot grade, mutasi pratinjau/konfirmasi, dan cakupan guru/wali kelas; suite MySQL 140 tes lulus (bertambah `MysqlAcademicApiTest`). BFF frontend dan UI menyusul; jadwal/slot/pertemuan adalah modul berikutnya.
+
+Belum dibuktikan oleh pembaruan ini: layanan domain privasi/notifikasi, kompresi foto nyata, kamera/GPS browser, worker laporan/backup, uji beban, restore, pentest, dan UAT.
+
+## Status 20 Oktober 2026
 
 Acuan:
 

@@ -239,11 +239,17 @@ export function MasterRelations({
                 setPage(1);
               }}
             >
-              <TabsList className="grid h-auto w-full grid-cols-2">
-                <TabsTrigger className="min-h-11" value="categories">
+              <TabsList className="h-14! w-full justify-start gap-1 rounded-xl bg-secondary p-1 sm:w-auto">
+                <TabsTrigger
+                  className="h-11! min-w-0 flex-1 px-3 text-xs sm:flex-none"
+                  value="categories"
+                >
                   Kategori
                 </TabsTrigger>
-                <TabsTrigger className="min-h-11" value="positions">
+                <TabsTrigger
+                  className="h-11! min-w-0 flex-1 px-3 text-xs sm:flex-none"
+                  value="positions"
+                >
                   Jabatan
                 </TabsTrigger>
               </TabsList>

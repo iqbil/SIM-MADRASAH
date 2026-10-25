@@ -78,7 +78,7 @@ class MysqlModelTest extends TestCase
 
         $domainTables = array_diff(Schema::getTableListing(DB::connection()->getDatabaseName(), false), ['migrations', 'password_reset_tokens', 'sessions', 'cache', 'cache_locks', 'jobs', 'job_batches', 'failed_jobs', 'personal_access_tokens']);
         $this->assertEqualsCanonicalizing(array_values($domainTables), array_keys($models));
-        $this->assertCount(123, $models);
+        $this->assertCount(128, $models);
         $columnsByTable = [];
         foreach (array_keys($models) as $table) {
             $columnsByTable[$table] = array_column(Schema::getColumns($table), null, 'name');

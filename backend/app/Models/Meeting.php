@@ -119,6 +119,12 @@ class Meeting extends DomainModel
         return $this->hasMany(SubstituteAssignment::class, 'meeting_id', 'id');
     }
 
+    /** Pengganti aktif (belum dicabut); satu per pertemuan pada baseline. @return HasOne<SubstituteAssignment, $this> */
+    public function activeSubstitute(): HasOne
+    {
+        return $this->hasOne(SubstituteAssignment::class, 'meeting_id', 'id')->whereNull('revoked_at');
+    }
+
     /** @return HasOne<TeachingRealization, $this> */
     public function realization(): HasOne
     {

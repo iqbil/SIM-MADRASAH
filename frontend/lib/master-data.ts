@@ -57,7 +57,16 @@ export type MasterPage<T = MasterRecord> = {
 export type FieldDefinition = {
   name: string;
   label: string;
-  type?: "text" | "textarea" | "date" | "email" | "url" | "select" | "boolean";
+  type?:
+    | "text"
+    | "textarea"
+    | "date"
+    | "time"
+    | "number"
+    | "email"
+    | "url"
+    | "select"
+    | "boolean";
   required?: boolean;
   max?: number;
   options?: { value: string; label: string }[];

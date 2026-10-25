@@ -78,4 +78,10 @@ class ContentRevision extends DomainModel
     {
         return $this->hasMany(PublicationAction::class, 'content_revision_id', 'id');
     }
+
+    /** @return HasMany<ContentStudentLink, $this> */
+    public function studentLinks(): HasMany
+    {
+        return $this->hasMany(ContentStudentLink::class, 'content_revision_id', 'id');
+    }
 }

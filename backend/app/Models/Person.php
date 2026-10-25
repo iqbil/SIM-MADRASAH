@@ -70,4 +70,10 @@ class Person extends DomainModel
     {
         return $this->hasMany(SourceRecord::class, 'person_id', 'id');
     }
+
+    /** @return HasMany<DataSubjectRequest, $this> */
+    public function dataSubjectRequests(): HasMany
+    {
+        return $this->hasMany(DataSubjectRequest::class, 'subject_person_id', 'id');
+    }
 }

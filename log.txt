@@ -146,3 +146,755 @@ HASIL PENGUJIAN DAN VERIFIKASI
      * `pnpm playwright test tests/e2e/sidebar.spec.ts tests/e2e/master-data.spec.ts` -> 37 passed (1.3m).
      * `pnpm playwright test tests/e2e/responsive.spec.ts` -> 4 passed (16.1s).
    - Seluruh pengujian sidebar matriks role, pembuatan data master, pencarian, pengarsipan, hubungan wali, riwayat jabatan/kategori, dan responsive layout berhasil 100%.
+
+================================================================================
+[LOG SRS v1.3 + ADDENDUM DATABASE PRIVASI/NOTIFIKASI]
+Tanggal/Waktu: 2026-10-24 ( sore ) +07:00
+Acuan Dokumen:
+- SRS_SIM_Madrasah_MTs_Al_Karimiyyah.txt (REVISI v1.3, 24 Oktober 2026)
+- backend/database/database.MD
+- REVIEW_SRS_DATABASE.md
+
+================================================================================
+RINGKASAN PERUBAHAN
+================================================================================
+
+A. SRS DIREVISI MENJADI v1.3 (file SRS_SIM_Madrasah_MTs_Al_Karimiyyah.txt, nama file tetap):
+1. Addendum 24 Oktober 2026: FR-16 (privasi/UU PDP No. 27/2022: register pemrosesan, data anak,
+   hak subjek data, persetujuan berversi), FR-17 (notifikasi in-app; kanal eksternal backlog),
+   BR-26 s.d. BR-28, NFR-15 (budget performa frontend 4G: FCP <=2,5 dtk, LCP <=4 dtk,
+   interaksi <=200 ms, bundle <=300 KiB), NFR-16 (pentest/security review independen prarilis),
+   DEC-20/DEC-21, AC-40 s.d. AC-42, FR-05-07 (SOP fallback absensi foto/GPS),
+   FR-13-03 diperkuat (persetujuan publikasi foto siswa diperiksa sebelum terbit).
+2. Konsistensi lintas bab diselaraskan (ringkasan perubahan, §1.2/1.3/1.4, Bab III, IX, X, XI,
+   glosarium). File lama SRS_..._Revisi_v1_2.txt di-rename menjadi SRS_SIM_Madrasah_MTs_Al_Karimiyyah.txt.
+
+B. MIGRATION BARU (backend/database/migrations/):
+1. 2026_10_24_000001_create_sim_privacy_consent_and_notifications_tables.php
+   - data_processing_registers (register dasar pemrosesan; domain + legal_basis CHECK).
+   - student_publication_consents (konsen publikasi per siswa-scope; active_marker generated
+     column "CASE WHEN withdrawn_at IS NULL THEN 1 ELSE NULL END" + UK marker -> satu konsen
+     aktif per siswa-scope; penarikan wajib pelaku; scope photo/name/achievement).
+   - content_student_links (siswa yang tampak pada content_revision; UK revision+student;
+     snapshot consent_id/checked_at saat publish; dasar validasi FR-13-03/DEC-21).
+   - data_subject_requests (akses/perbaikan/pembatasan/keberatan/penghapusan; rejected wajib
+     rejection_reason via CHECK).
+   - notifications (in-app per penerima; category CHECK announcement/realization_verification/
+     payroll_approval/attendance_correction/system; read_at; payload hanya referensi entitas).
+   - Total: 17 FK RESTRICT + 10 CHECK, mengikuti konvensi kamus (utf8mb4, DATETIME(6),
+     collation biner untuk kode/operation_key, nama constraint <=64 char).
+2. 2026_10_24_000002_seed_v1_3_baseline_decisions.php
+   - Seed 22 baris business_decisions: DEC-01 s.d. DEC-21 baseline (DEC-16 dua versi:
+     v1 superseded efektif 14 Okt s.d. 19 Okt, v2 baseline addendum foto/GPS efektif 20 Okt
+     dengan supersedes_id -> v1; DEC-20/21 efektif 24 Okt; source_reference per sumber SRS).
+   - Idempoten via insertOrIgnore (UK code+version).
+   - PENTING (pelajaran down()): FK self-reference supersedes_id RESTRICT menolak satu DELETE
+     massal yang memuat pasangan anak+induk; down() harus menghapus baris whereNotNull
+     (supersedes_id) TERLEBIH DULU, baru sisa baris. Ditemukan saat uji rollback dan sudah diperbaiki.
+
+C. database.MD DIPERBARUI ke rancangan v1.3:
+- Header: sumber -> SRS txt v1.3; versi rancangan 1.3.
+- §2: pemetaan FR-16 dan FR-17.
+- §13.6 BARU: kamus 5 tabel privasi/notifikasi + alur validasi konsen sebelum publish + batas.
+- §14: transisi konsen (aktif->ditarik), permintaan subjek data, notifikasi (belum->terbaca).
+- §15.2: baris publish konten kini mewajibkan cek konsen; baris baru konsen/permintaan subjek.
+- §17: judul menjadi "Default implementasi v1.3"; baris DEC-20/DEC-21; register DEC tersedia
+  via migration seed (menutup poin "Seed DEC sebagai baseline" yang tadinya tertunda).
+- §17.1: seed DEC pindah ke "Sudah ada di kode"; setup operasional kini mencakup pengisian
+  register pemrosesan nyata, template persetujuan, petugas hak subjek data.
+- §18: tahap 12 addendum v1.3.
+- §19: baris AC-40/41/42.
+- §20: kanal notifikasi eksternal tidak dimodelkan; struktur UU PDP = default teknis.
+- §21: inventaris + 4 migration yang sebelumnya tidak tercatat (personal_access_tokens 20 Okt
+  [Sanctum, belum dipakai kontrak auth], seed_master_data_permissions 22 Okt, dan 2 addendum
+  v1.3). Inventaris baru: 128 tabel domain + 9 infrastruktur = 137 total, 393 FK, 330 CHECK.
+- §22: status per 24 Oktober 2026 + baris "Privasi dan notifikasi (v1.3)".
+
+D. REVIEW_SRS_DATABASE.md DIPERBARUI:
+- Header: pembaruan terakhir 24 Oktober 2026.
+- Seksi baru "Pembaruan 24 Oktober 2026 - SRS v1.3 dan addendum database" (penilaian,
+  penurunan struktur, verifikasi, tindak lanjut temuan v1.3); seksi 20 Okt menjadi
+  "Status 20 Oktober 2026" (historis).
+
+================================================================================
+HASIL PENGUJIAN DAN VERIFIKASI
+================================================================================
+1. php -l kedua migration baru: OK. Laravel Pint: clean (1 style fix diterapkan).
+2. MySQL uji terisolasi (sim_madrasah_test_v13, dibuat lalu dihapus khusus; DB operasional
+   sim_madrasah TIDAK disentuh) pada MySQL 9.7.2 lokal:
+   - php artisan migrate penuh dari kosong: DONE semua (termasuk 2 migration baru).
+   - Uji negatif lulus: konsen aktif ganda -> ERROR 1062 uq_spc_student_scope_active;
+     consent_scope='video' -> ck_spc_scope; link_type='video' -> ck_csl_link_type;
+     kategori notifikasi='whatsapp' -> ck_ntf_category; dsr rejected tanpa alasan ->
+     ck_dsr_rejection; legal_basis invalid -> ck_dpr_legal_basis; csl duplikat pasangan ->
+     ERROR 1062 uq_csl_revision_student.
+   - Penarikan konsen lalu konsen aktif baru: berhasil (1 baris aktif).
+   - Seed: 22 baris DEC, tanggal efektif benar (DEC-16 v1 14 Okt, v2 20 Okt, DEC-20/21 24 Okt).
+   - migrate:rollback --step=2 -> 0 baris DEC & 5 tabel hilang; migrate ulang -> 22 baris kembali.
+   - CATATAN: rollback awal GAGAL karena FK supersedes_id (lihat poin B.2); setelah perbaikan
+     down() dua tahap, rollback lulus.
+   - MySQL 9.7.2 adalah mesin lokal; target produksi tetap MySQL 8.4, uji ulang produksi perlu.
+3. Suite aplikasi (phpunit/Playwright) TIDAK dijalankan pada sesi ini; tidak ada perubahan kode
+   aplikasi (app/, routes, frontend) pada sesi ini.
+4. Belum diimplementasikan (prasyarat modul publikasi/portal): layanan pendaftaran konsen,
+   validasi konsen pada proses publish, UI hak subjek data, layanan notifikasi, AC-40 s.d. AC-42.
+
+================================================================================
+[LOG MODEL ELOQUENT v1.3 + KOREKSI PENDEKATAN SEED DEC + PERBAIKAN TES]
+Tanggal/Waktu: 2026-10-24 ( malam ) +07:00
+Acuan: SRS_SIM_Madrasah_MTs_Al_Karimiyyah.txt (v1.3), database.MD §13.6, REVIEW_SRS_DATABASE.md
+
+================================================================================
+RINGKASAN
+================================================================================
+A. MODEL BARU (backend/app/Models/) untuk 5 tabel addendum v1.3:
+   1. DataProcessingRegister (data_processing_registers).
+   2. StudentPublicationConsent (student_publication_consents) + scopeActive/isActive,
+      relasi student/givenByGuardian/withdrawnBy/creator; contentStudentLinks.
+   3. ContentStudentLink (content_student_links) + relasi contentRevision/student/consent.
+   4. DataSubjectRequest (data_subject_requests) + relasi subjectPerson/onBehalfOfGuardian/
+      verificationEvidenceFile/handler/creator.
+   5. UserNotification (tabel: notifications). Nama kelas sengaja BUKAN "Notification" agar
+      tidak bentrok facade Illuminate Notification; tabel tetap 'notifications' via #[Table].
+      scopeUnread tersedia; payload cast array.
+   Konvensi diikuti penuh: #[Table]/#[Fillable], extends DomainModel, casts() ter-tipe
+   (immutable_datetime/immutable_date:Y-m-d/array/boolean/integer), tanpa fillable pada kolom
+   generated (active_marker).
+   Relasi balik ditambahkan di: User->notifications(), Person->dataSubjectRequests(),
+   Student->publicationConsents()/contentStudentLinks(),
+   StudentGuardian->givenPublicationConsents(), ContentRevision->studentLinks(),
+   RetentionPolicy->dataProcessingRegisters(), File->dataSubjectRequests().
+
+B. KOREKSI PENTING PENDEKATAN SEED DEC:
+   - Migration 2026_10_24_000002_seed_v1_3_baseline_decisions.php DIHAPUS.
+   - Alasan: suite MySQL error 24 tes. Tes MysqlAttendanceCaptureMigrationTest dkk. menjalankan
+     `artisan migrate` lalu meng-INSERT business_decisions DEC-16 v2 dan attendance_statuses
+     mentah dengan asumsi register kosong; seed di migration membuat duplikat key
+     (employee-hadir / DEC-16 v2). MysqlMigrationLifecycleTest juga gagal rollback karena
+     FK work_pattern_versions.decision_id RESTRICT menahan penghapusan baris DEC.
+   - Solusi final (sesuai desain semula §17.1): database/seeders/BusinessDecisionSeeder.php —
+     idempoten (firstOrCreate code+version), 22 baris DEC-01..DEC-21 (DEC-16 dua versi,
+     supersedes_id terisi; DEC-20/21 efektif 2026-10-24). Dijalankan SAAT ONBOARDING:
+     php artisan db:seed --class=BusinessDecisionSeeder
+     Sengaja TIDAK dimasukkan ke DatabaseSeeder agar lingkungan uji tetap register kosong.
+   - Pelajaran: data baseline yang diasumsikan kosong oleh tes TIDAK BOLEH ditaruh di migration.
+
+C. PERBAIKAN TES:
+   1. tests/Feature/MysqlModelTest.php: assertCount model 123 -> 128 (5 tabel baru; tes ini
+      memvalidasi setiap tabel domain punya model + cast/relasi cocok skema).
+   2. tests/Feature/NavigationAccessTest.php: ekspektasi roleMenus super_admin/operator
+      ditambah token granular master.institution/students/guardians/employees/positions/
+      employee-categories/subjects/student-statuses/attendance-statuses .view + master.imports.
+      (Drift sejak perubahan NavigationAccess 22-23 Okt yang saat itu hanya diverifikasi
+      phpunit tests/Unit; bukan akibat v1.3.)
+
+D. PEMERIKSAAN MODUL AKUN & DATA MASTER terhadap SRS v1.3:
+   - TIDAK ADA revisi fungsional diperlukan: v1.3 tidak mengubah FR-01 (auth/akun) dan FR-02
+     (master). Satu-satunya sentuhan: relasi User->notifications() untuk FR-17 (sudah ditambah).
+   - Layanan konsen/hak subjek data/notifikasi tetap milik modul publikasi/portal berikutnya.
+
+E. DOKUMENTASI diselaraskan ulang (database.MD §4/§13.6/§17/§17.1/§18/§21;
+   REVIEW_SRS_DATABASE.md seksi v1.3): seed DEC kini via seeder onboarding, bukan migration.
+
+================================================================================
+HASIL PENGUJIAN
+================================================================================
+1. php -l + Pint: semua berkas bersih.
+2. phpunit tests/Unit/: 6 passed, 37 assertions.
+3. phpunit.mysql.xml (DB uji sim_madrasah_test dibuat ulang bersih): OK 132 tests,
+   6358 assertions (termasuk MysqlAuthApiTest, GoogleOAuthTest, MysqlAccountManagementTest,
+   NavigationAccessTest, MysqlModelTest, MysqlAttendanceCaptureMigrationTest, lifecycle).
+4. BusinessDecisionSeeder dijalankan 2x pada DB uji terpisah: tetap 22 baris (idempoten);
+   DEC-16 v1 superseded / v2 baseline; DEC-20/21 efektif 24 Okt. DB uji dihapus setelah selesai.
+5. DB operasional sim_madrasah dan .env tidak disentuh.
+
+================================================================================
+[LOG AUDIT & PENYELARASAN FRONTEND AKUN + DATA MASTER vs SRS v1.3]
+Tanggal/Waktu: 2026-10-24 ( malam ) +07:00
+Acuan: SRS_SIM_Madrasah_MTs_Al_Karimiyyah.txt (v1.3; Bab II, FR-01-08, FR-02, AC-39,
+NFR-01/15), design-system.md v1.4
+
+================================================================================
+HASIL AUDIT (frontend/app, components, lib)
+================================================================================
+SESUAI SRS — tidak diubah:
+1. Pengelolaan akun (app/(portal)/pengguna + components/accounts/account-workspace.tsx):
+   seluruh aksi FR-01-08 tersedia (buat/ubah akun dengan lock_version, status,
+   role & izin accounts.*, verifikasi email dgn alasan, reset password sementara
+   24 jam sekali pakai + dialog salin, cabut sesi, putus Google, tab audit);
+   tanpa hapus fisik/pendaftaran publik; role super_admin terlindungi; guard
+   halaman accounts.view.
+2. Penanganan error kontrak §8.3: BFF (lib/auth/backend.ts + route.ts) meneruskan
+   status+payload; pesan 409 "Akun telah berubah. Muat ulang..." dan 429 dari
+   backend/BFF sampai ke UI via requestError() — tidak perlu perubahan.
+3. Data master: guard granular per section (SECTION_PERMISSIONS), gating
+   kapabilitas canManage/canStatus dari /api/v1/master/options, mode read-only
+   utk role baca (Guru/Wali Kelas), relasi (guardian-links/categories/positions)
+   & impor sesuai izin; BFF master allowlist mencakup 9 resource + relasi +
+   impor/template.
+4. AC-39: sidebar mengikuti navigation backend; menu modul belum dibangun
+   dirender disabled "segera hadir" tanpa href; SessionMonitor menyegarkan
+   akses; cookie ruang kerja tidak menambah izin (dites e2e).
+5. Design-system.md v1.4 dipatuhi (shadcn lokal, token semantik, kontrol h-11,
+   Label/aria, toast sonner, pager & dialog bersama).
+
+DIPERBAIKI:
+1. frontend/lib/navigation/sidebar.ts — ekspansi fallback token "master.manage"
+   kurang dua token yang diemisi backend NavigationAccess:
+   master.employee-categories.view & master.attendance-statuses.view (kini
+   ditambahkan; posisi/references tidak akan hilang bila backend hanya
+   mengirim master.manage). Konsumen lain tidak berubah.
+
+================================================================================
+RINCIAN PERUBAHAN BERKAS FRONTEND (git diff: 1 file, +2 baris)
+================================================================================
+1. frontend/lib/navigation/sidebar.ts (satu-satunya berkas yang direvisi)
+   - Lokasi: fungsi sidebarSections(user), blok ekspansi if (access.has("master.manage")).
+   - Perubahan: menambahkan dua baris
+       access.add("master.employee-categories.view");
+       access.add("master.attendance-statuses.view");
+     sehingga set fallback frontend identik dengan ekspansi token granular yang
+     diemisi backend NavigationAccess::forUser() untuk super_admin/operator.
+   - Dampak: item sidebar "Jabatan & kategori pegawai" (positions) dan
+     "Referensi status" (references) tetap tampil bila backend hanya mengirim
+     master.manage tanpa token granular; tidak ada perubahan perilaku bila
+     backend sudah mengirim token lengkap.
+   - Tidak ada berkas frontend lain yang diubah (audit menyimpulkan modul akun
+     dan data master sudah sesuai SRS v1.3; lihat bagian HASIL AUDIT di atas).
+
+CATATAN BATAS (bukan bagian sesi ini, sesuai cakupan user):
+- Modul notifikasi in-app (FR-17/DEC-20) & UI privasi/konsen/hak subjek data
+  (FR-16) belum dibangun — milik modul portal/publikasi berikutnya; backend
+  sudah menyediakan tabel+model.
+- NFR-15 (budget Lighthouse mobile) perlu pengukuran runtime; build bersih dan
+  tanpa dependensi baru pada sesi ini.
+
+================================================================================
+HASIL PENGUJIAN
+================================================================================
+1. pnpm format: 101 file, tanpa perubahan. pnpm lint (biome check): bersih.
+2. pnpm build: sukses (typecheck & prerender lolos).
+3. Playwright (mock auth-api.mjs, port 3410):
+   - sidebar.spec.ts + master-data.spec.ts: 37 passed (1.2m).
+   - responsive.spec.ts: 4 passed (15.2s).
+
+================================================================================
+[LOG AUDIT KESELARASAN MENYELURUH FRONTEND+BACKEND vs SRS v1.3 & DOKUMENTASI]
+Tanggal/Waktu: 2026-10-24 ( malam ) +07:00
+Acuan: SRS_SIM_Madrasah_MTs_Al_Karimiyyah.txt (v1.3), REVIEW_SRS_DATABASE.md,
+backend/database/database.MD, migrations/, design-system.md
+
+================================================================================
+KESIMPULAN: SELARAS. Dua drift kecil ditemukan dan telah diperbaiki.
+================================================================================
+
+A. TERVERIFIKASI COCOK (dari kode/skema nyata, bukan hanya dokumen):
+1. Inventaris §21 database.MD: migrate ke DB audit sementara ->
+   information_schema: 137 tabel / 393 FK / 330 CHECK — persis klaim dokumen
+   (128 domain + 9 infrastruktur). 21 file migration sesuai daftar §21.
+2. Routes backend == kontrak §1.3/§8.6: auth (options/login/refresh/google/
+   me/logout/logout-all/password), master (options/people/institution/imports
+   +templates/rows/errors/confirm, relations guardian-links & categories/
+   positions, CRUD+status 9 resource), accounts (people/audit/users/roles).
+   logout-all memang belum ada route BFF — sesuai catatan terbuka R-12 REVIEW.
+3. Rate limit FR-01-03: login 5/menit (hash login+IP) + 20/menit IP, refresh
+   30/IP, google 10/IP, password 5/akun (AppServiceProvider) — cocok SRS.
+4. Pagination §8.6: users 15/baris, audit 20/baris (AccountUserController).
+5. FR-01-07: 10 role seeder == Bab II 2.1; 10 izin accounts.*; INITIAL_ADMIN_*
+   env di config/accounts.php; JWT_ACCESS_TTL=15 / JWT_REFRESH_TTL=120,
+   JWT_ISSUER/AUDIENCE/SECRET di config/jwt.php + .env.example (tanpa nilai
+   rahasia).
+6. BFF: allowlist auth (options/session/login/refresh/logout/password) dan
+   master (GET/PUT/POST lengkap: resource+status, relations+verify|revoke|end,
+   imports+confirm) == routes backend; Origin+Content-Type dicek (upload
+   multipart dikecualikan sesuai kontrak). Cookie madrasah_access/madrasah_
+   refresh: httpOnly, SameSite=Lax, Path=/, Secure production; madrasah_google
+   Path=/api/auth/google maxAge 600 — cocok FR-01-06/NFR-04.
+7. Tipe AuthUser frontend == AuthUserResource backend (id/username/name/email/
+   email_verified/must_change_password/roles/permissions/navigation);
+   navigation memuat permissions accounts.*+master.* dan NavigationAccess.
+8. Semua file yang dirujuk database.MD §19.1/REVIEW/design-system §2 ada
+   (JwtTokenService, AuthenticationService, GoogleAuthController, cookies.ts,
+   hooks, AGENTS.md, globals.css, components.json, dst.).
+
+B. DRIFT DITEMUKAN & DIPERBAIKI:
+1. database.MD §17.1: "28 izin master data" -> faktur MasterDataAccess::
+   catalog() = 31 (10 role + 10 accounts.* + 31 master = 41 managedPermissions).
+   Dokumen dikoreksi menjadi 31/41. (Catatan: entri log 23 Okt menulis 28;
+   historis dibiarkan, koreksi tercatat di sini.)
+2. SRS mengklaim "Salinan v1.1 disimpan di docs/archive" tetapi folder tidak
+   ada. Dipulihkan dari riwayat git (commit 7b0fb27 untuk v1.1, ce92d37 untuk
+   v1.2) ke docs/archive/ — kedua DOCX valid (Microsoft Word 2007+).
+   Sekaligus mengarsipkan v1.2 untuk jejak revisi.
+
+C. CATATAN (bukan ketidaksesuaian):
+- REVIEW seksi historis 20 Okt masih menautkan nama file SRS v1_2 lama;
+   sebagai rekaman historis dibiarkan (salinan kini di docs/archive).
+- Belum diimplementasikan sesuai batas §22: modul domain selain auth/akun/
+   master, layanan konsen/notifikasi, NFR-15/16 (uji runtime).
+
+Pengujian sesi ini: hitung skema via information_schema (DB sementara
+sim_madrasah_audit_tmp, dihapus setelah selesai); tanpa perubahan kode
+aplikasi — hanya koreksi satu kalimat dokumentasi + pemulihan arsip.
+
+================================================================================
+[LOG REDESIGN LOGIN DESKTOP (ANTI AI-SLOP) + OPTIMASI MUAT MOBILE]
+Tanggal/Waktu: 2026-10-24 ( malam ) +07:00
+Acuan: SRS v1.3 (NFR-15 budget performa frontend), design-system.md v1.5
+
+================================================================================
+RINGKASAN
+================================================================================
+Masalah: latar halaman autentikasi memakai school-campus.png 2,8 MB yang
+ternyata ILUSTRASI HASIL GENERATOR AI (meta.json: image_gen, "fictional school
+illustration") + overlay gradasi + glassmorphism pill + tagline pemasaran
+("Tempat belajar. Ruang bertumbuh...") + tipografi hero clamp() 4,5rem — pola
+klasik "AI slop", dan beban muat terbesar di mobile (dimuat priority di
+login, ganti-password, sesi/perbarui).
+
+A. PERUBAHAN:
+1. components/auth/auth-frame.tsx — ditulis ulang:
+   - DESKTOP: split panel. Kiri: hijau tua solid #123c32 (warna identitas yang
+     sudah ada), Brand, overline "PORTAL INTERNAL MADRASAH", aksen garis emas
+     #e9d6a3 pendek, judul skala institusional text-3xl "Administrasi madrasah
+     dalam satu portal.", paragraf faktual, 3 poin kemampuan portal nyata
+     (jadwal/absensi/realisasi; pengumuman & info wali; akun pribadi sesi
+     terlindungi) dengan ikon lucide, © di dasar panel. Kanan: latar netral
+     token bg-background, kartu putih DATAR rounded-2xl border-border
+     shadow-sm (menggantikan floating card shadow-2xl di atas foto).
+   - MOBILE: struktur dipertahankan (header hijau + Brand + satu baris keterangan,
+     sheet putih rounded-t-[2rem] overlap -mt-7 — pengecualian radius 32px tetap),
+     kini tanpa foto sama sekali.
+   - Tanpa next/image, tanpa overlay gradasi, tanpa backdrop-blur.
+2. public/images/school-campus.png + school-campus.meta.json DIHAPUS
+   (2,8 MB keluar dari repo; tidak ada rujukan tersisa).
+3. components/auth/login-form.tsx — tombol "Lupa password?" dirapatkan
+   (h-auto px-0) agar terbaca sebagai tautan teks tenang; ring fokus keyboard
+   tetap (perilaku aksesibilitas yang benar).
+4. tests/e2e/auth.spec.ts — asersi gambar latar diganti asersi teks header
+   mobile "Portal internal MTs Al Karimiyyah".
+5. design-system.md -> v1.5 (24 Okt): §6 login tanpa foto (panel hijau solid +
+   aksen emas + konten faktual; foto asli kelak lewat aset bersama + revisi
+   dokumen dengan pertimbangan NFR-15); riwayat versi 1.5 dicatat.
+
+B. DAMPAK MUAT (mobile): sumber gambar 2,8 MB + decode + optimizer hilang dari
+   semua halaman auth; halaman kini HTML+CSS murni (LCP: teks/brand). Terukur
+   penuh menunggu pengukuran Lighthouse staging (NFR-15).
+
+================================================================================
+HASIL VERIFIKASI
+================================================================================
+1. pnpm format/lint: bersih (100 file). pnpm build: sukses, 0 error.
+2. Playwright: auth.spec.ts + responsive.spec.ts + hydration.spec.ts = 20 passed;
+   setelah polesan akhir auth+hydration = 16 passed ulang.
+3. Inspeksi visual screenshot e2e (desktop 1440 & mobile 390): komposisi
+   seimbang, tanpa overflow, kontras aman, terbaca institusional-profesional.
+   Catatan: kotak pada "Lupa password?" di screenshot adalah focus ring yang
+   muncul karena tes mengklik tombol tersebut — perilaku aksesibilitas benar.
+
+================================================================================
+[LOG KOREKSI REDESIGN LOGIN — FOTO BACKGROUND DIPERTAHANKAN]
+Tanggal/Waktu: 2026-10-24 ( malam ) +07:00
+Acuan: arahan pemilik proyek (klarifikasi): foto background TETAP dipakai;
+       yang diubah hanya tipografi/konten desktop agar tidak AI-slop;
+       mobile tetap seperti semula.
+
+================================================================================
+KOREKSI ATAS SESI SEBELUMNYA
+================================================================================
+1. public/images/school-campus.png + school-campus.meta.json DIPULIHKAN dari
+   git (sebelumnya sempat dihapus karena dianggap sumber slop + beban muat).
+2. components/auth/auth-frame.tsx — struktur background dikembalikan seperti
+   semula: foto ilustrasi full-bleed + overlay gradasi hijau #0b3029
+   (mobile: header foto 245/285px + sheet putih rounded-t-[2rem]; desktop:
+   grid 2 kolom, kartu putih floating rounded-[1.75rem] shadow-2xl di atas
+   foto). MOBILE 100% seperti versi asli.
+3. Yang diubah HANYA blok tipografi/konten panel kiri desktop:
+   - DIHAPUS: pill "PORTAL MADRASAH" ber-backdrop-blur; tagline pemasaran
+     3 baris "Tempat belajar. Ruang bertumbuh. Masa depan bersama." dengan
+     span emas; tipografi hero clamp(2.8rem..4.5rem) tracking ekstrem.
+   - DIGANTI (institusional, faktual): overline "PORTAL INTERNAL MADRASAH"
+     (tracking 0.18em, putih/70, tanpa kaca), garis emas #e9d6a3 pendek,
+     judul sekala sedang "Administrasi madrasah dalam satu portal."
+     (text-[1.9rem]/xl:2.15rem, tracking-tight), paragraf faktual singkat,
+     3 poin kemampuan portal nyata berikon lucide, © di dasar panel kiri.
+   - Kontras aman: konten berada di zona overlay tergelap (kiri).
+4. Polish login-form dipertahankan: "Lupa password?" sebagai tautan tenang.
+5. tests/e2e/auth.spec.ts: asersi img "Lingkungan sekolah" dipulihkan.
+6. design-system.md v1.5 dikoreksi: foto ilustrasi + overlay TETAP; yang
+   diatur adalah tipografi panel kiri faktual/institusional (bukan "tanpa
+   foto"); riwayat v1.5 ditulis ulang sesuai kondisi final.
+
+================================================================================
+HASIL VERIFIKASI
+================================================================================
+1. pnpm format/lint bersih (101 file); pnpm build sukses.
+2. Playwright auth+responsive+hydration: 20 passed.
+3. Inspeksi visual screenshot: desktop 1440 (foto + overlay, panel kiri
+   tipografi institusional, kartu floating) dan mobile 390 (foto header +
+   sheet putih, identik struktur asli) — bersih, kontras aman, tanpa
+   overflow; kotak pada "Lupa password?" adalah focus ring aksesibilitas
+   karena tombol difokuskan saat tes.
+
+================================================================================
+[LOG API MODUL AKADEMIK & KELAS — TAHAP 2 SRS BAB IX]
+Tanggal/Waktu: 2026-10-24 ( malam ) +07:00
+Acuan: SRS v1.3 (FR-03-01..03, FR-04-01, BR-01..BR-03, DEC-19, Bab II matriks akses),
+database.MD §6/§15.2, pola MasterData* (backend)
+
+================================================================================
+RINGKASAN
+================================================================================
+API backend pertama untuk modul Akademik & Kelas (urutan roadmap sesudah akun
++ data master). Jadwal pelajaran/slot/pertemuan/guru pengganti TIDAK termasuk
+(modul berikutnya). Frontend/BFF menyusul saat UI dibangun.
+
+A. FILE BARU:
+1. app/Services/AcademicDataAccess.php
+   - Katalog izin academic.{years,classes,enrollments,calendar,assignments}.{view,manage}
+     (10 izin). Operator/super_admin otomatis full; kepala_madrasah/guru/wali_kelas
+     otomatis *.view (SRS Bab II: operator mengelola, guru/wali baca sesuai penugasan,
+     kepala memantau); role lain hanya via grant eksplisit role_permissions.
+   - classPeriodScope(): cakupan kelas guru/wali dari penugasan aktif hari ini
+     (teaching + homeroom); scopeEnrollments/scopeAssignments untuk index.
+   - Tanpa seeding DB (pelajaran v1.3: izin berbasis role, hindari data migration).
+2. app/Services/AcademicService.php (inti, semua mutasi DB::transaction retry 3 +
+   lockForUpdate parent + audit via AccountManagementService):
+   - context()/setContext(): singleton academic_contexts (DEC-19), pasangan
+     tahun+semester wajib konsisten & berstatus open, optimistic lock_version
+     (mismatch 409), tahun/semester aktif tidak boleh ditutup.
+   - saveYear/saveSemester: rentang dalam tahun, anti-overlap semester (lock year),
+     kode/number immutable, status planned/open/closed.
+   - saveClass/saveClassPeriod: kode kelas immutable, grade_snapshot disalin dari
+     kelas saat create (tidak fillable -> tak bisa diubah, AC-30), UK(class,year)
+     -> 409.
+   - saveEnrollment: anti-overlap keanggotaan (lock student, akhir eksklusif),
+     entry/exit reason enum, expected_updated_at 409.
+   - moveEnrollment: pindah kelas atomik — tutup lama di tanggal efektif + buka
+     baru + student_transitions(class_transfer) (FR-03-02).
+   - transitionPreview/transitionConfirm (FR-03-03): preview tanpa tulis (problem
+     per siswa + ready); confirm batch — status hanya dari 'active', graduation/
+     school_transfer/withdrawal -> status terminal + archived_at + tutup
+     enrollment; promotion/class_transfer -> ke rombel tujuan; batch_key +
+     operation_key unik + audit per siswa.
+   - saveCalendarEvent: rentang dalam tahun ajaran, semester/rombel harus sejenis.
+   - saveTeachingAssignment: semester & rombel satu tahun ajaran, masa dalam
+     semester, anti-overlap penugahan sama (lock semester+rombel), is_active utk
+     penonaktifan (riwayat tetap).
+   - saveHomeroomAssignment: satu wali aktif per rombel — penunjukan baru otomatis
+     menutup penugasan lama pada tanggal efektif.
+   - Catatan kolom: classes/class_periods TIDAK punya created_by (sesuai kamus);
+     model lain pakai forceFill(created_by) karena tidak fillable.
+   - Update parsial: field utama 'sometimes' saat edit + assertRange manual
+     (akhir > awal) menggantikan aturan after:.
+3. app/Http/Resources/AcademicDataResource.php — resource generik + relasi aman.
+4. Controller tipis: AcademicContextController, AcademicYearController (years+
+   semesters), AcademicClassController (classes/class-periods/enrollments/move/
+   transitions), AcademicCalendarController, AcademicAssignmentController
+   (teaching+homeroom). Index: filter q/status/relasi/pagination 25 (max 100).
+5. routes/api.php: grup /api/v1/academic (auth:api + RequirePasswordChanged +
+   throttle:120,1) — 23 endpoint (context 2, years 3, semesters 3, classes 3,
+   class-periods 3, enrollments 4, transitions 2, calendar 3, teaching 3,
+   homeroom 3).
+6. app/Http/Resources/AuthUserResource.php: permissions kini include
+   AcademicDataAccess::permissions (auth/me memancarkan academic.*).
+7. tests/Feature/MysqlAcademicApiTest.php — 7 tes / 124 assertions.
+
+B. YANG DIUJI:
+1. Otorisasi: anonim 401; tanpa role 403 semua endpoint; guru baca OK + tulis 403;
+   operator manage OK; auth/me memancarkan academic.years.view/manage sesuai role.
+2. Tahun/semester/konteks: overlap semester 422; konteks pasangan salah 422;
+   lock_version kedaluwarsa 409; menutup periode aktif 422.
+3. Rombel: grade_snapshot tersalin & tak berubah walau grade master diubah
+   (AC-30); duplikat (class,year) 409.
+4. Keanggotaan: overlap 422; move menutup lama (akhir eksklusif) + buka baru +
+   transisi class_transfer; expected_updated_at stale 409.
+5. Mutasi: preview mendeteksi siswa tanpa keanggotaan (ready=false); confirm
+   graduation -> status graduated + archived + enrollment tertutup + transisi
+   tercatat; mutasi kedua kali 422 (bukan active).
+6. Penugasan: semester beda tahun 422; overlap penugasan 422; nonaktif via PUT;
+   homeroom baru otomatis menutup lama di 2027-01-05.
+7. Scope guru: hanya penugasan sendiri di teaching-assignments; enrollments
+   terbatas kelas yang diajar; write 403.
+
+================================================================================
+HASIL PENGUJIAN
+================================================================================
+1. php -l + Pint: bersih semua file baru/ubah.
+2. phpunit.mysql.xml (DB uji dibuat ulang bersih): OK 139 tests, 6482 assertions
+   (132 lulus + 7 baru MysqlAcademicApiTest; tanpa regresi auth/akun/master/model).
+3. DB operasional sim_madrasah & .env tidak disentuh.
+4. Belum ada: BFF route frontend /api/academic (menyusul saat UI akademik
+   dibangun), endpoint slot/jadwal/pertemuan (modul jadwal), UAT pemilik proses.
+
+================================================================================
+[LOG PENYELESAIAN API AKADEMIK — ENDPOINT DETAIL + STATUS DOKUMENTASI]
+Tanggal/Waktu: 2026-10-24 ( malam ) +07:00
+
+PENAMBAHAN atas sesi API Akademik & Kelas:
+1. 8 endpoint GET detail (show) utk paritas kontrak dengan modul master:
+   years/{id}, semesters/{id}, classes/{id}, class-periods/{id},
+   enrollments/{id}, calendar/{id}, teaching-assignments/{id},
+   homeroom-assignments/{id}. Detail enrollment/penugasan menerapkan cakupan
+   guru/wali kelas (di luar penugahan aktif -> 404); years/classes/calendar
+   detail hanya otorisasi resource.
+2. Tes baru test_detail_endpoints_return_records_and_respect_teacher_scope:
+   detail semua resource 200; guru melihat miliknya; enrollment kelas lain
+   404; pengguna tanpa role 403. (Catatan: pint menghapus import yang dulu
+   tak terpakai; tes yang memakai model langsung harus menambahkannya kembali.
+   StudentEnrollment langsung di tes wajib forceFill created_by.)
+3. Status dokumentasi: database.MD §22 baris "Akademik & Kelas (24 Oktober
+   2026)"; REVIEW_SRS_DATABASE.md seksi v1.3 ditambah paragraf tindak lanjut
+   tahap pengembangan (API domain pertama; 140 tes; BFF/UI menyusul).
+
+HASIL: MysqlAcademicApiTest 8/8 (152 assertions); suite MySQL penuh dari DB
+bersih OK 140 tests / 6510 assertions (tanpa regresi); Unit 6/6; Pint bersih.
+Total endpoint /api/v1/academic kini 31 (23 sebelumnya + 8 show).
+
+================================================================================
+[LOG FRONTEND MODUL AKADEMIK & KELAS + PENUTUP TES]
+Tanggal/Waktu: 2026-10-24 ( malam ) +07:00
+Acuan: SRS v1.3 (FR-03, FR-04-01, BR-01..03, DEC-19, Bab II matriks akses,
+§8.3/§8.6), design-system.md v1.6, API /api/v1/academic (31 endpoint)
+
+================================================================================
+RINGKASAN IMPLEMENTASI FRONTEND
+================================================================================
+A. FILE BARU:
+1. lib/academic.ts — tipe (AcademicSection/Page/Context/Option), ACADEMIC_SECTIONS
+   (peta seksi->permission), academicRequest/academicError (via apiRequest area
+   "academic"), definisi field form (tahun/semester/rombel/periode/keanggotaan/
+   kalender/penugasan), label status & jenis kejadian.
+2. app/api/academic/[...path]/route.ts — BFF proxy: allowlist regex GET/PUT/POST
+   (context, 7 resource + /{id}, enrollments/move, transitions/preview|confirm),
+   Origin+Content-Type pada mutasi, limit body 20KB, forward 17 query param,
+   Cache-Control private,no-store. lib/auth/backend.ts + lib/api-client.ts:
+   union area diperluas "academic".
+3. components/academic/:
+   - academic-shared.tsx: AcademicHeading, StatusBadge, AcademicList (tabel
+     desktop + kartu mobile + Pager + tombol muat ulang dengan state tick),
+     AcademicFormDialog (MasterField + ReasonField + expected_updated_at +
+     pesan konflik versi 409), FilterSelect (shadcn Select), DateFilter.
+   - academic-periods.tsx: kartu periode aktif + dialog aktivasi berkasade
+     tahun->semester (hanya status open, expected lock_version) + daftar tahun
+     + semester per tahun (overlap ditolak backend).
+   - academic-classes.tsx: identitas rombel + periode kelas per tahun
+     (grade_snapshot tampil, tidak dapat diubah).
+   - academic-enrollments.tsx: filter rombel+tanggal, tambah keanggotaan
+     (opsi siswa via master), pindah kelas (move), akhiri keanggotaan.
+   - academic-transitions.tsx: pilih jenis/asal/tujuan/tanggal -> daftar siswa
+     ber-checkbox + pencarian -> pratinjau (tabel problem per siswa) ->
+     konfirmasi via ConfirmationDialog + alasan; guru hanya pratinjau.
+   - academic-calendar.tsx: filter tahun+jenis, daftar kejadian + badge blokir,
+     tambah/ubah.
+   - academic-assignments.tsx: tab Penugasan mengajar | Wali kelas; filter
+     semester; tambah/ubah/nonaktif; penunjukan wali baru menutup lama.
+   - academic-workspace.tsx: dispatcher seksi.
+4. app/(portal)/akademik/[section]/page.tsx — guard: ekspansi academic.view/
+   academic.manage -> *.view; akses = union navigation+permissions; notFound
+   bila tidak berizin; generateStaticParams 6 seksi.
+
+B. PERUBAHAN FILE LAMA:
+1. lib/navigation/sidebar.ts — 7 item grup "Akademik & kelas" kini punya href
+   /akademik/* dengan token granular academic.{years,classes,enrollments,
+   calendar,assignments}.view; ekspansi academic.manage/academic.view ->
+   lima token view (+academic.read dipertahankan). Menu "Kelas perwalian saya"
+   (class.own) tetap placeholder.
+2. tests/fixtures/academic-api.mjs (BARU) + auth-api.mjs — mock /api/v1/academic/*
+   lengkap (context/years/semesters/classes/class-periods/enrollments+move/
+   transitions+calendar/teaching/homeroom); guru di-scope ke rombel 711;
+   body dikirim terparse (request stream mock sudah dikonsumsi — pelajaran);
+   bentuk resource = backend asli (student.person bersarang, meta page).
+3. tests/e2e/academic.spec.ts (BARU, 4 tes) + penyesuaian: klik seksi sidebar
+   "Akademik & kelas" dulu sebelum item (Collapsible); label alasan =
+   "Alasan / dasar perubahan".
+4. design-system.md -> v1.6: baris sumber modul akademik + riwayat versi.
+
+C. BUG YANG DITEMUKAN & DIPERBAIKI SAAT ITERASI (catatan utk AI berikutnya):
+1. Mock e2e: auth-api.mjs sudah membaca raw body; handler tambahan wajib
+   menerima body terparse + method eksplisit (bukan membaca ulang request).
+2. Respons non-list API berbentuk { data: ... } — komponen harus membuka
+   .data (context & transitions/preview sempat membuat halaman error-boundary
+   karena plan.students undefined).
+3. canManage di komponen tidak boleh hanya cek academic.<res>.manage karena
+   navigation backend asli hanya memancarkan academic.manage (token granular
+   ada di permissions) -> halaman mengirim union nav+permissions DAN komponen
+   menerima academic.manage sebagai superset.
+4. Guard halaman harus mengekspansi academic.view -> *.view untuk guru/wali/
+   kepala (sidebar sudah, halaman sempat lupa).
+5. Pint/biome menghapus import; suppression biome-ignore harus tepat di atas
+   baris diagnostik (useEffect), bukan di atas array dependency.
+
+================================================================================
+HASIL VERIFIKASI AKHIR
+================================================================================
+1. pnpm format/lint: bersih (114 file, 0 warning). pnpm build: sukses, 21
+   halaman ter-prerender (6 seksi akademik + BFF baru).
+2. Playwright seluruh suite: 68 passed (2.0m) — termasuk academic.spec.ts 4/4:
+   operator mengelola (menu->tahun ajaran/rombel/penugasan + dialog), mutasi
+   pratinjau->konfirmasi dengan alasan, guru baca-saja ter-scope (VII-B
+   tersembunyi, tanpa tombol kelola), seksi tak dikenal -> 404. Sidebar &
+   master-data spec tetap hijau (menu aktif tidak merusak matriks role).
+3. Backend (sesi terkait): scope class-periods/classes utk guru + validasi
+   tanggal keanggotaan dalam tahun ajaran; MysqlAcademicApiTest 8/8 (158
+   asersi); suite MySQL penuh 139 tes / 6515 asersi hijau; Unit 5/5
+   (ExampleTest scaffold dihapus).
+4. DB operasional & .env tidak disentuh.
+
+BELUM (urutan berikutnya): modul Jadwal/slot/pertemuan (backend), BFF/UI utk
+modul berikutnya, endpoint publik, uji Lighthouse NFR-15 di staging.
+
+================================================================================
+[LOG AUDIT FINAL FRONTEND AKADEMIK vs SRS v1.3, design-system v1.6, BACKEND]
+Tanggal/Waktu: 2026-10-24 ( malam ) +07:00
+
+KESIMPULAN: SESUAI. 2 temuan diperbaiki saat audit; verifikasi ulang hijau.
+
+A. AUDIT HAK AKSES (SRS Bab II matriks, FR-03, DEC-19, AC-39):
+1. Guard halaman /akademik/[section]: ekspansi academic.view->*.view +
+   union navigation+permissions + academic.manage superset -> guru/wali/kepala
+   hanya baca, operator kelola, tanpa peran -> 404. Selaras otorisasi backend
+   AcademicDataAccess (token katalog identik: years/classes/enrollments/
+   calendar/assignments x view/manage).
+2. Guru/wali: tanpa tombol kelola (Tambah/Ubah/Akhiri/Pindah/Konfirmasi
+   disembunyikan); daftar rombel/keanggotaan/penugasan ter-scope penugahan
+   aktif oleh backend; mutasi hanya pratinjau (tombol konfirmasi canManage).
+   Kepala: baca semua (backend: view penuh).
+3. AC-39 tetap terpenuhi: menu mengikuti navigation; item modul yang belum
+   dibangun (Kelas perwalian saya, Jadwal pelajaran, Guru pengganti) tetap
+   disabled "segera hadir" tanpa href.
+
+B. AUDIT KESELARASAN BACKEND:
+1. Seluruh path yang dipanggil komponen (context GET/PUT; years/semesters/
+   classes/class-periods/enrollments/calendar/teaching-assignments/
+   homeroom-assignments + /{id}; enrollments/move; transitions/preview|
+   confirm) tercakup allowlist BFF dan routes backend; GET transitions memang
+   tidak diizinkan dan tidak dipakai. 17 query param diteruskan sesuai
+   endpoint. Pagination meta dipetakan ke Pager.
+2. Respons { data: ... } dibuka benar pada semua pemanggilan non-list
+   (context, preview) — bug iterasi sebelumnya sudah tertutup tes.
+
+C. AUDIT DESIGN-SYSTEM v1.6:
+1. Komponen shadcn murni (Select/Checkbox/Dialog/AlertDialog/Tabs/Table);
+   MasterField/ReasonField/Pager/FormDialog/ConfirmationDialog dipakai ulang;
+   satu h1 per halaman (AcademicHeading) + h2 subseksi; kontrol h-11; status
+   selalu berlabel teks; Bahasa Indonesia; state kosong/muat/gagal ada.
+2. DIPERBAIKI saat audit:
+   a. BUG FilterSelect: memilih opsi "Semua/placeholder" (value __all)
+      menyimpan "__all" ke filter -> terkirim sebagai query param -> backend
+      422. Kini dipetakan ke string kosong (filter dilepas) di semua 10 titik
+      pakai (rombel/keanggotaan/mutasi/kalender/penugasan/tahun).
+   b. TabsList penugasan memakai hex literal #eaf0e7 -> diganti token
+      bg-secondary (nilai identik, patuh aturan tanpa-hex).
+3. Catatan non-blocking (backlog kecil): lib/academic.ts masih menyimpan
+   beberapa ekspor tak terpakai (STATUS_OPTIONS/statusLabel/dateOnly) — kandidat
+   pembersihan; pratinjau mutasi dapat diakses guru (baca-saja, konsisten
+   otorisasi backend enrollments.view; konfirmasi tetuk petugas manage).
+
+D. VERIFIKASI ULANG SETELAH PERBAIKAN: format/lint bersih (114 file, 0
+   warning), build 0 error, Playwright academic+sidebar 24 passed.
+
+STATUS MODUL AKADEMIK & KELAS: backend API + BFF + UI frontend SELESAI dan
+teraudit; siap lanjut ke modul Jadwal & Pertemuan (backend) sesuai roadmap.
+
+=== SESI 2026-10-25: PERBAIKAN TAB RUSAK MODUL DATA MASTER (frontend) ===
+Laporan user (screenshot): tab di modul Data Master tampil "rusak" — pada
+seksi Jabatan & kategori pegawai, dua tab direntangkan masing-masing setengah
+bar di desktop (efek grid-cols-2 + w-full + sm:max-w-lg pada TabsList).
+
+A. AKAR MASALAH: dua TabsList di modul master memakai pola lama
+   `grid h-auto w-full grid-cols-2 ...` yang memaksa tab memenuhi kolom grid
+   (stretch), tidak seperti pola tab design-system v1.6 (pill kompak rata kiri
+   di desktop, membagi lebar penuh di mobile) yang sudah dipakai di
+   account-workspace dan academic-assignments.
+
+B. YANG DIUBAH (3 file):
+   1. components/master/master-workspace.tsx — TabsList resource (dipakai
+      seksi positions: "Jabatan|Kategori pegawai" dan references:
+      "Status siswa|Status kehadiran") -> pola v1.6:
+      TabsList `h-14! w-full justify-start gap-1 rounded-xl bg-secondary p-1
+      sm:w-auto` + TabsTrigger `h-11! min-w-0 flex-1 px-3 text-xs sm:flex-none`.
+   2. components/master/master-relations.tsx — tab "Kategori|Jabatan" di dalam
+      Sheet "Kelola kategori & jabatan" pegawai -> pola yang sama (tadinya
+      grid-cols-2 stretch juga).
+   3. components/accounts/account-workspace.tsx — hex literal bg-[#eaf0e7]
+      diganti token bg-secondary (nilai identik --secondary:#eaf0e7; menyamakan
+      kepatuhan tanpa-hex design-system v1.6 seperti academic-assignments).
+
+C. VERIFIKASI: biome format+lint bersih (114 file), build 0 error, Playwright
+   master-data 17 passed (termasuk uji viewport mobile/tablet/desktop tanpa
+   hydration error); screenshot visual (mock auth-api + next start): desktop
+   /data-master/positions tab pill kompak satu baris rata kiri, mobile 390px
+   /data-master/references tab membagi lebar penuh satu baris tanpa teks
+   terpotong — keduanya sesuai design-system.
+
+STATUS: perbaikan tab data master SELESAI; roadmap berikutnya tetap modul
+Jadwal & Pertemuan (backend).
+
+=== SESI 2026-10-25: MODUL JADWAL PELAJARAN & GURU PENGGANTI (FR-04) + POLA TAB DS v1.7 ===
+Konfirmasi SRS: Jadwal Pelajaran & Guru Pengganti ADA di SRS v1.3 (FR-04-01..04,
+BR-03/05, AC-04/05/09, DEC-03) dan skema DB sudah lengkap sejak awal
+(timetables, timetable_versions, schedule_entries, schedule_entry_versions,
+schedule_entry_slots, meetings, substitute_assignments) — dibuat, bukan dihapus.
+Item "Kelas perwalian saya" tetap disabled (untuk modul Absensi siswa nanti).
+
+A. BACKEND (29 rute baru, total grup academic 60):
+   1. Services/ScheduleService.php — jadwal berversi: draf entri mutable, versi
+      terbit immutable; publish menutup versi terbit lama (effective_to = H-1,
+      status superseded) + tolak benturan guru/rombel lintas versi terbit
+      (entri salinan = kelanjutan, bukan benturan); generator pertemuan dari
+      versi terbit (skip hari salah, kalender blocks_teaching, idempoten);
+      cancel pertemuan (administratif, auto-cabut pengganti aktif); penunjukan
+      pengganti (tolak = guru terjadwal/bentrok jadwal pengganti; penunjukan
+      baru AUTO-menutup pengganti aktif lama — riwayat utuh); revoke; lesson
+      slots CRUD (sequence otomatis). Gotcha: schedule_entry_version_id pada
+      meetings = ID ENTRI versi (bukan ID versi jadwal) — kueri existing wajib
+      whereIn entry ids; argumen string abort_if dievaluasi meski kondisi false.
+   2. AcademicDataAccess: + academic.{schedules,substitutes}.{view,manage};
+      scopeMeetings (kelas diajar/diwali + terjadwal + tugas mengganti),
+      scopeEntryVersions. AcademicScheduleController + rute (GET/POST/PUT +
+      DELETE schedule-entry-versions + aksi publish/generate/cancel/substitute/
+      revoke). AcademicDataResource: + scheduledEmployee/substituteEmployee/
+      timetable/teachingAssignment/activeSubstitute/meeting. Model Meeting:
+      + relasi activeSubstitute.
+   3. Test: MysqlScheduleApiTest 5 test/153 asersi (akses per role, versi+
+      supersede+benturan lintas versi, lesson slot→entri turunan, generator+
+      kalender+scope guru, pengganti assign/revoke/cancel+auto-close). Suite
+      MySQL penuh: 144 test/6669 asersi HIJAU (DB_PASSWORD dari .env di-export
+      saat menjalankan phpunit.mysql.xml).
+
+B. FRONTEND:
+   1. BFF /api/academic: + timetables|timetable-versions|schedule-entry-
+      versions|lesson-slots|meetings|substitute-assignments + aksi nested +
+      DELETE entri draf + param date_from/date_to/day_of_week.
+   2. components/academic/academic-schedules.tsx — /akademik/jadwal: tab
+      terkontrol Versi|Entri mingguan|Pertemuan; draf baru (opsi salin entri
+      terbit, auto-pilih draf baru); tambah/ubah/hapus entri (benturan 422
+      ditampilkan); terbitkan (ConfirmAction); generator pertemuan + filter
+      tanggal; cancel pertemuan. academic-substitutes.tsx — /akademik/pengganti:
+      tab Pertemuan| Riwayat pengganti; tunjuk/ganti pengganti (opsi guru
+      terfilter), cabut, filter status/tanggal. ConfirmAction baru di
+      academic-shared (dialog alasan reusable).
+   3. Sidebar: Jadwal pelajaran & Guru pengganti AKTIF (href /akademik/jadwal,
+      /akademik/pengganti; token academic.{schedules,substitutes}.view +
+      ekspansi academic.view/manage di sidebar.ts & guard halaman).
+   4. FieldDefinition + tipe "time"/"number" (MasterField meneruskan type ke
+      Input). Mock e2e: state jadwal/pengganti + rute lengkap + Guru Siti di
+      master mock.
+   5. BUGFIX penting: daftar versi TIDAK boleh memakai state parent sebagai
+      load AcademicList (stale closure — efek berjalan sebelum data tiba);
+      fetch langsung seperti modul lain. Tab Radix dibuat terkontrol.
+   6. design-system.md v1.7: pola Bar tab dibakukan (lihat §6).
+
+C. VERIFIKASI: biome 117 file 0 warning; build 0 error; Playwright 72 passed
+   (68 lama + 4 baru academic-schedule.spec: alur draf→entri→terbit→generate,
+   tunjuk/cabut pengganti, scope guru tanpa tombol manage, BFF tolak tulis
+   lintas origin 403). MySQL suite 144 passed.
+
+D. BACKLOG: lib/academic.ts masih menyimpan ekspor lama tak terpakai
+   (STATUS_OPTIONS/statusLabel) + masterField "number" tanpa validasi step;
+   jam pelajaran (lesson-slots) belum punya UI kelola (API ada; entri via slot
+   belum dipakai UI — entri manual jam/JP).
+
+STATUS MODUL AKADEMIK & KELAS: LENGKAP (tahun ajaran s.d. guru pengganti).
+Roadmap berikutnya: Absensi Pegawai (FR-05, foto+GPS) sesuai urutan roadmap.

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { createServer } from "node:http";
+import { handleAcademic, resetAcademic } from "./academic-api.mjs";
 import { handleMaster, resetMaster } from "./master-api.mjs";
 
 const roles = [
@@ -199,6 +200,18 @@ createServer(async (request, response) => {
       !record.expired &&
       !record.revoked,
   );
+  if (url.pathname.startsWith("/api/v1/academic/")) {
+    if (!masterSession)
+      return json(response, 401, { message: "Unauthenticated." });
+    handleAcademic({
+      body,
+      method: request.method,
+      response,
+      url,
+      username: masterSession.user.username,
+    });
+    return;
+  }
   if (
     await handleMaster({
       pathname: url.pathname,
@@ -219,6 +232,7 @@ createServer(async (request, response) => {
   if (url.pathname === "/health") return json(response, 200, { ok: true });
   if (url.pathname === "/__test/reset") {
     resetMaster();
+    resetAcademic();
     managedUsers = [
       {
         id: 1,

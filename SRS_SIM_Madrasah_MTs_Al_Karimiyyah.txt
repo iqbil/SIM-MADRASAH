@@ -1,0 +1,565 @@
+DOKUMEN SRS
+SISTEM INFORMASI MANAJEMEN MADRASAH
+MTs Al Karimiyyah — Tahun Ajaran 2026/2027
+REVISI v1.3 • Addendum kepatuhan UU PDP, notifikasi, uji keamanan independen, SOP absensi, dan performa frontend • 24 Oktober 2026
+Keterangan	Nilai
+Status	Baseline v1.3 di atas baseline v1.2 (addendum absensi pegawai dan autentikasi JWT + Google OAuth, 20 Oktober 2026). Implementasi dan kebutuhan lanjutan dibedakan eksplisit.
+Sumber	Baseline 14 Oktober 2026; addendum foto/GPS dan JWT + Google OAuth 20 Oktober 2026; tinjauan best practice 24 Oktober 2026: kepatuhan UU PDP No. 27/2022, keputusan notifikasi eksplisit, uji keamanan independen, SOP absensi foto/GPS, dan target performa frontend.
+Perubahan	Seluruh isi v1.2 tetap berlaku. Menambahkan FR-16 (privasi dan UU PDP), FR-17 (notifikasi), BR-26–BR-28, NFR-15 (performa frontend), NFR-16 (uji keamanan independen), DEC-20/DEC-21, AC-40–AC-42; memperkuat FR-13-03 (persetujuan publikasi foto siswa), menambah FR-05-07 (SOP absensi), dan memperbarui Bab I, IX dan XI.
+Teknologi	Laravel API + JWT HS256/Google OAuth; Next.js App Router/React/TypeScript + BFF cookie HttpOnly; MySQL 8.4; Tailwind CSS/shadcn UI; satu monorepo dan dua runtime.
+Kapasitas	Profil default 50 pengguna aktif/lonjakan 100; sizing awal 4 vCPU/8 GB, wajib dibuktikan dengan uji.
+Pengesahan	Arahan pemilik proyek menetapkan baseline pengembangan. Lembar UAT/validasi madrasah tetap mencatat bukti yang benar-benar terjadi.
+
+Revisi ini menetapkan baseline pengembangan sesuai arahan pemilik proyek: Laravel backend dan Next.js + React frontend, dengan default operasional DEC-01–DEC-21. Default adalah pilihan implementasi awal yang dapat direvisi melalui versi kebijakan; bukan klaim pengesahan aturan resmi madrasah. Identitas, tarif honor, kalender dan penunjukan akun petugas menggunakan data nyata, bukan angka contoh. Salinan v1.1 sebelum perubahan disimpan di docs/archive. Nama file kanonik tetap memakai akhiran v1_2 sesuai permintaan pemilik proyek; nomor revisi internal dokumen ini adalah v1.3.
+Ringkasan perubahan
+Mempertahankan 15 kelompok kebutuhan FR-01–FR-15 dan menambahkan FR-16 (privasi dan UU PDP) serta FR-17 (notifikasi); seluruh kelompok dipecah menjadi kebutuhan yang dapat diuji.
+Memisahkan jadwal, pertemuan aktual, pelaksanaan, verifikasi, dan identitas guru pengganti.
+Memperjelas pengesahan/penguncian honor, snapshot perhitungan, dan koreksi setelah pengesahan.
+Menambahkan matriks akses berbasis peran, penugasan, hubungan wali–siswa, dan periode.
+Menetapkan Laravel API + Next.js/React/TypeScript + MySQL; melengkapi baseline cakupan, API, autentikasi, default operasional, histori kategori pegawai, snapshot laporan, dan koreksi penerima honor.
+Addendum 20 Oktober 2026: foto + GPS hanya untuk masuk/pulang pegawai; kompresi server sebelum penyimpanan; revisi FR-05, NFR-05, DEC-16 dan AC-33–AC-35. Default lainnya tetap. Nama file v1_2 dipertahankan sebagai dokumen kanonik yang diminta pemilik proyek.
+Addendum 24 Oktober 2026: kepatuhan UU PDP No. 27/2022 (FR-16, BR-26–BR-28, DEC-21), notifikasi in-app dengan kanal eksternal eksplisit backlog (FR-17, DEC-20), uji keamanan independen prarilis (NFR-16), SOP absensi foto/GPS (FR-05-07, Bab IX), persetujuan publikasi foto siswa (FR-13-03), dan budget performa frontend (NFR-15, AC-42).
+
+DAFTAR ISI
+Bab I. Pendahuluan dan batas cakupan
+Bab II. Pengguna dan hak akses
+Bab III. Kebutuhan fungsional terperinci
+Bab IV. Aturan bisnis dan alur proses
+Bab V. Kebutuhan nonfungsional dan kapasitas
+Bab VI. Data awal dan migrasi
+Bab VII. Rancangan data konseptual
+Bab VIII. Arsitektur Laravel API dan Next.js/React
+Bab IX. Alur pengembangan dan peluncuran
+Bab X. Pengujian dan kriteria penerimaan
+Bab XI. Keputusan, risiko, dan perubahan kebutuhan
+Lampiran A. Glosarium
+Lampiran B. Referensi teknis
+Daftar isi ini menggunakan judul bab. Navigasi Word tersedia melalui Heading. Nomor halaman pada footer diperbarui oleh aplikasi pengolah dokumen.
+
+BAB I. PENDAHULUAN DAN BATAS CAKUPAN
+1.1 Latar belakang dan tujuan
+SIM memusatkan administrasi madrasah agar data siswa, pegawai, akademik, kehadiran, honor, soal, BK, surat, dan publikasi tidak terduplikasi. Sistem menyediakan proses yang dapat ditelusuri serta akses sesuai tugas. Portal wali dan dashboard pimpinan menggunakan sumber data operasional yang sama.
+1.2 Cakupan
+Termasuk rilis awal penuh (bertahap)	Default fitur lanjutan / nonaktif
+Akun pegawai/wali, master, periode, kelas, penugasan dan jadwal.	Akun siswa dan PPDB nonaktif; hanya identitas siswa tanpa login. Multi-madrasah di luar cakupan.
+Absensi pegawai/siswa harian, realisasi/verifikasi, rekap.	Input web satu shift; foto + GPS aktif hanya untuk masuk/pulang pegawai. Biometrik dan absensi siswa pertemuan/both tetap nonaktif.
+Perhitungan, pemeriksaan, pengesahan/penguncian honor dan adjustment.	Pembayaran digital, pencatatan status bayar, SPP dan akuntansi menyeluruh di luar cakupan.
+Bank soal, paket PDF, BK dan surat/arsip.	Ujian online, nilai/rapor, DOCX, co-teaching dan disposisi nonaktif.
+Portal wali, website, dashboard, ekspor, audit dan restore.	Integrasi otomatis EMIS tidak tersedia; pertukaran data melalui impor/ekspor berizin.
+Notifikasi in-app untuk pengumuman dan perubahan status penting.	Kanal eksternal email/WhatsApp/SMS nonaktif sampai penyedia, biaya, dan persetujuan penerima ditetapkan (DEC-20).
+
+1.3 Asumsi dan dependensi
+Asumsi: satu madrasah, akses web melalui komputer/ponsel, tim pengelola kecil. Multi-madrasah tidak termasuk kecuali cakupan diubah.
+Aturan awal honor, kewenangan, kalender kerja, pola absensi, notifikasi dan privasi mengikuti default DEC-01–DEC-21. Nominal tarif, identitas pejabat dan kalender akademik adalah data onboarding; sistem menyediakan konfigurasi bertanggal/berversi untuk perubahan berikutnya.
+Kebutuhan bisnis dipisahkan dari teknologi; arsitektur Laravel API dan Next.js/React pada Bab VIII menjadi baseline yang ditetapkan untuk pengembangan ini.
+Dokumen ini belum menggantikan ERD fisik, kamus data rinci, desain layar, dan rencana pengujian yang disusun pada tahap desain.
+1.4 Konvensi kebutuhan
+FR = kebutuhan fungsional; BR = aturan bisnis; NFR = kebutuhan kualitas; AC = kriteria penerimaan; DEC = default implementasi berversi. FR-xx mempertahankan ID modul sumber. Seluruh DEC berlaku sebagai baseline v1.3; fitur bertanda nonaktif disimpan sebagai backlog. Perubahan default selanjutnya tidak menimpa transaksi atau snapshot historis.
+
+BAB II. PENGGUNA DAN HAK AKSES
+2.1 Peran dan akun
+Peran	Tanggung jawab
+Super Admin	Akun pengelola awal untuk akun, role dan izin accounts.*; bukan bypass BK internal, honor atau mandat domain. Dibuat melalui seeder sesuai konfigurasi backend/config/accounts.php.
+Kepala Madrasah	Memantau operasional dan menyetujui proses sesuai delegasi yang disahkan.
+Admin/Operator	Konfigurasi, akun, data master, dan pengelolaan data sesuai izin.
+Guru	Jadwal, realisasi mengajar, absensi kelas yang ditugaskan, dan bank soal sesuai kewenangan.
+Wali Kelas	Pemantauan kelas pada periode penugasan dan perkembangan yang boleh dibagikan.
+Guru BK	Konseling, pelanggaran, pembinaan, dan pengaturan informasi yang dibagikan.
+Tenaga Kependidikan	Kehadiran pribadi dan pekerjaan sesuai penugasan.
+Bendahara	Tarif, pemeriksaan, rincian honor, dan laporan sesuai mandat.
+Petugas TU	Surat, agenda, disposisi, dan arsip sesuai klasifikasi.
+Orang Tua/Wali	Informasi siswa yang terhubung dan terverifikasi.
+Siswa (nonaktif)	Identitas tetap dicatat; akun/login siswa berada pada backlog.
+
+Satu orang memakai satu akun pribadi dengan beberapa peran jika diperlukan. Peran Wali Kelas merupakan kewenangan tambahan, bukan identitas pegawai baru. Akun bersama tidak digunakan untuk transaksi yang memerlukan penelusuran pelaku.
+2.2 Matriks akses default
+Matriks ini membedakan tindakan dan cakupan data. Verifikator akademik, pemeriksa/pengesah honor serta editor/penerbit mengikuti DEC-01/06/10. Mandat diberikan kepada akun nyata saat onboarding; role admin atau kepala tidak otomatis membuka BK internal atau seluruh honor.
+Objek / proses	Pelaksana dan tindakan	Batas akses / pengesahan
+Akun dan izin	Operator membuat/menonaktifkan; pengguna mengubah sandi sendiri.	Pemberian izin sensitif sesuai mandat; semua perubahan izin diaudit.
+Siswa/kelas/penugasan	Operator mengelola; guru/wali kelas membaca.	Guru pada penugasan aktif; wali kelas pada kelas dan periode terkait.
+Absensi pegawai	Pegawai mencatat masuk/pulang; petugas berizin mencatat status izin/sakit/cuti/dinas luar.	Pegawai melihat miliknya; koreksi oleh petugas berizin dengan alasan.
+Realisasi mengajar	Guru pelaksana mengajukan; petugas akademik bermandat menyetujui/menolak, bukan pengaju yang sama.	Pertemuan yang ditugaskan; verifikator berdasarkan cakupan mandat.
+Absensi siswa	Guru/wali kelas/petugas yang ditunjuk mencatat.	Kelas dan periode penugasan; wali melihat anaknya sendiri.
+Honor	Bendahara membuat; pemeriksa bermandat meninjau; kepala bermandat mengesahkan, tiga akun berbeda.	Pegawai melihat hasil final miliknya; pihak lain hanya cakupan mandat. Default tidak menampilkan draft ke wali/pegawai umum.
+Bank soal/kunci	Guru mengelola soal milik/penugasannya; pengelola paket merakit.	Akses kunci dan ekspor dipisahkan dari akses naskah.
+Catatan internal BK	Guru BK sesuai izin khusus.	Operator, wali kelas, orang tua dan kepala tidak otomatis memperoleh akses.
+Ringkasan BK dibagikan	BK menetapkan ringkasan dan penerima.	Wali kelas/wali hanya melihat ringkasan yang diberikan kepada mereka.
+Arsip TU	TU membuat/mengelola surat dan arsip; disposisi nonaktif.	Kategori dokumen dan izin unduh; publik hanya dokumen terbit.
+Konten website	TU/operator membuat draf; penerbit bermandat berbeda dari editor menyetujui.	Pengunjung hanya konten terbit; dokumen privat tetap tertutup.
+Dashboard/ekspor	Pimpinan atau petugas berizin membaca/mengekspor.	Cakupan sama dengan data sumber; ekspor tidak memperluas izin.
+
+2.3 Prinsip wajib
+Otorisasi diperiksa di server pada setiap baca/tulis, pencarian, ekspor, API, dan unduhan; menutupi tombol tidak cukup.
+Cakupan data menggunakan peran + penugasan + periode + hubungan wali–siswa. Akses yang tidak diberikan ditolak.
+Pencabutan penugasan atau hubungan wali harus mengakhiri akses sesuai periode efektif tanpa menghapus riwayat.
+Tidak memakai bypass administrator umum untuk catatan BK dan honor. Akses dukungan darurat, jika diperlukan, harus terbatas, beralasan, dan diaudit.
+Pembuat, pemeriksa dan pengesah honor harus tiga akun berbeda. Verifikator realisasi tidak menyetujui pengajuannya sendiri. Baseline tidak menyediakan bypass; perubahan pemisahan tugas harus menjadi revisi kebijakan eksplisit dengan audit.
+
+BAB III. KEBUTUHAN FUNGSIONAL TERPERINCI
+Semua kebutuhan berikut merupakan baseline pengembangan v1.3. Fitur nonaktif berada pada backlog sesuai §1.2 dan DEC. Validasi server, pesan kesalahan dan otorisasi objek wajib pada semua modul.
+3.1 Autentikasi dan pengguna (FR-01)
+ID	Kebutuhan
+FR-01-01	Login dengan username atau email dan password melalui Laravel API /api/v1/auth. Guard api memakai JWT HS256; akun dan identitas person harus aktif, multi-peran didukung, dan akun siswa-only tetap ditolak. Logout mencabut sesi JWT di server.
+FR-01-02	Sandi dihash oleh Laravel. Pembuatan akun dan reset oleh petugas berizin menghasilkan sandi sementara 24 jam, sekali login, lalu wajib diganti; sesi terbatas hanya boleh membaca profil, mengganti sandi, atau logout. Ganti sandi memerlukan sandi lama, konfirmasi, minimal 12 karakter dengan huruf besar/kecil dan angka, maksimal 72 byte; seluruh sesi dicabut setelah berhasil. Pemulihan mandiri melalui tautan email belum tersedia.
+FR-01-03	Batasi login 5/menit per kombinasi login+IP dan 20/menit per IP; refresh 30/menit per IP, Google 10/menit per IP, ganti sandi 5/menit per akun. Audit login, refresh/replay, logout dan pengelolaan akun. Perubahan password/status/email dan tindakan reset/pencabutan sesi membatalkan sesi sesuai layanan yang berlaku.
+FR-01-04	JWT memiliki claim iss/aud/sub/sid/jti/iat/nbf/exp dan token_use=access. Access token default 15 menit. Refresh token acak 32 byte hanya disimpan sebagai hash SHA-256; rotasi sekali pakai mengganti JWT/jti dan refresh, tanpa memperpanjang batas absolut 120 menit. Replay refresh mencabut seluruh sesi terkait; logout-all tersedia pada API Laravel.
+FR-01-05	Google OAuth opsional memakai Socialite, state satu kali, PKCE dan masa transaksi 10 menit. Hanya akun lokal aktif dengan email terverifikasi yang sama dan tanpa kewajiban ganti sandi dapat masuk. Tautan provider/subject dibuat pada login Google pertama yang sah; akun baru tidak didaftarkan otomatis. Subject berbeda untuk tautan yang sama ditolak; token Google tidak disimpan.
+FR-01-06	Next.js BFF menjembatani /api/auth/* dan /api/accounts/* ke Laravel. JWT dan refresh hanya pada cookie HttpOnly; JSON yang diterima UI tidak berisi token. Mutasi memeriksa Origin dan JSON; transaksi Google memakai cookie madrasah_google maksimal 600 detik pada Path=/api/auth/google, lalu dihapus setelah callback.
+FR-01-07	DatabaseSeeder menjalankan ReferenceDataSeeder dan SuperAdminSeeder; AccountAccessSeeder menyediakan 10 role awal termasuk super_admin serta 10 izin accounts.*. INITIAL_ADMIN_EMAIL/NAME/USERNAME/PASSWORD dibaca di backend. Jika password kosong, seeder memberi hash sandi acak yang tidak ditampilkan agar akun awal dapat memakai Google; konfigurasi Google wajib tersedia. Seeder tidak mengubah akun lama dan berhenti bila sudah ada grant Super Admin.
+FR-01-08	Pengelolaan akun /api/v1/accounts mencakup daftar/detail/pembuatan/perubahan akun, status, role dan izin accounts.*, verifikasi email dengan pemeriksaan identitas, reset sandi sementara untuk akun lain, pencabutan sesi, pemutusan Google, audit serta konflik lock_version. UI tidak menawarkan hapus fisik akun atau pendaftaran publik. Izin dan mandat domain di luar accounts.* belum dikelola melalui UI ini.
+Status 20 Oktober 2026: fondasi auth, akun, shell, sidebar dan dashboard role awal sudah memiliki kode/tes. Menu domain baru masih disabled dan bukan bukti implementasi bisnis. Pemulihan mandiri via email, pengaturan mandat domain melalui UI, serta penetapan sandi pertama untuk akun Google-only tanpa sandi lama belum tersedia. Production TLS, konfigurasi Google nyata dan UAT tetap perlu validasi operasional.
+
+3.2 Data master (FR-02)
+ID	Kebutuhan
+FR-02-01	Kelola identitas madrasah, siswa, wali, pegawai, jabatan, mata pelajaran, serta referensi status.
+FR-02-02	Validasi identitas, data wajib, dan kandidat duplikasi; penonaktifan master tidak merusak transaksi historis.
+FR-02-03	Impor data melalui template dengan pratinjau, hasil validasi, dan laporan baris gagal; pengulangan impor tidak menggandakan data yang sama.
+
+3.3 Tahun ajaran dan riwayat siswa (FR-03)
+ID	Kebutuhan
+FR-03-01	Kelola tahun ajaran, semester, rombongan belajar, serta periode aktif; cegah periode aktif yang bertentangan.
+FR-03-02	Catat keanggotaan kelas dengan tanggal efektif dan riwayat; perpindahan tidak menimpa sejarah.
+FR-03-03	Proses kenaikan, lulus, pindah, atau keluar melalui pratinjau dan konfirmasi petugas; dapat ditelusuri.
+
+3.4 Jadwal dan tugas mengajar (FR-04)
+ID	Kebutuhan
+FR-04-01	Kelola penugasan guru, pelajaran, kelas, semester, hari, slot/JP, dan tanggal berlaku.
+FR-04-02	Tolak benturan waktu guru/kelas; validasi rentang berlaku dan batas slot.
+FR-04-03	Simpan versi jadwal serta pertemuan aktual bertanggal yang memperhitungkan kalender akademik.
+FR-04-04	Catat guru pengganti terpisah dari guru terjadwal dan status pelaksanaan; penunjukan sesuai mandat.
+
+3.5 Absensi pegawai (FR-05)
+ID	Kebutuhan
+FR-05-01	Catat masuk/pulang pegawai menggunakan waktu server; setiap aksi normal wajib foto baru dari kamera dan GPS perangkat. Petugas tetap mencatat izin, sakit, cuti, dinas luar sesuai referensi tanpa mewajibkan foto/GPS kehadiran. Absensi siswa tetap dicatat guru/wali kelas.
+FR-05-02	Tolak pencatatan ganda sesuai pola kerja dan aksi masuk/pulang. Koreksi menyimpan sebelum/sesudah, alasan, pelaku, waktu serta approval; bukti foto/GPS asli tidak ditimpa. Riwayat sebelum policy foto/GPS berlaku tetap sah tanpa bukti retroaktif.
+FR-05-03	Rekap harian/bulanan dan terlambat memakai snapshot shift Senin–Sabtu 07.00–14.00, toleransi 10 menit dan koreksi 7 hari.
+FR-05-04	Setiap aksi masuk/pulang normal mengikat foto kamera baru, latitude/longitude, akurasi, waktu foto/lokasi dan waktu server dengan kunci idempotensi; bukti disimpan terpisah dan privat. Default akurasi maksimal 100 m dan usia foto/lokasi maksimal 60 detik, tanpa geofence. Kamera/GPS gagal atau tidak diizinkan menolak aksi normal; tidak ada fallback diam-diam.
+FR-05-05	Server memvalidasi foto lalu mengompresi sebelum penyimpanan final: WebP, sisi terpanjang 1.280 px tanpa upscale, kualitas awal 80 sampai minimum 60 untuk maksimal 300 KiB; EXIF dihapus setelah orientasi diperbaiki. files menyimpan metadata hasil, employee_attendance_captures menyimpan FK, ukuran input, dimensi/kualitas aktual serta snapshot policy. Byte foto bukan isi database.
+FR-05-06	Policy foto/GPS dan DEC-16 dibuat sebagai versi efektif baru; data/policy lama tidak ditimpa dan tidak diwajibkan foto/GPS retroaktif. Akses bukti dibatasi ke pemilik/petugas absensi bermandat. Koreksi administratif tetap mengikuti alasan, approval berbeda dan audit; bukti asli dipertahankan.
+FR-05-07	Sediakan SOP fallback administratif untuk kegagalan kamera/GPS: petugas bermandat mencatat kehadiran dengan status dan alasan tanpa membuat bukti foto/GPS; petugas penanggung jawab dan kanal bantuan ditetapkan pada onboarding sebelum addendum foto/GPS berlaku operasional. Aplikasi menampilkan petunjuk pemulihan (izin kamera/lokasi, sinyal, ulangi pengambilan) saat aksi normal gagal.
+
+3.6 Realisasi mengajar (FR-06)
+ID	Kebutuhan
+FR-06-01	Guru pelaksana mencatat realisasi, materi, JP/durasi, dan keterangan pada pertemuan yang menjadi tugasnya.
+FR-06-02	Verifikator menyetujui/menolak dengan alasan penolakan; simpan riwayat verifikasi dan revisi.
+FR-06-03	Pisahkan status pelaksanaan, status verifikasi, dan guru pelaksana; data tidak memenuhi aturan tidak masuk JP honor.
+FR-06-04	Cegah realisasi ganda, simpan sumber jadwal historis, dan kendalikan perubahan setelah digunakan pada honor terkunci.
+
+3.7 Absensi siswa (FR-07)
+ID	Kebutuhan
+FR-07-01	Catat hadir/sakit/izin/alpa untuk siswa yang menjadi anggota kelas pada tanggal terkait.
+FR-07-02	Baseline hanya absensi harian; mode per pertemuan/both nonaktif. Tidak ada catatan ditampilkan sebagai belum dicatat.
+FR-07-03	Rekap tanggal/bulan/siswa/kelas/tahun ajaran; wali hanya melihat anaknya; koreksi diaudit.
+
+3.8 Perhitungan honor (FR-08)
+ID	Kebutuhan
+FR-08-01	Tarif/tugas tambahan bertanggal; prioritas pegawai → kategori historis → global, tolak overlap dan tarif ambigu. Nominal harus diisi dengan data nyata.
+FR-08-02	Bangun rekap periode dari sumber JP yang memenuhi aturan dan rincian tambahan/potongan yang berwenang.
+FR-08-03	Simpan snapshot JP, tarif, komponen, sumber, dan versi aturan perhitungan; total dapat ditelusuri.
+FR-08-04	Sediakan pemeriksaan, pengembalian draf, pengesahan, penguncian, dan laporan privat.
+FR-08-05	Hasil locked tidak direvisi langsung; adjustment selisih pada periode terbuka berikutnya, referensi asal dan approval baru. Koreksi penerima memakai batch debit/kredit berpasangan.
+
+3.9 Bank soal dan paket cetak (FR-09)
+ID	Kebutuhan
+FR-09-01	Kelola soal, jenis soal, gambar, pilihan, kunci, pembahasan, mapel, kelas, materi, kesulitan, serta C1–C6.
+FR-09-02	Cari/filter soal; gunakan status draf, siap digunakan, tidak aktif dan batas kepemilikan/kolaborasi.
+FR-09-03	Susun paket dan urutan soal/jawaban; finalisasi menyimpan versi/salinan isi dan pemetaan kunci yang sesuai.
+FR-09-04	Cetak PDF naskah dan kunci terpisah dengan izin masing-masing. DOCX nonaktif pada baseline awal.
+
+3.10 Bimbingan dan konseling (FR-10)
+ID	Kebutuhan
+FR-10-01	Catat konseling, pelanggaran, pembinaan, tindak lanjut, perkembangan, dan lampiran privat.
+FR-10-02	Pisahkan catatan internal dari ringkasan berbagi; simpan penerima, waktu, dan pelaku pembagian.
+FR-10-03	Terapkan izin khusus per kategori, pembatasan pencarian/ekspor, dan retensi yang ditetapkan; tidak bocor melalui dashboard.
+
+3.11 TU dan arsip (FR-11)
+ID	Kebutuhan
+FR-11-01	Kelola surat masuk/keluar, nomor/tanggal, pengirim/penerima, perihal, kategori, agenda, dan lampiran.
+FR-11-02	Nomor surat unik pada lingkup penomoran; penerbitan bersamaan tidak menghasilkan nomor ganda.
+FR-11-03	Cari/unduh arsip sesuai kategori izin dan retensi default; disposisi nonaktif pada baseline awal.
+
+3.12 Portal wali (FR-12)
+ID	Kebutuhan
+FR-12-01	Aktifkan akses setelah hubungan wali–siswa diverifikasi; satu wali dapat terhubung dengan beberapa siswa.
+FR-12-02	Identitas minimum, kelas, absensi harian, pengumuman dan ringkasan BK yang diizinkan, sejak tanggal efektif hubungan wali.
+FR-12-03	Pencabutan hubungan mengakhiri akses efektif; dilarang mengakses siswa lain, BK internal, honor, atau arsip internal.
+
+3.13 Website resmi (FR-13)
+ID	Kebutuhan
+FR-13-01	Kelola beranda, profil/sejarah/visi-misi/struktur, guru-tendik, akademik/kesiswaan, berita, pengumuman, kegiatan, galeri, prestasi, agenda, unduhan, kontak.
+FR-13-02	Gunakan draf–ditinjau–terbit–arsip; editor/penerbit sesuai mandat; konten belum terbit tidak muncul pada pencarian publik.
+FR-13-03	Publikasikan foto/data/dokumen sesuai kebijakan; lampiran privat tidak berubah menjadi publik tanpa proses yang sah. Foto dan identitas siswa hanya diterbitkan dengan persetujuan orang tua/wali yang tercatat berversi dan dapat ditarik; sistem memeriksa persetujuan sebelum konten terbit dan penarikan persetujuan mengeluarkan konten dari akses publik pada siklus publikasi berikutnya (DEC-21).
+
+3.14 Dashboard dan laporan (FR-14)
+ID	Kebutuhan
+FR-14-01	Ringkas siswa/pegawai, kehadiran, realisasi, JP, honor, surat dan operasional dari sumber yang sama dengan laporan.
+FR-14-02	Tampilkan periode, filter, waktu pembaruan, dan status draf/final honor secara jelas.
+FR-14-03	Ekspor privat berstatus queued/running/completed/failed; dataset diekstrak dari snapshot konsisten, hasil kedaluwarsa 24 jam dan izin diperiksa saat unduh.
+
+3.15 Audit, backup, keamanan (FR-15)
+ID	Kebutuhan
+FR-15-01	Audit perubahan izin, hubungan wali, jadwal, koreksi absensi, tarif, verifikasi, pengesahan, penyesuaian honor, serta publikasi penting.
+FR-15-02	Backup basis data dan berkas terkait, simpan terpisah, catat keberhasilan/kegagalan dan retensi.
+FR-15-03	Uji pemulihan; lindungi sesi, unggahan, rahasia, dan akses berkas; kegagalan proses penting dipantau.
+
+
+3.16 Privasi dan kepatuhan UU PDP (FR-16)
+ID	Kebutuhan
+FR-16-01	Kelola register dasar pemrosesan data pribadi (dasar hukum, tujuan, kategori data, pemilik data, pihak yang mengakses, masa retensi) untuk setiap kelompok data: siswa/anak, wali, pegawai, BK, honor, foto/GPS absensi, dan publikasi website; register tersedia untuk ditinjau pengelola dan diperbarui saat fitur baru ditambahkan.
+FR-16-02	Pemrosesan data pribadi anak (siswa) memerlukan dasar pemrosesan terdokumentasi dan persetujuan orang tua/wali untuk tujuan di luar kewajiban administrasi pendidikan; data minimum dipakai pada setiap fitur. Data BK dan foto/GPS absensi diklasifikasikan sensitif dengan akses dan retensi sesuai FR-10, FR-05 dan DEC-15.
+FR-16-03	Sediakan mekanisme hak subjek data: permintaan akses, perbaikan, pembatasan, dan keberatan diajukan kepada petugas berizin, diverifikasi identitasnya, dicatat, dilayani dalam tenggat yang ditetapkan kebijakan, dan menghormati retensi legal/akademik serta legal hold; penghapusan mengikuti BR-23 dan DEC-15 tanpa merusak transaksi historis.
+FR-16-04	Persetujuan publikasi foto/identitas siswa direkam per siswa, berversi, dapat ditarik, dan diperiksa otomatis sebelum konten terbit (lihat FR-13-03 dan DEC-21).
+
+3.17 Notifikasi (FR-17)
+ID	Kebutuhan
+FR-17-01	Notifikasi in-app tersedia untuk pengumuman, perubahan status penting (verifikasi realisasi, pengesahan honor, koreksi absensi), dan pesan sistem; daftar notifikasi per pengguna dengan status terbaca. Isi notifikasi tidak memuat data BK internal, rincian honor pihak lain, atau bukti foto/GPS.
+FR-17-02	Pengiriman ke kanal eksternal (email, WhatsApp, SMS) nonaktif pada baseline; penyedia, biaya, dasar pemrosesan, dan persetujuan penerima ditetapkan melalui revisi kebijakan sebelum diaktifkan (DEC-20). Notifikasi tidak menggantikan pengumuman resmi madrasah.
+
+
+BAB IV. ATURAN BISNIS DAN ALUR PROSES
+4.1 Periode dan riwayat
+ID	Aturan
+BR-01	Identitas siswa/pegawai tetap; keanggotaan kelas, jabatan, penugasan dan tarif memiliki periode efektif.
+BR-02	Pergantian tahun ajaran tidak menghapus transaksi lama; laporan historis menggunakan keanggotaan/penugasan yang berlaku saat transaksi.
+BR-03	Perubahan jadwal berlaku ke depan sesuai tanggal efektif; pertemuan terlaksana tetap menunjuk sumber historis.
+BR-04	Waktu server menjadi acuan; timestamp kejadian UTC, tanggal/jam operasional Asia/Jakarta. Interval akhir eksklusif.
+
+4.2 Jadwal, realisasi, dan verifikasi
+Alur: penugasan → jadwal versi berlaku + kalender → pertemuan bertanggal → catatan guru pelaksana → verifikasi → JP yang memenuhi syarat → rekap honor.
+Dimensi	Nilai / aturan
+Pelaksanaan	Belum dicatat, terlaksana, tidak terlaksana. Penyebab batal disimpan terpisah.
+Verifikasi	Belum diajukan, menunggu, disetujui, ditolak. Penolakan wajib alasan; pengajuan ulang mempertahankan riwayat.
+Guru	Guru terjadwal dan guru pelaksana disimpan terpisah. Pengganti bukan status pelaksanaan.
+JP yang diakui	Satu JP = 40 menit sebagai parameter awal; JP diakui = min(JP rencana, floor(menit aktual / 40 × 1000) / 1000). JP realisasi tidak melebihi rencana. Hitung uang dengan desimal presisi tinggi, bulatkan half-up ke rupiah per sumber, lalu jumlahkan; jangan bulatkan ulang total dengan metode lain. Hanya held + approved memenuhi syarat honor.
+Perubahan realisasi	Sebelum locked: revisi/verifikasi ulang. Sesudah locked: revisi sumber melalui koreksi berizin dengan adjustment selisih; snapshot asal tidak berubah.
+
+BR-05: satu realisasi aktif, satu guru pelaksana dan satu penerima honor per pertemuan; co-teaching nonaktif. BR-06: libur/kegiatan yang memblokir kelas mencegah JP honor otomatis; realisasi not_held bernilai nol dan beralasan. Data libur tidak ditafsirkan sebagai pegawai alpa.
+4.3 Absensi siswa dan pegawai
+BR-07: absensi harian pegawai tidak membuktikan realisasi mengajar; kedua proses tetap terpisah.
+BR-08: baseline absensi siswa harian unik per siswa–tanggal; mode per pertemuan/both nonaktif dan hanya dapat diaktifkan melalui revisi policy.
+BR-09: rekap menggunakan absensi harian saja. Ketiadaan catatan ditampilkan sebagai belum dicatat, tidak dikonversi otomatis ke alpa. Riwayat kelas mengikuti enrollment pada tanggal absensi.
+BR-10: input siswa sampai 23.59 lokal; koreksi siswa/pegawai sampai 7 hari kalender memerlukan alasan dan persetujuan petugas berbeda. Setelah tenggat hanya izin koreksi terlambat eksplisit. Simpan sebelum/sesudah, pelaku, waktu, approval dan lock_version.
+BR-24 (addendum absensi pegawai): foto dan GPS dikumpulkan untuk aksi check_in/check_out saja. Lokasi berupa latitude/longitude, akurasi dan waktu pengambilan; waktu kejadian absensi memakai server UTC. Default teknis: akurasi maksimal 100 m dan usia foto/lokasi maksimal 60 detik, tidak dari masa depan, tanpa radius/geofence. HTTPS serta izin kamera/lokasi wajib; izin ditolak, lokasi kedaluwarsa/tidak akurat, foto kosong atau kompresi gagal membuat aksi normal ditolak. Pegawai mengulang pengambilan; penanganan administratif hanya melalui petugas bermandat, alasan, approval/koreksi dan audit yang sudah berlaku, bukan membuat bukti kamera/GPS palsu. Foto/GPS bukan verifikasi biometrik atau jaminan anti-pemalsuan.
+BR-25 (penyimpanan bukti): validasi dan kompresi foto selesai sebelum file final, metadata files, bukti dan waktu absensi dikomit. File final privat berformat WebP; database tidak menyimpan byte foto/base64. Satu bukti unik per absensi–aksi dan satu file tidak dipakai dua aksi. File sementara/asli dibersihkan; kegagalan database/storage tidak meninggalkan absensi sukses parsial. Bukti asli append-only dan tidak ditimpa koreksi; foto/GPS tidak masuk publik, portal wali, payload/log umum atau ekspor rutin. Akses hanya pegawai pemilik dan petugas absensi bermandat. Retensi mengikuti akademik/absensi 5 tahun setelah penutupan periode, tanpa penghapusan historis otomatis.
+4.4 Honor dan penguncian
+Rumus sumber dipertahankan: honor mengajar = JP memenuhi syarat × tarif; total = honor mengajar + tugas tambahan − potongan disetujui. Jika tarif berubah di tengah periode, hitung per sumber/tanggal memakai tarif yang berlaku, lalu jumlahkan.
+ID / tahap	Ketentuan
+BR-11 / Draf	Bendahara/petugas menghitung dari sumber yang memenuhi aturan, tarif berlaku, dan penugasan tambahan. Simpan snapshot nominal dan referensi sumber.
+BR-12 / Diperiksa	Pemeriksa memvalidasi rincian. Kekurangan dikembalikan ke draf dengan alasan; revisi membatalkan persetujuan sebelumnya.
+BR-13 / Disahkan	Kepala bermandat mengesahkan versi reviewed, berbeda dari pembuat dan pemeriksa.
+BR-14 / Dikunci	Pengesahan langsung mengunci versi, rincian, sumber dan klaim secara atomik; approved_at dan locked_at disimpan pada commit yang sama.
+BR-15 / Koreksi	Hasil locked tidak ditimpa. Default hanya adjustment selisih ke periode terbuka berikutnya; revisi pengganti locked nonaktif. Salah penerima menggunakan batch debit/kredit atomik.
+BR-16 / Nilai uang	DECIMAL untuk penyimpanan dan aritmetika desimal presisi tinggi; half-up ke rupiah per sumber, total merupakan penjumlahan hasil sumber, tanpa floating-point.
+BR-17 / Keunikan	Satu rekap aktif per pegawai–periode–jenis rekap; pengulangan hitung/permintaan tidak menggandakan komponen. Pengesahan paralel dicegah melalui transaksi dan kontrol konkurensi.
+BR-18 / Pembayaran	Disahkan tidak berarti dibayar. Transaksi pembayaran digital di luar cakupan; pencatatan status bayar manual hanya ditambahkan melalui persetujuan kebutuhan.
+
+Contoh uji: 72 JP × Rp25.000 + Rp300.000 + Rp500.000 = Rp2.600.000 tanpa potongan. Angka ini hanya fixture pengujian, bukan tarif produksi. Kalkulasi produksi memakai tarif nyata bertanggal dan default DEC-01–DEC-06; tarif yang belum tersedia menghasilkan kesalahan konfigurasi, bukan nominal tebakan.
+4.5 BK, wali, konten, dan berkas
+BR-19: BK membagikan ringkasan dengan penerima tertentu; catatan internal dan lampiran internal tidak ikut terbuka.
+BR-20: hubungan wali–siswa memiliki status terverifikasi dan masa berlaku; pihak verifikator ditetapkan.
+BR-21: publikasi membutuhkan izin penerbit; status arsip/draf menutup akses publik sesuai kebijakan.
+BR-22: paket soal final menyimpan versi isi, urutan, dan kunci. Mengubah bank soal tidak mengubah paket final.
+BR-23: master yang dirujuk transaksi dinonaktifkan atau diarsipkan; penghapusan fisik mengikuti retensi dan batas referensial. Soft delete tidak menggantikan kebijakan retensi.
+
+4.6 Default historis, penyesuaian dan retensi
+Kategori pegawai disimpan sebagai relasi bertanggal; satu kategori berlaku pada tanggal sumber honor. class_period menyimpan nama dan grade historis. Payroll sources menyimpan kategori/scope tarif terpilih agar perhitungan dapat diulang dengan fakta tanggal sumber.
+Koreksi penerima membentuk adjustment batch berisi debit penerima asal dan kredit penerima benar, nominal transfer sama, source locked asal dan meeting yang sama, satu periode target terbuka yang sama. Kalkulasi ulang target menghitung efek kumulatif adjustment sebelumnya, bukan mengulang nilai asal. Kedua payroll target harus reviewed; approve batch mengunci keduanya dan menerapkan dua sisi dalam satu transaksi. Gagal salah satu sisi membatalkan keduanya. Klaim meeting asal tetap menyimpan fakta sumber honor yang disahkan, sementara koreksi ditelusuri lewat batch.
+Kebijakan default disimpan sebagai baseline keputusan berversi dengan actor/time asal permintaan; persetujuan workflow bisnis tetap dicatat oleh akun nyata. Retensi DEC-15 adalah arsip teknis konservatif; disposal historis tidak otomatis. Data ekspor/impor sementara dibersihkan idempoten setelah kedaluwarsa; legal hold dan FK sumber diperiksa lebih dahulu.
+4.7 Privasi, persetujuan, dan hak subjek data
+BR-26: setiap kelompok data pribadi memiliki dasar pemrosesan tercatat; data pribadi anak hanya diproses untuk tujuan administrasi pendidikan dan tujuan lain hanya dengan persetujuan orang tua/wali yang sah. Persetujuan direkam dengan isi, waktu, pemberi persetujuan, dan versi dokumen persetujuan.
+BR-27: permintaan hak subjek data (akses, perbaikan, pembatasan, keberatan) diverifikasi identitas pemohon, dicatat, dilayani sesuai tenggat kebijakan, dan hasilnya dilaporkan ke pemohon; penolakan diberalaskan dengan merujuk retensi/kewajiban hukum. Log permintaan tidak memuat isi data sensitif.
+BR-28: penarikan persetujuan berlaku ke depan; konten yang telah terbit ditinjau dan ditarik dari akses publik pada siklus publikasi berikutnya. Retensi dan snapshot historis internal tetap mengikuti DEC-15 dan BR-23.
+
+
+BAB V. KEBUTUHAN NONFUNGSIONAL DAN KAPASITAS
+Target berikut menjadi default penerimaan pengembangan; ukuran kapasitas harus dibuktikan melalui uji, bukan dianggap terpenuhi oleh pilihan framework/server. Data nyata dapat mengganti profil melalui revisi NFR.
+ID	Kebutuhan / target default	Cara pembuktian
+NFR-01	Responsif pada viewport 360 px ke atas; Bahasa Indonesia; seluruh alur inti dapat dipakai keyboard, fokus terlihat, label/error terhubung dan kontras teks normal minimal 4,5:1.	Uji alur pada ponsel/komputer representatif; tinjau formulir dan navigasi.
+NFR-02	Persentil ke-95 respons server untuk operasi rutin ≤ 2 detik pada profil 50 pengguna aktif; uji lonjakan 100.	Uji campuran baca dan tulis dengan data representatif; latency, throughput, dan error dicatat. Waktu internet/render dilaporkan terpisah.
+NFR-03	Job berat di queue, timeout awal 300 detik, maksimal 3 percobaan; laporan maksimal 50.000 baris per job, selebihnya dipersempit dengan filter. Status/gagal/ulang terlihat; ukur volume sebelum menaikkan limit.	Uji ekspor saat absensi berlangsung; tidak mengunci seluruh proses rutin.
+NFR-04	HTTPS produksi; JWT HS256 dengan validasi signature, issuer, audience, subject, sid/jti, iat/nbf/exp dan sesi server. Access default 15 menit; batas absolut sesi/refresh 120 menit sejak login, tidak diperpanjang saat refresh. BFF Next.js memakai cookie HttpOnly, Secure di production, SameSite=Lax dan pemeriksaan Origin+application/json pada mutasi. Token tidak disimpan di localStorage/sessionStorage atau payload UI. Timestamp internal UTC; tampilan Asia/Jakarta.	Uji JWT palsu/kedaluwarsa, replay refresh, pencabutan sesi, state/PKCE Google, mutasi BFF lintas Origin, rate limit, dan otorisasi objek. Verifikasi HTTPS/cookie produksi dan konfigurasi proxy pada staging.
+NFR-05	Berkas privat, nama server acak, MIME/isi diperiksa; maksimal 10 MiB, PNG/JPEG/WebP/PDF untuk lampiran. Foto absensi hanya PNG/JPEG/WebP, input maksimal 10 MiB dan 20 megapiksel; server memperbaiki orientasi, menghapus EXIF, meresize tanpa memperbesar ke sisi terpanjang 1.280 px dan mengenkode WebP kualitas awal 80, diturunkan bertahap sampai 60 bila perlu untuk hasil maksimal 300 KiB (307.200 byte). Bila tetap melebihi batas atau decode/encode gagal, absensi ditolak tanpa catatan parsial. CSV/XLSX hanya importer khusus, maksimal 5.000 baris. HTML/SVG/executable dan arsip terkompresi ditolak.	Uji MIME palsu, berkas rusak/terlarang, input di atas 10 MiB/20 megapiksel, output di atas 300 KiB, orientasi/EXIF, kegagalan kompresi, serta unduhan foto tanpa izin. Parameter foto/GPS disimpan pada versi policy, bukan menimpa histori.
+NFR-06	Backup data+berkas harian terenkripsi dan terpisah; RPO 24 jam, RTO 4 jam, manifest/checksum konsisten.	Pemulihan ke lingkungan bersih, pengukuran waktu, pemeriksaan konsistensi data dan lampiran.
+NFR-07	Backup harian 14 hari dan mingguan 8 minggu; restore setiap 3 bulan dan setelah perubahan besar.	Log backup/retensi, laporan pemulihan dan penanggung jawab.
+NFR-08	Ketersediaan 99,5% per bulan di luar pemeliharaan tercatat; probe eksternal setiap 60 detik, downtime dihitung pada 2 kegagalan berurutan dan dihentikan saat pulih.	Monitoring dari luar aplikasi dan laporan downtime; target disesuaikan anggaran.
+NFR-09	Transaksi atomik untuk pengesahan, nomor surat, dan perubahan multi-tabel; cegah duplikasi pada database.	Uji gagal di tengah operasi dan permintaan paralel; tidak ada hasil parsial atau nomor ganda.
+NFR-10	Audit penting menyimpan objek, pelaku, waktu, alasan dan perubahan relevan; log tidak memuat sandi/token atau isi lengkap konseling.	Pemeriksaan log dan uji koreksi; hak mengubah log dibatasi.
+NFR-11	Development, staging, production terpisah; konfigurasi rahasia tidak masuk Git; debug produksi mati.	Checklist deployment, konfigurasi, dan pemeriksaan repositori.
+NFR-12	Dokumentasi skema, aturan bisnis, rilis, dan panduan operasional tersedia; tes kritis berjalan sebelum rilis.	Review artefak dan hasil CI/checklist rilis.
+NFR-13	Minimalkan data sensitif; BK diarsipkan 2 tahun setelah tertutup; akademik/honor/TU setelah 5 tahun; audit aktif 1 tahun lalu arsip. Ekspor 24 jam, payload impor/log operasi 30 hari; sumber historis tidak dihapus otomatis, disposal manual dengan legal hold dan pemeriksaan referensi.	Register data/retensi; proses arsip/penghapusan berizin. Review kebijakan sebelum portal publik.
+NFR-14	Health probe/error/queue/backup/koneksi/disk dipantau; disk ≥80% warning, ≥90% critical; notifikasi metadata aman ke kontak pengelola yang dikonfigurasi.	Simulasi kegagalan dan bukti tindak lanjut; hindari isi data sensitif dalam notifikasi.
+NFR-15	Portal wali, absensi, dan halaman rutin memenuhi budget performa frontend pada jaringan seluler 4G dengan perangkat menengah: First Contentful Paint ≤ 2,5 detik, Largest Contentful Paint ≤ 4 detik, interaksi utama merespons ≤ 200 ms, bundle JavaScript awal halaman publik/portal ≤ 300 KiB terkompresi; gambar responsif dan dimuat lazy.	Lighthouse mobile pada halaman representatif (beranda publik, login, dashboard, absensi, portal wali) dengan data representatif; hasil dilaporkan per rilis dan pelanggaran budget ditindaklanjuti atau dikecualikan dengan alasan tercatat.
+NFR-16	Uji keamanan independen (penetration test atau security review oleh pihak yang tidak terlibat pengembangan) dilakukan sebelum go-live produksi dan diulang setelah perubahan besar pada autentikasi, publikasi, atau penyimpanan berkas; temuan kritis dan tinggi wajib ditutup dan diverifikasi ulang sebelum rilis.	Termin pengujian, laporan temuan berklasifikasi risiko, bukti perbaikan dan retest; cakupan minimal: otorisasi objek, BFF/cookie/token, unggahan berkas, halaman publik, dan konfigurasi server/proxy.
+
+5.1 Jumlah akun dan pengguna aktif — asumsi
+Komponen	Contoh perencanaan, bukan data madrasah
+Data siswa	300 siswa; identitas siswa tidak otomatis membutuhkan akun.
+Akun pegawai	30–45 orang, sudah mencakup guru, kepala, operator, TU dan bendahara tanpa hitung ganda.
+Akun wali	250–350; tergantung saudara kandung dan jumlah wali yang diberikan akses.
+Total tanpa siswa login	280–395 akun.
+Total dengan 300 siswa login	580–695 akun bila fitur siswa kelak diaktifkan; baseline login siswa nonaktif.
+Pengguna aktif	Rutin internal 10–30; jam absensi 30–50; lonjakan portal 50–100 sebagai profil uji.
+
+Pengguna aktif bersamaan tidak sama dengan request serentak. Profil uji awal 60% baca/filter, 30% input/koreksi absensi, 10% laporan, dengan jeda pengguna. Ukur juga lonjakan tulis/ekspor, ukuran dataset, koneksi, latency dan error rate.
+5.2 Server awal — baseline perencanaan
+Baseline server awal Linux 4 vCPU, RAM 8 GB, SSD 80 GB untuk Next.js Node.js, Laravel PHP-FPM, MySQL dan worker. Ini titik awal sizing, bukan jaminan kapasitas. Staging dan backup terpisah; ukur penggunaan RAM/CPU/disk serta p95 dan sesuaikan kapasitas.
+
+BAB VI. DATA AWAL DAN MIGRASI
+Kelompok	Bahan yang disiapkan / validasi
+Madrasah	Nama, NPSN/NSM jika tersedia, alamat/kontak/logo, profil, visi-misi, struktur, foto yang boleh dipublikasikan.
+Siswa dan wali	NIS/NISN jika tersedia, identitas, status, kontak seperlunya, kelas/periode, hubungan wali, dan bukti verifikasi sesuai kebijakan.
+Pegawai	ID internal, NIP/NUPTK jika ada, identitas/status, jabatan dan tugas berperiode; rekening hanya jika diperlukan dan diizinkan.
+Akademik	Tahun ajaran, semester, kelas, mapel, slot/JP, penugasan, kalender/libur dan aturan kenaikan.
+Absensi	Default shift, input web, status, tenggat dan persetujuan koreksi mengikuti DEC-07/16; petugas yang bertugas diisi saat onboarding.
+Honor	Nominal tarif nyata, periode berlaku, kategori pegawai bertanggal, mandat pemeriksa/pengesah; definisi JP/prorata/pengganti mengikuti DEC-01–DEC-06.
+Bank soal	Jenis soal, C1–C6, kesulitan, format gambar/rumus, kepemilikan, template naskah/kunci.
+BK	Kategori/grant privat, ringkasan berbagi, penerima dan default arsip/disposal DEC-15.
+TU dan website	Penomoran surat, kategori/retensi/akses, template, editor/penerbit, konten awal dan kebijakan publikasi.
+
+6.1 Prosedur migrasi
+Sepakati template dan kamus kolom; simpan identitas sumber. Normalisasi spasi, tanggal, kode, dan nilai kosong tanpa menebak data yang tidak tersedia.
+Jalankan validasi di staging: identitas duplikat, referensi tidak dikenal, data wajib kosong, dan periode bertentangan dilaporkan per baris.
+Petugas meninjau pratinjau sebelum impor; default impor master atomik per berkas, maksimal 5.000 baris per berkas. Baris invalid menghalangi konfirmasi berkas dan diberi laporan; job validasi/impor berjalan di queue. Split berkas besar menjadi beberapa batch eksplisit.
+Uji impor ulang, hitung jumlah sebelum/sesudah, sampel relasi wali/kelas dan rekonsiliasi laporan. Simpan batch serta hasil validasi.
+Saat cutover, tetapkan pembekuan input sumber, backup, migrasi final, verifikasi pemilik data, dan prosedur pembatalan jika rekonsiliasi gagal. Data nyata tidak digunakan sembarangan pada development.
+
+BAB VII. RANCANGAN DATA KONSEPTUAL
+Daftar ini merupakan rancangan konseptual, bukan skema fisik final. Nama tabel dapat disesuaikan secara konsisten. ERD dan kamus data harus menentukan tipe, nullability, indeks, constraint dan perilaku penghapusan.
+Domain	Entitas / relasi penting
+Identitas dan akses	persons, users, roles, permissions, user_roles, role_permissions, authorization_mandates; auth_sessions, auth_refresh_tokens dan oauth_accounts untuk JWT/Google. Akun siswa-only nonaktif.
+Akademik	tahun_ajaran → semester; kelas → kelas_periode; siswa → keanggotaan_kelas → kelas_periode; kalender_akademik, slot_pelajaran.
+Wali	orang_tua_wali ↔ siswa melalui siswa_wali dengan hubungan, status verifikasi dan periode berlaku.
+Pegawai	pegawai, kategori_pegawai_berperiode, jabatan/penugasan bertanggal, serta snapshot kategori penerima pada sumber honor.
+Jadwal dan pertemuan	jadwal, versi_jadwal, slot_jadwal, pertemuan, penugasan_pengganti; pertemuan menyimpan tanggal dan sumber versi.
+Kehadiran	absensi_pegawai dan employee_attendance_captures untuk bukti foto/GPS per aksi masuk/pulang; absensi_siswa_harian, absensi_siswa_pertemuan nonaktif; realisasi_mengajar, verifikasi_realisasi, riwayat_koreksi. File terkompresi disimpan privat; database hanya menyimpan FK dan metadata, tanpa BLOB/base64.
+Honor	tarif, periode, payroll/version/detail/sumber/klaim, actions, adjustment dan batch koreksi penerima debit/kredit; revisi pengganti locked nonaktif.
+Soal	bank_soal, versi_soal, opsi_jawaban, lampiran_soal, paket_soal, detail_paket dengan snapshot/versi dan pemetaan kunci.
+BK	konseling, pelanggaran_siswa, pembinaan, tindak_lanjut, perkembangan_siswa, ringkasan_bk, penerima_ringkasan dan lampiran privat.
+TU	surat, urutan_nomor_surat, dokumen, kategori_dokumen, lampiran, agenda, disposisi jika diaktifkan.
+Website dan sistem	konten berversi/publikasi, audit, batch impor, snapshot pekerjaan laporan, backup; frontend hanya mengakses lewat API Laravel.
+
+7.1 Constraint dan indeks
+Foreign key menjaga relasi; penghapusan data bertransaksi ditolak atau dialihkan ke arsip sesuai kebijakan. Tidak menggunakan cascade delete menyeluruh untuk riwayat akademik/honor.
+NIS/internal ID unik dalam lingkup yang ditetapkan; NISN/NIP/NUPTK yang tidak tersedia tidak diisi nilai dummy seragam. Aturan identitas optional dijelaskan dalam kamus data.
+Absensi harian: unique siswa–tanggal atau pegawai–tanggal untuk pola satu hari kerja. Pola shift memerlukan konteks tambahan sebelum constraint final.
+Realisasi: unique pertemuan untuk pola satu pengajar. Keanggotaan kelas dan tarif bertanggal tidak boleh memiliki rentang yang bertentangan; validasi dalam transaksi dengan kontrol konkurensi.
+Rekap honor: unique pegawai–periode–jenis/versi sesuai model revisi; nomor surat unique pada lingkup yang disepakati.
+Indeks mengikuti filter nyata: periode, tanggal, kelas, pegawai, siswa, status verifikasi. Gunakan paginasi dan batasi pemuatan relasi.
+Snapshot honor memuat JP, tarif, nominal, sumber tanggal/pertemuan, versi kebijakan, dan komponen. Penyimpanan mata uang/durasi memiliki aturan presisi.
+7.2 Artefak desain berikutnya
+ERD fisik dan kamus data mengikuti backend/database/database.MD dengan default v1.2. Migration, layanan transaksi, Policy, kontrak OpenAPI dan pengujian disusun bertahap. Master, relasi berperiode dan transaksi tetap dipisahkan.
+
+BAB VIII. ARSITEKTUR LARAVEL API DAN NEXT.JS/REACT
+8.1 Arsitektur yang ditetapkan
+DITETAPKAN: Laravel/PHP menjadi backend API modular monolith; Next.js App Router + React/TypeScript menjadi frontend. MySQL hanya diakses Laravel. Satu monorepo berisi backend/ dan frontend/, dengan PHP-FPM dan Node.js sebagai dua proses runtime yang dirilis terkoordinasi. Modul bisnis tetap di Laravel, bukan dipisahkan menjadi microservices.
+Alur UI: browser → HTTPS/Nginx → Next.js untuk halaman dan BFF /api/auth/* serta /api/accounts/* → Laravel /api/v1 melalui host API_BASE_URL tepercaya. BFF menyimpan JWT/refresh pada cookie HttpOnly dan menambahkan Authorization: Bearer hanya pada request server-ke-server yang memerlukan access token. Laravel guard api, Form Request, pemeriksaan akses dan layanan transaksi membaca MySQL lalu menghasilkan JSON Resource/DTO. Worker ekspor/impor/backup tetap bagian implementasi domain berikutnya.
+Controller Laravel menangani API dan memanggil layanan bisnis. Rumus honor, penomoran, verifikasi dan publikasi hanya di Laravel. Next.js membaca API dan mengelola tampilan; Route Handlers/Server Actions tidak menjadi tempat duplikasi aturan atau jalur tulis yang melewati otorisasi backend. Kontrak /api/v1 didokumentasikan dengan OpenAPI dan dijaga kompatibel.
+8.2 Stack implementasi yang ditetapkan
+Komponen	Pilihan	Tanggung jawab
+Backend	Laravel + PHP	API /api/v1, guard api JWT, Google OAuth melalui Socialite, validasi, pemeriksaan akses, layanan bisnis dan transaksi. Laravel tetap sumber akun, sesi dan izin.
+Kontrak integrasi	HTTP JSON + OpenAPI	Resource/DTO minimum, endpoint auth/account, pagination sesuai endpoint, error 401/403/409/422/429/5xx, proteksi Origin BFF, serta kontrak idempotensi domain yang masih perlu diimplementasikan.
+Frontend	Next.js App Router + React/TypeScript	UI, routing halaman, Server Components publik, Client Components interaktif dan akses API.
+UI	Tailwind CSS + shadcn/ui	Komponen responsif, Bahasa Indonesia dan akses keyboard.
+Database	MySQL 8.4 InnoDB + Eloquent	Hanya backend mengakses; relasi, histori, indeks, snapshot dan transaksi.
+Build/runtime	Next.js build + Node.js LTS; Composer/PHP-FPM	Node.js runtime produksi untuk Next.js; PHP runtime untuk Laravel. Lockfile dan CI kompatibilitas.
+Pekerjaan latar belakang	Laravel Queue database + scheduler	Impor/ekspor/backup; after-commit, retry terbatas dan monitor worker.
+Deployment	Linux + Nginx TLS + PHP-FPM + Node.js	Satu monorepo, dua runtime; proxy satu origin publik, database privat, backup terpisah.
+
+Backend memakai Laravel API dengan JWT HS256 dan Google OAuth opsional; frontend memakai Next.js App Router + React/TypeScript dengan Backend for Frontend (BFF). Laravel 13/PHP 8.4 dan Next.js 16/React 19 adalah keluarga versi proyek; patch dikunci composer.lock/pnpm-lock.yaml dan diuji pada lingkungan rilis. MySQL baseline 8.4. Tailwind CSS dan shadcn lokal digunakan konsisten sesuai design-system.md; komponen yang tersedia digunakan ulang sebelum membuat komponen baru.
+8.3 Integrasi Laravel API–Next.js/React
+Backend: gunakan Laravel routes, middleware, Form Requests, Policies, Eloquent dan transaksi. Action/Service mengelola aturan bisnis; queue worker dan scheduler diawasi. Redis ditambahkan hanya jika pengukuran menunjukkan kebutuhan.
+Browser menggunakan BFF Next.js: madrasah_access dan madrasah_refresh disimpan sebagai cookie HttpOnly, host-only, Path=/, SameSite=Lax; Secure aktif pada production. Max-Age cookie mengikuti sisa refresh_expires_in, sedangkan masa sah JWT tetap expires_in. Mutasi BFF mewajibkan Origin sama dengan APP_URL dan Content-Type application/json; kegagalan ditolak 403. Laravel menerima access token melalui Authorization: Bearer dari BFF. Access default 15 menit, sesi/refresh absolut 120 menit sejak login, tanpa idle sliding atau remember-me. CORS Laravel berisi allowlist origin dengan supports_credentials=false; cookie sesi Laravel hanya untuk transaksi OAuth Google, bukan login API utama.
+API Resource/DTO hanya mengembalikan field yang dibutuhkan dan diotorisasi. BK internal, kunci soal dan siswa lain tidak boleh ikut respons/props tanpa izin objek yang sesuai. Halaman privat saat ini membaca profil melalui server helper auth/me; data dan mutasi fitur akun melewati BFF. Fetch personal no-store dan tidak memakai cache lintas pengguna. API domain tetap memerlukan pemeriksaan tindakan/objek di Laravel saat diimplementasikan.
+Formulir React memakai validasi UX dan HTTP client terpusat; Laravel menentukan validasi/izin. Respons 422 untuk field, 401 untuk autentikasi gagal, 403 untuk izin atau Origin BFF ditolak, 409 untuk konflik lock_version, 429 untuk rate limit; fitur nonaktif/tidak tersedia dapat mengembalikan 404. Timeout/upstream error BFF memakai pesan aman 5xx. Pengelolaan akun memakai lock_version; Idempotency-Key dan pola pagination domain masih persyaratan bagi API yang belum dibuat. Daftar akun saat ini 15/baris dan audit akun 20/baris.
+Frontend memakai frontend/app untuk App Router dan route BFF, components/ui untuk shadcn lokal, components/layout/auth/accounts untuk komponen fitur bersama, serta lib/auth dan lib/accounts untuk kontrak/helper HTTP. Server Component memakai requireUser dan batas Suspense; Client Component memakai endpoint BFF same-origin. Komponen digunakan ulang sesuai design-system.md. Modul website publik/SSR dan cache data terbit masih rencana; secret tetap server-side tanpa prefix NEXT_PUBLIC_.
+8.4 Deployment, berkas, dan operasional
+Development → staging → production memakai monorepo dan konfigurasi terpisah. CI/rilis memeriksa tes Laravel dan lint/typecheck/build Next.js sesuai cakupan perubahan. Nginx meneruskan /api/v1/* ke PHP-FPM Laravel; /api/auth/*, /api/accounts/*, halaman dan aset ke runtime Next.js. BFF menggunakan API_BASE_URL tetap. HTTPS, konfigurasi proxy, worker/scheduler, backup, deployment dan API publik /api/v1/public tetap harus dibuktikan pada staging/implementasi domain terkait.
+Storage publik untuk konten yang sudah diterbitkan. BK, honor, soal/kunci dan arsip terbatas disimpan privat; unduhan melalui otorisasi atau URL sementara setelah pemeriksaan izin.
+Ekspor memiliki pemilik, cakupan akses, masa berlaku dan pembersihan. Pencabutan izin harus dipertimbangkan saat pengguna mengunduh hasil lama.
+Queue Laravel memakai driver database, timeout job awal 300 detik, retry maksimal 3 kali dengan backoff dan retry_after lebih besar dari timeout. Job dikirim setelah commit dan idempoten. Render PDF, impor dan backup berjalan di worker, bukan request API/halaman. Snapshot laporan diekstrak dalam consistent snapshot MySQL sebelum render berkas; cutoff awal tidak cukup untuk membekukan nilai yang sedang dikoreksi.
+Backup database dan berkas wajib terenkripsi, checksum/manifest konsisten dan salinan terpisah; kunci disimpan terpisah dari backup. Default harian dan retensi/restore sesuai DEC-14, dengan log keberhasilan/kegagalan di luar database produksi.
+Git dan pemeriksaan rilis digunakan. Node.js Next.js, PHP-FPM, worker/scheduler dan MySQL dipantau. Notifikasi kegagalan hanya metadata aman ke pengelola yang dikonfigurasi. Pemisahan worker/database dilakukan berdasarkan pengukuran.
+8.5 Catatan keputusan arsitektur (ADR)
+ADR mencatat konteks, alasan, konsekuensi, pemilik dan tanggal. ADR-01 menetapkan Laravel API + Next.js/React + MySQL; ADR-02 diperbarui 20 Oktober 2026 mengikuti permintaan JWT + Google OAuth dengan BFF dan cookie HttpOnly; ADR-03 snapshot honor/paket; ADR-04 snapshot laporan. DEC-08 dan DEC-13 diselaraskan pada implementasi autentikasi; aturan bisnis non-auth dan snapshot historis tetap.
+
+8.6 Kontrak API, cache dan kompatibilitas rilis
+GET /api/v1/auth/me menyediakan profil, role aktif, permissions accounts.* dan navigation; BFF mengekspos pemeriksaan sesi melalui GET /api/auth/session. API accounts memakai meta page/last_page/total dengan 15 baris akun dan 20 baris audit. Endpoint /api/v1/public, OpenAPI lengkap, pagination domain 25/maksimal 100 dan idempotency key terikat aktor/operasi/hash payload merupakan kebutuhan modul berikutnya. Konflik lock_version akun yang terimplementasi menghasilkan 409.
+GET personal dan unduhan privat memakai Cache-Control: private, no-store. Middleware API Laravel dan respons BFF auth/account menerapkan kebijakan privat; request personal ke Laravel memakai cache: no-store. Autentikasi Server Component memakai cookies/connection dan memoization hanya selama request, dengan batas Suspense. Respons Set-Cookie/auth melewati cache proxy/CDN. API publik/pencabutan aset dan invalidasi cache masih harus diuji saat modul publikasi dibuat.
+Laravel memiliki akun, auth_sessions, auth_refresh_tokens, oauth_accounts dan otorisasi. Next.js tidak memiliki database identitas/session terpisah; ia mengelola cookie browser dan menjembatani HTTP ke Laravel. Pembacaan sesi halaman memanggil auth/me; pembaruan token berjalan melalui route BFF, dengan deduplikasi refresh 15 detik dalam satu proses Node.js. Multi-instance memerlukan koordinasi/peninjauan tersendiri. Secret ENV backend/BFF tidak memakai NEXT_PUBLIC_ dan tidak dikirim sebagai props atau log.
+BAB IX. ALUR PENGEMBANGAN DAN PELUNCURAN
+Pengembangan bertahap menggunakan Laravel API dan Next.js/React, dengan pengujian kontrak dan integrasi sejak awal. Fondasi akses, periode dan sumber honor dikerjakan dahulu. Setiap fitur menghubungkan endpoint Laravel, layanan bisnis dan halaman Next.js; ukuran tim dan hasil pilot menentukan durasi.
+Tahap	Kegiatan / hasil	Kriteria selesai
+0 — Validasi	Terapkan default DEC v1.3, isi data nyata onboarding, contoh transaksi, tarif, kalender dan akun pemegang mandat; tetapkan SOP absensi foto/GPS beserta petugas fallback (FR-05-07), register dasar pemrosesan (FR-16-01), template persetujuan publikasi foto siswa, dan saluran permintaan hak subjek data.	Baseline dan data konfigurasi tersedia; akun/mandat dapat ditelusuri, tarif contoh tidak menjadi tarif produksi; SOP, register, dan template persetujuan siap sebelum absensi foto/GPS dan publikasi berjalan.
+1 — Desain/fondasi	ERD/kamus data, backend Laravel API + JWT/Google OAuth, BFF Next.js/TypeScript, kontrak API, master/periode, CI dan staging; komponen UI mengikuti design-system.md.	Login password/Google, rotasi token, cookie HttpOnly, proteksi Origin dan navigasi berizin teruji; kelengkapan impor/master, CI/staging dan seluruh kriteria fondasi tetap dibuktikan terpisah.
+2 — Akademik/kehadiran	Penugasan, jadwal berversi, kalender, pertemuan, absensi pegawai/siswa, realisasi/verifikasi.	Riwayat terjaga, duplikasi/benturan dicegah; uji akses dan koreksi lulus.
+3 — Honor	Tarif, sumber JP, komponen, pemeriksaan, pengesahan/penguncian, penyesuaian, laporan.	Satu alur guru selesai dari jadwal sampai honor; rekonsiliasi manual, transaksi/paralel dan snapshot lulus.
+4 — Soal/BK/TU	Soal/paket PDF, BK internal/ringkasan, surat/arsip; DOCX/disposisi nonaktif.	Hak akses dan template ditinjau pemilik proses; ekspor/unduhan privat teruji.
+5 — Portal/website/dashboard	Verifikasi wali, portal, draf/publikasi website, dashboard/laporan konsisten.	Uji siswa lain dan kebocoran dokumen lulus; angka sesuai laporan; editor/penerbit ditetapkan.
+6 — Pilot/cutover	UAT, uji beban, restore, migrasi percobaan/final, pelatihan, panduan, runbook, dan uji keamanan independen (NFR-16).	Pemilik proses menyetujui bukti penerimaan; data direkonsiliasi; prosedur rollback tersedia; temuan kritis/tinggi NFR-16 ditutup dan diverifikasi ulang.
+7 — Operasional	Pemantauan, respons gangguan, pemeliharaan, pembaruan dependensi, backlog perbaikan.	Pengelola dan jadwal pemeliharaan aktif; laporan backup/restore dan incident ditinjau.
+
+9.1 MVP dan irisan alur lengkap
+MVP tahap 1–2 dan laporan dasar; honor menyusul setelah sumber absensi/realisasi terpercaya. Selesaikan satu alur guru → jadwal → pertemuan → realisasi → verifikasi → honor locked. Seluruh 15 modul tetap cakupan rilis awal penuh secara bertahap; fitur yang dinyatakan nonaktif berada pada backlog.
+9.2 Definisi selesai setiap fitur
+FR/BR dan kriteria penerimaan terkait jelas; UI, validasi, izin objek, kegagalan, serta audit sesuai kebutuhan.
+Migration dan perubahan data dapat dijalankan di staging; tes kritis lulus dan hasil ditinjau.
+Pengguna terkait mencoba contoh realistis; dokumentasi/keputusan diperbarui.
+Tidak ada cacat kritis yang membuka data sensitif atau mengubah perhitungan tanpa jejak. Temuan lain memiliki prioritas dan pemilik.
+9.3 Pilot dan rilis
+Pilot diusulkan pada satu kelas/kelompok pegawai selama satu siklus absensi; untuk honor, rekonsiliasi satu periode lengkap sebelum mengandalkan hasil aplikasi. Jalankan pembandingan dengan pencatatan yang digunakan madrasah, selesaikan selisih, lalu perluas pengguna.
+Checklist rilis: versi/backup, migrasi diuji, worker/scheduler aktif, health check, izin/HTTPS/debug, data awal, panduan, kontak pengelola, pemantauan, rencana pembatalan, laporan uji keamanan independen (NFR-16), dan hasil budget performa frontend (NFR-15). Rollback memperhitungkan transaksi baru serta kompatibilitas skema; pemulihan backup bukan dilakukan otomatis tanpa mempertimbangkan kehilangan data setelah backup.
+
+BAB X. PENGUJIAN DAN KRITERIA PENERIMAAN
+Skenario berikut menjadi baseline UAT dan traceability v1.2. Bukti uji mencatat dataset, langkah, aktual, hasil, pelaksana, tanggal dan versi. Gunakan data sintetis atau data yang diizinkan; semua default DEC harus mempunyai skenario batas.
+AC	Acuan	Skenario	Hasil diharapkan
+AC-01	FR-01; NFR-04	Akun dinonaktifkan dengan sesi masih aktif.	Permintaan berikutnya ditolak; login ulang gagal; perubahan diaudit.
+AC-02	FR-02-02/03	Impor berisi ID ganda/data wajib kosong, lalu berkas valid diimpor ulang.	Baris salah dilaporkan; impor ulang tidak membuat identitas ganda.
+AC-03	FR-03; BR-01/02	Siswa naik/pindah kelas dan laporan periode lama dibuka.	Kelas lama dan transaksi historis tetap benar; kelas aktif mengikuti periode.
+AC-04	FR-04-02	Dua jadwal guru/kelas bertumpang tindih.	Benturan ditolak; jadwal valid tersimpan.
+AC-05	FR-04-03; BR-03	Jadwal diubah setelah satu pertemuan terlaksana.	Pertemuan lama tetap memiliki guru/kelas/slot sumber yang benar.
+AC-06	FR-05; BR-07/10	Absensi masuk dengan foto/GPS dikirim dua kali/paralel, lalu pegawai mencatat pulang dengan bukti baru dan petugas mengoreksi waktu melalui approval.	Satu absensi hari kerja dan satu bukti per aksi; foto masuk/pulang berbeda. Koreksi beralasan/tercatat mempertahankan bukti asli; tidak otomatis menjadi JP mengajar.
+AC-07	FR-06-01/04	Realisasi pertemuan sama dikirim dua kali/paralel.	Satu catatan aktif; tidak terjadi JP ganda.
+AC-08	FR-06-02/03	Realisasi ditolak lalu direvisi dan diajukan ulang.	Alasan/riwayat tersimpan; hanya data yang memenuhi aturan masuk honor.
+AC-09	FR-04-04; FR-08; DEC-03	Guru digantikan pada pertemuan tertentu.	Guru terjadwal/pelaksana/penerima sesuai default policy, tanpa JP/honor ganda.
+AC-10	FR-07; BR-08/09	Input harian berulang dan mutasi kelas; API mode pertemuan dicoba.	Unique siswa/tanggal, enrollment benar; mode nonaktif ditolak; tidak ada catatan bukan alpa.
+AC-11	FR-08-02/03	Gunakan simulasi 72 × 25.000 + 300.000 + 500.000, tanpa potongan.	Total Rp2.600.000 dan rincian sumber dapat ditelusuri; angka bukan tarif resmi.
+AC-12	FR-08-01/03; BR-11	Tarif berubah di tengah periode dan tarif periode baru ditambahkan.	Setiap sumber memakai tarif tanggal yang tepat; snapshot lama tidak berubah.
+AC-13	FR-08-04/05; BR-13–17	Dua pengesahan berjalan bersamaan; hasil terkunci dicoba diedit.	Satu hasil sah; edit ditolak, koreksi melalui adjustment berizin; maker/reviewer/approver berbeda.
+AC-14	FR-09-03/04; BR-22	Soal diubah setelah paket difinalkan; urutan jawaban paket diubah sebelum final.	Paket final tetap; kunci sesuai urutan final; pengguna tanpa izin tidak mengunduh kunci.
+AC-15	FR-10; BR-19	BK membagikan ringkasan kepada wali; URL lampiran internal dicoba.	Hanya ringkasan yang diizinkan terlihat; catatan/lampiran internal ditolak.
+AC-16	FR-11; NFR-09	Dua petugas menerbitkan nomor surat bersamaan lalu mencari arsip.	Nomor unik pada lingkup; arsip/lampiran dapat dicari oleh pengguna berizin.
+AC-17	FR-12; BR-20	Wali mengganti ID siswa pada halaman/API/ekspor; hubungan kemudian dicabut.	Akses siswa lain ditolak; pencabutan berlaku; anak lain yang masih sah tetap tersedia.
+AC-18	FR-13; BR-21	Konten draf dan berkas privat dicoba melalui URL publik.	Draf/privat tidak terbuka; hanya konten terbit dengan izin tersedia.
+AC-19	FR-14	Dashboard dan laporan memakai periode/filter sama; ekspor dibuka.	Angka konsisten; honor draf diberi label; ekspor mengikuti cakupan pengguna.
+AC-20	FR-15; NFR-06/07	Pulihkan backup data+berkas ke lingkungan bersih.	Relasi dan sampel lampiran benar; RPO 24 jam/RTO 4 jam terukur dari hasil restore.
+AC-21	NFR-02/03; FR-14-03	Uji 50 pengguna dan lonjakan 100 dengan laporan latar belakang.	p95 API rutin ≤2 detik pada 50 pengguna; lonjakan 100 terukur; job tidak menggandakan hasil dan kegagalan terlihat.
+AC-22	NFR-05	Unggah tipe/ukuran terlarang dan coba unduh tanpa izin.	Unggahan ditolak; berkas privat tidak dapat diakses langsung.
+AC-23	NFR-09; FR-08	Simulasikan gagal saat menyimpan detail/pengesahan honor.	Transaksi rollback; tidak ada rekap parsial atau status sah tanpa rincian.
+AC-24	NFR-01; Bab IX	Pengguna utama mencoba alur rutin dan membaca panduan.	Alur dapat diselesaikan pada perangkat representatif; temuan dan persetujuan UAT dicatat.
+AC-25	FR-01; FR-10/12; NFR-04; Bab VIII	Periksa JSON API/payload Next.js untuk wali/guru; JWT kedaluwarsa/palsu, Origin BFF asing, CORS origin asing, replay refresh dan akses langsung.	Token tidak masuk payload UI/localStorage/log; mutasi BFF lintas Origin ditolak 403 dan replay mencabut sesi. Pemeriksaan siswa lain/BK internal/kunci tetap wajib saat API domain dibuat; data privat tidak memakai cache bersama.
+AC-26	FR-08-01/03; DEC-05	Kategori pegawai berubah pertengahan bulan; hitung sumber lama.	Kategori/tarif dipilih sesuai tanggal sumber, snapshot lama tidak berubah.
+AC-27	FR-08-05; DEC-03/06	Honor A locked tetapi penerima benar B; gagal/paralel ketika mengesahkan batch koreksi.	Debit A/kredit B satu batch, total net nol untuk transfer murni; approval/apply atomik dan idempoten, klaim meeting asal tetap ada.
+AC-28	FR-14-03; NFR-09	Koreksi absensi ketika dataset laporan diekstrak beberapa bagian.	Semua bagian memakai satu consistent snapshot; cutoff, hash dataset dan status terlihat.
+AC-29	BR-16; DEC-02/05	Uji 39/40/41 menit, prorata setengah bulan, perubahan tarif dan nominal pecahan.	JP floor 3 desimal dan cap rencana, amount half-up rupiah per sumber; total sama jumlah sumber.
+AC-30	BR-02; DEC-19	Nama/tingkat master kelas dicoba diubah setelah transaksi dan buka laporan lama.	Laporan memakai display_name/grade snapshot periode dan enrollment historis.
+AC-31	FR-01/15; Bab VIII	Akun direset oleh petugas berizin setelah pemeriksaan identitas; uji satu kali sandi sementara, ganti sandi, reload Next.js, logout dan penonaktifan sesi aktif.	Alasan/identitas dan audit tercatat; sandi sementara kedaluwarsa 24 jam dan hanya sekali login. Akses domain/refresh diblokir sampai sandi diganti; reset/ganti sandi/disable/logout mencabut sesi sesuai cakupannya. Rahasia tidak masuk payload UI, log atau browser storage.
+AC-32	DEC-09/12/18	Coba login siswa, DOCX, disposisi, biometrik dan pembayaran; pastikan absensi siswa tidak meminta foto/GPS.	Fitur nonaktif tidak tersedia di UI/API dan tidak membuat transaksi baru.
+AC-33	FR-05-01/04/05; NFR-05; BR-24/25; DEC-16	Catat masuk dan pulang dengan dua foto kamera valid beserta GPS; kirim ulang/paralel dan periksa file hasil serta database.	Satu absensi dan satu bukti per aksi; WebP <=300 KiB, sisi <=1.280 px tanpa upscale, kualitas aktual tercatat, EXIF dibuang. Foto privat di storage; DB hanya FK/metadata GPS; jam absensi dari server.
+AC-34	FR-05-04/05/06; NFR-05/09; BR-24/25	Tolak izin kamera/lokasi; gunakan akurasi >100 m, usia foto/lokasi >60 detik, koordinat di luar rentang, foto rusak/input berlebih, kegagalan kompresi/storage/commit; coba URL sebagai pengguna lain.	Aksi normal ditolak tanpa absensi/bukti parsial; file sementara/yatim dibersihkan. Bukti privat tidak terbuka; tidak ada bypass otomatis atau foto/GPS buatan. Retry valid tetap idempoten.
+AC-35	FR-05-02/06; DEC-07/16; AC-06	Migrasikan database berisi absensi/policy lama; buat versi policy foto/GPS baru; koreksi waktu melalui approval dan buka absensi siswa.	Riwayat/policy lama tetap; kewajiban bukti mengikuti policy baru prospektif, bukti asli tidak ditimpa koreksi; siswa tetap harian tanpa foto/GPS. Rollback addendum di database uji mempertahankan tabel/absensi lama.
+AC-36	FR-01-01/03/04; NFR-04	Login password; periksa claim/durasi; refresh, replay token lama, dan tunggu batas sesi.	JWT sah dapat membaca auth/me; access default 900 detik dan refresh awal 7.200 detik. Rotasi tidak memperpanjang expires_at, jti lama ditolak, replay mencabut sesi; JWT palsu atau sesi dicabut ditolak.
+AC-37	FR-01-05/06; Bab VIII	Google untuk akun lokal terverifikasi; state salah/ulang/kedaluwarsa, email tidak dikenal, akun nonaktif atau wajib ganti sandi.	Hanya akun yang memenuhi syarat mendapat JWT dan tautan subject; kasus lain ditolak tanpa akun/sesi parsial. BFF menetapkan cookie HttpOnly dan membersihkan cookie transaksi; tidak membocorkan token Google/JWT ke UI.
+AC-38	FR-01-07/08	Jalankan seeder dua kali, akun awal tanpa password, konflik email/username dan perubahan izin/reset oleh petugas.	Satu pengelola awal tanpa menimpa akun/sandi yang ada; password kosong tidak menghasilkan sandi yang diketahui. Super Admin mendapat accounts.* tanpa bypass domain. Aksi berizin, pemeriksaan identitas, alasan dan audit diterapkan; request stale ditolak 409.
+AC-39	FR-01-08; Bab II; NFR-01	Periksa sidebar pada role tunggal/gabungan, izin dicabut, mandat/kategori sensitif dan hubungan wali belum terverifikasi.	Menu mengikuti navigation dari backend dan accounts.view; preferensi ruang kerja tidak menambah izin. Menu baru disabled tanpa tautan ke halaman yang belum ada. API domain kelak tetap wajib memeriksa objek/periode dan mandat, bukan hanya visibilitas menu.
+AC-40	FR-13-03; FR-16-04; DEC-21; BR-26/28	Siswa tanpa persetujuan dicoba diterbitkan pada berita/galeri; persetujuan kemudian ditarik; konten yang memuat persetujuan lama ditinjau ulang.	Konten dengan siswa tanpa persetujuan tidak terbit; penarikan persetujuan mengeluarkan konten dari akses publik pada siklus publikasi berikutnya; riwayat persetujuan dan penarikan tercatat berversi.
+AC-41	FR-16-03; BR-27; NFR-16	Petugas menerima permintaan akses/perbaikan data dari wali dan pegawai; identitas diverifikasi; penghapusan diminta pada data bertransaksi dan BK.	Permintaan tercatat, dilayani atau ditolak beralasan sesuai retensi/legal hold; transaksi historis dan catatan BK internal tidak rusak; log tidak memuat isi sensitif.
+AC-42	NFR-15; FR-17; NFR-02	Ukur halaman representatif dengan Lighthouse mobile pada jaringan 4G; periksa daftar notifikasi in-app per peran dan isi notifikasinya.	Budget NFR-15 terpenuhi atau pengecualian beralasan tercatat; notifikasi hanya memuat data yang diizinkan dan mengikuti status terbaca; kanal eksternal nonaktif tidak menghasilkan pengiriman.
+
+10.1 Strategi tes
+Unit: rumus DEC-01–DEC-05, prorata, pembulatan per sumber, tanggal efektif dan transisi status.
+Integrasi/fitur: transaksi database, unique constraint, izin per objek, snapshot dan worker.
+End-to-end/UAT: alur guru, bendahara, BK, TU dan wali pada browser/perangkat representatif.
+Kapasitas/operasional: beban campuran, permintaan paralel, gagal queue, restore dan rilis percobaan.
+Keamanan/privasi: otorisasi objek, BFF/cookie/token, unggahan berkas, halaman publik dan konfigurasi server; uji keamanan independen (NFR-16) menjalankan kembali skenario negatif utama, dan persetujuan publikasi diuji pada AC-40.
+Prioritaskan risiko bisnis: kebocoran siswa/BK/honor, JP ganda, perubahan riwayat dan hasil honor. Pengujian dilakukan pada tiap tahap, kemudian regresi akhir.
+
+BAB XI. KEPUTUSAN, RISIKO, DAN PERUBAHAN KEBUTUHAN
+DEC-01–DEC-19 menetap baseline v1.2 dan DEC-20–DEC-21 adalah addendum v1.3; seluruhnya berstatus DEFAULT_BASELINE berdasarkan arahan pemilik proyek. Nilainya dapat digunakan untuk pengembangan tanpa menunggu keputusan tambahan. Angka tarif, kalender resmi, domain/kredensial dan akun pemegang mandat tetap data onboarding nyata. Default ini merupakan pilihan proyek yang dapat direvisi; tidak menyatakan persetujuan pejabat madrasah yang belum terjadi. Perubahan kebijakan dibuat berversi dan tidak mengubah transaksi lama.
+ID	Default implementasi v1.2	Pemelihara konfigurasi	Status / penerapan
+DEC-01	Honor berasal dari realisasi berstatus held dan approved; verifikator adalah penanggung jawab akademik dengan mandat semester/kelas, berbeda dari pengaju.	Akademik	DEFAULT_BASELINE; berlaku saat modul diimplementasikan
+DEC-02	Satu JP = 40 menit sebagai parameter awal; JP diakui = min(JP rencana, floor(menit aktual / 40 × 1000) / 1000). JP realisasi tidak melebihi rencana. Hitung uang dengan desimal presisi tinggi, bulatkan half-up ke rupiah per sumber, lalu jumlahkan; jangan bulatkan ulang total dengan metode lain.	Akademik, bendahara	DEFAULT_BASELINE; berlaku saat modul diimplementasikan
+DEC-03	Satu pengajar dan satu penerima per pertemuan. Penerima adalah guru pelaksana yang sah, termasuk pengganti aktif. Co-teaching nonaktif. Salah penerima setelah locked dikoreksi lewat batch adjustment debit A/kredit B yang ditinjau dan disahkan bersama; klaim sumber asal tetap ada.	Akademik, bendahara	DEFAULT_BASELINE; berlaku saat modul diimplementasikan
+DEC-04	Libur/kelas batal tidak membentuk JP honor. Izin, sakit, cuti, dinas luar tidak menghasilkan JP tanpa pelaksanaan. Kehadiran pegawai tidak otomatis menambah atau memotong honor; tidak ada potongan otomatis.	Akademik, bendahara	DEFAULT_BASELINE; berlaku saat modul diimplementasikan
+DEC-05	Periode honor bulanan dengan batas akhir eksklusif. Tarif prioritas pegawai → kategori pada tanggal sumber → global. Tambahan bulanan diprorata menurut hari kalender penugasan aktif / hari kalender bulan; untuk pergantian tarif buat segmen tanggal. Potongan manual wajib alasan dan persetujuan. Tarif/nominal nyata wajib diisi, tanpa tarif simulasi produksi.	Bendahara	DEFAULT_BASELINE; berlaku saat modul diimplementasikan
+DEC-06	Bendahara membuat; petugas bermandat memeriksa; kepala bermandat mengesahkan. Ketiganya akun berbeda. Pengesahan dan penguncian satu transaksi. Setelah locked hanya adjustment selisih pada periode terbuka berikutnya; revisi pengganti hasil locked nonaktif pada versi awal.	Bendahara, kepala	DEFAULT_BASELINE; berlaku saat modul diimplementasikan
+DEC-07	Absensi siswa harian; guru/wali kelas yang ditugaskan mengisi sebelum 23.59 waktu lokal. Tidak ada baris berarti belum dicatat, bukan alpa. Koreksi sampai 7 hari kalender harus disetujui petugas akademik berbeda; sesudah itu hanya petugas berizin khusus dengan alasan. Mode pertemuan/both nonaktif.	Akademik	DEFAULT_BASELINE; berlaku saat modul diimplementasikan
+DEC-08	Operator membuat akun wali dan memverifikasi hubungan dari data administrasi serta konfirmasi kontak; beberapa wali/anak didukung. Akses sejak tanggal efektif hubungan, tanpa histori sebelum tanggal itu. Pencabutan segera berlaku. Reset yang tersedia melalui petugas berizin dengan bukti pemeriksaan identitas dan sandi sementara 24 jam sekali pakai. Pemulihan mandiri melalui tautan email terverifikasi belum diimplementasikan.	Operator	DEFAULT_BASELINE; diselaraskan dengan kode autentikasi 20 Oktober 2026; kebutuhan lanjutan ditandai.
+DEC-09	Akun siswa, PPDB, nilai/rapor, SPP, pembayaran digital, akuntansi, ujian online, integrasi otomatis EMIS dan multi-madrasah nonaktif/di luar rilis awal. Identitas siswa tetap tercatat dan diakses lewat petugas/wali berizin.	Pengelola	DEFAULT_BASELINE; berlaku saat modul diimplementasikan
+DEC-10	TU/operator menjadi editor; kepala atau delegasi bermandat menjadi penerbit, berbeda dari editor revisi. Publik hanya data terpilih dan foto dengan izin publikasi tercatat. Tidak memuat identitas sensitif siswa; pencabutan publikasi juga menutup aset dan cache.	TU, penerbit	DEFAULT_BASELINE; berlaku saat modul diimplementasikan
+DEC-11	Satu VPS Linux awal, Nginx TLS, PHP-FPM, Node.js untuk Next.js, MySQL privat, worker/scheduler terawasi. Satu domain publik lewat reverse proxy; salinan backup terenkripsi di lokasi terpisah. Staging terpisah dari produksi. Domain, kontak pengelola dan kredensial hosting adalah data konfigurasi nyata.	Operator	DEFAULT_BASELINE; berlaku saat modul diimplementasikan
+DEC-12	PDF wajib; naskah dan kunci terpisah. DOCX nonaktif. Jenis awal pilihan ganda satu jawaban dan esai, rumus LaTeX tervalidasi serta gambar PNG/JPEG/WebP. Template header madrasah berversi; finalisasi menyimpan snapshot urutan dan kunci.	Akademik, TU	DEFAULT_BASELINE; berlaku saat modul diimplementasikan
+DEC-13	Laravel backend API, Next.js App Router + React/TypeScript frontend, Tailwind CSS/shadcn UI, MySQL 8.4 InnoDB. Auth JWT HS256 + Google OAuth opsional melalui BFF cookie HttpOnly; access 15 menit dan sesi/refresh absolut 120 menit. API /api/v1 dan BFF /api/auth/* serta /api/accounts/*. Satu monorepo backend/ dan frontend/ dengan dua proses aplikasi. Versi paket dikunci lockfile; kompatibilitas deployment diuji di staging.	Pengembang	DEFAULT_BASELINE; diselaraskan dengan kode autentikasi 20 Oktober 2026; kebutuhan lanjutan ditandai.
+DEC-14	Profil penerimaan 50 pengguna aktif, lonjakan 100, p95 API rutin ≤ 2 detik, ketersediaan 99,5% per bulan, RPO 24 jam/RTO 4 jam. Server awal 4 vCPU, RAM 8 GB, SSD 80 GB; ukuran akhir mengikuti uji. Backup harian 14 hari/mingguan 8 minggu dan restore tiap 3 bulan. Jumlah siswa/pegawai adalah data nyata saat onboarding.	Operator	DEFAULT_BASELINE; berlaku saat modul diimplementasikan
+DEC-15	BK internal hanya petugas BK bermandat kategori; kepala/admin tanpa bypass. BK/tindak lanjut tertutup diarsipkan setelah 2 tahun; akademik/honor/TU diarsipkan setelah 5 tahun dari penutupan periode/dokumen; byte sumber historis tidak dihapus otomatis. Audit aktif 1 tahun lalu arsip. Ekspor 24 jam, payload impor 30 hari, log operasional 30 hari. Disposal manual tercatat, memperhatikan seluruh referensi dan legal hold. Ini default teknis, bukan klaim masa retensi hukum.	BK, operator	DEFAULT_BASELINE; berlaku saat modul diimplementasikan
+DEC-16	Satu shift Senin–Sabtu 07.00–14.00 Asia/Jakarta; Minggu/libur tidak wajib kerja. Toleransi terlambat 10 menit. Addendum 20 Oktober 2026: masuk/pulang pegawai wajib foto kamera baru + GPS, dikompresi server ke WebP maksimal 300 KiB/sisi 1.280 px/kualitas awal 80. Akurasi GPS maksimal 100 meter dan usia foto/lokasi maksimal 60 detik saat diterima; tanpa geofence pada baseline. Jam absensi tetap waktu server. Petugas mencatat izin/sakit/cuti/dinas luar; koreksi 7 hari dengan persetujuan petugas berbeda, selebihnya izin khusus. Biometrik tetap nonaktif; absensi siswa tetap harian oleh guru/wali kelas. DEC-16 versi baru berlaku prospektif; tanggal efektif operasional ditetapkan saat onboarding, tanpa memaksa bukti pada histori.	Operator	DEFAULT_BASELINE; berlaku saat modul diimplementasikan
+DEC-17	Soal milik pembuat; kolaborasi hanya grant eksplisit read/edit. Kunci/ekspor perlu izin tersendiri. Paket hanya memakai soal ready, final immutable; perubahan menjadi paket baru.	Akademik	DEFAULT_BASELINE; berlaku saat modul diimplementasikan
+DEC-18	Nomor surat keluar urut per tahun kalender seluruh madrasah: NNNN/MTs-AK/YYYY; agenda masuk/keluar punya counter terpisah. Nomor batal tidak dipakai ulang. Nomor eksternal surat masuk tidak unik global. Disposisi nonaktif; arsip internal dan grant kategori aktif.	TU	DEFAULT_BASELINE; berlaku saat modul diimplementasikan
+DEC-19	Satu tahun/semester aktif lewat pointer singleton; semester 1/2, kelas 7/8/9. Tanggal berasal dari kalender resmi yang diinput. Mutasi efektif tanggal baru tanpa overlap; kenaikan/kelulusan melalui preview dan konfirmasi, tidak otomatis berdasarkan usia/tanggal. Tingkat kelas disnapshot per tahun.	Akademik	DEFAULT_BASELINE; berlaku saat modul diimplementasikan
+DEC-20	Notifikasi in-app aktif pada baseline untuk pengumuman, perubahan status penting (verifikasi realisasi, pengesahan honor, koreksi absensi) dan pesan sistem, dengan status terbaca per pengguna. Kanal eksternal email/WhatsApp/SMS nonaktif dan menjadi backlog hingga penyedia, biaya, dasar pemrosesan, dan persetujuan penerima ditetapkan melalui revisi kebijakan. Notifikasi tidak memuat BK internal, rincian honor pihak lain, atau bukti foto/GPS.	Pengelola, TU	DEFAULT_BASELINE (in-app); backlog (kanal eksternal)
+DEC-21	Persetujuan publikasi foto/identitas siswa direkam per siswa berversi dan diperiksa sebelum konten terbit; penarikan berlaku ke depan tanpa menghapus riwayat. Register dasar pemrosesan dan layanan hak subjek data (akses, perbaikan, pembatasan, keberatan) menjadi kebutuhan onboarding dan operasional dengan petugas bertugas. Default teknis ini membantu kepatuhan UU PDP No. 27/2022 dan bukan opini hukum; interpretasi final mengikuti penanggung jawab perlindungan data madrasah.	Operator, kepala	DEFAULT_BASELINE; berlaku saat modul publikasi dan portal diimplementasikan
+
+11.1 Risiko dan mitigasi
+Risiko	Mitigasi
+Aturan honor berubah setelah kode dibuat	Simpan versi default/rate bertanggal, contoh hitung dan tes; perubahan tidak menimpa snapshot.
+Data siswa/BK terbuka lewat URL atau ekspor	Otorisasi objek/cakupan, storage privat, uji negatif semua jalur baca.
+Data pribadi diproses atau diterbitkan tanpa dasar/persetujuan (UU PDP)	Register dasar pemrosesan, persetujuan berversi per siswa, pemeriksaan otomatis sebelum terbit, layanan hak subjek data, dan uji keamanan independen prarilis.
+Master/riwayat ditimpa	Identitas tetap, periode efektif, versi jadwal dan snapshot transaksi.
+Akun ganda atau impor berulang	ID sumber, laporan kandidat duplikasi, batch impor, unique constraint.
+Laporan membebani server	Queue, paginasi/indeks, pembatasan pekerjaan dan uji beban.
+Backup tidak bisa dipakai	Salinan terpisah, log, pemulihan terukur dengan data dan berkas.
+Stack sulit dipelihara pengelola	Pelatihan Laravel API/Next.js, JWT/refresh token, Google OAuth state/PKCE, cookie HttpOnly dan proteksi Origin BFF; proses PHP/Node.js, lockfile, CI dan runbook.
+
+11.2 Pengendalian perubahan
+Usulan perubahan mencatat pemohon, alasan, kebutuhan yang terdampak, dampak data/akses/biaya/jadwal, kriteria penerimaan, keputusan dan versi. Perubahan cakupan disetujui pemilik kebutuhan; pilihan teknis rutin dicatat pengembang sesuai mandat. Tidak mengklaim pengesahan sebelum bukti persetujuan tersedia.
+11.3 Lembar validasi
+Pihak	Hal yang ditinjau	Nama / tanggal / status
+Kepala Madrasah	Cakupan, kewenangan, prioritas dan target operasional.	UAT/validasi belum dilakukan; isi nama/tanggal/bukti saat pelaksanaan.
+Akademik/guru/wali kelas	Jadwal, JP, absensi, tahun ajaran dan bank soal.	UAT/validasi belum dilakukan; isi nama/tanggal/bukti saat pelaksanaan.
+Bendahara	Tarif, sumber JP, koreksi dan pengesahan honor.	UAT/validasi belum dilakukan; isi nama/tanggal/bukti saat pelaksanaan.
+BK	Klasifikasi, pembagian informasi dan retensi.	UAT/validasi belum dilakukan; isi nama/tanggal/bukti saat pelaksanaan.
+TU/operator	Data awal, arsip, akun, publikasi dan operasi.	UAT/validasi belum dilakukan; isi nama/tanggal/bukti saat pelaksanaan.
+Pengembang	Kelayakan, arsitektur, desain data dan pengujian.	UAT/validasi belum dilakukan; isi nama/tanggal/bukti saat pelaksanaan.
+
+
+LAMPIRAN A. GLOSARIUM
+Istilah	Makna
+JP	Jam pelajaran; default awal 40 menit per JP, perubahan memakai versi policy efektif.
+Jadwal	Pola kegiatan berdasarkan penugasan dan periode efektif.
+Pertemuan	Kejadian pembelajaran pada tanggal/slot tertentu.
+Realisasi	Catatan pelaksanaan pertemuan oleh guru pelaksana.
+Snapshot	Salinan nilai/versi yang digunakan saat transaksi agar riwayat tidak berubah akibat master terbaru.
+Modular monolith	Backend Laravel dibagi modul domain; frontend Next.js terpisah runtime dalam satu monorepo, seluruh transaksi bisnis dan database dimiliki backend.
+Idempotensi	Pengulangan operasi tidak menghasilkan efek tambahan yang tidak diinginkan.
+RPO / RTO	Batas kehilangan data berdasarkan waktu / target waktu pemulihan layanan.
+UAT	Pengujian penerimaan oleh pengguna/pemilik proses.
+ADR	Catatan keputusan arsitektur dan konsekuensinya.
+Queue/worker	Antrean pekerjaan dan proses yang mengerjakannya di latar belakang.
+JWT / refresh token	Access token bertanda tangan untuk API dan token acak sekali pakai untuk rotasi; keabsahan tetap diperiksa terhadap sesi Laravel.
+BFF	Backend for Frontend pada route Next.js: mengelola cookie HttpOnly dan meneruskan request ke Laravel tanpa menyimpan database identitas sendiri.
+OAuth state / PKCE	Pengikatan transaksi login Google untuk menolak callback palsu, tertukar, diulang atau kedaluwarsa.
+Persetujuan (consent)	Pernyataan izin orang tua/wali yang direkam berversi untuk pemrosesan atau publikasi tertentu; dapat ditarik dan penarikan berlaku ke depan.
+Hak subjek data	Hak pemilik data pribadi untuk mengakses, memperbaiki, membatasi, dan mengajukan keberatan atas pemrosesan datanya, dilayani petugas berizin sesuai BR-27.
+
+
+LAMPIRAN B. REFERENSI TEKNIS
+Referensi teknis diperiksa untuk revisi 14 Oktober 2026. Default domain merupakan pilihan implementasi proyek, bukan aturan yang ditentukan framework. Dokumentasi versi terpasang menjadi acuan saat implementasi.
+OWASP — Authorization Cheat Sheet
+Prinsip izin minimum dan pemeriksaan akses setiap permintaan.
+https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html
+OWASP — File Upload Cheat Sheet
+Validasi unggahan dan penyimpanan berkas.
+https://cheatsheetseries.owasp.org/cheatsheets/File_Upload_Cheat_Sheet.html
+Laravel — Authorization
+Gates/Policies untuk hak akses objek.
+https://laravel.com/framework/docs/13.x/authorization
+Laravel — Database
+Transaksi database dan rollback.
+https://laravel.com/framework/docs/database
+Laravel — Queues
+Worker, backend antrean dan dispatch setelah commit.
+https://laravel.com/framework/docs/queues
+Kode proyek — autentikasi JWT dan Google OAuth
+Kontrak aktual guard api, token/sesi, verifikasi Google, BFF, cookie dan proteksi Origin; sumber implementasi kanonik untuk addendum autentikasi.
+backend/app/Services/JwtTokenService.php; backend/app/Services/AuthenticationService.php; backend/app/Http/Controllers/Api/V1/GoogleAuthController.php; frontend/lib/auth/cookies.ts
+Next.js — Authentication
+Pemisahan autentikasi, sesi dan otorisasi; backend Laravel tetap sumber identitas dan izin.
+https://nextjs.org/docs/app/guides/authentication
+Next.js — Data Security
+Respons minimum, pembatasan data ke Client Components, dan akses melalui API backend tepercaya.
+https://nextjs.org/docs/app/guides/data-security
+Next.js — Deploying
+Deployment Next.js sebagai server Node.js dan proses runtime yang dipantau.
+https://nextjs.org/docs/app/getting-started/deploying
+Martin Fowler — Monolith First
+Pertimbangan memulai aplikasi dengan monolith.
+https://martinfowler.com/bliki/MonolithFirst.html

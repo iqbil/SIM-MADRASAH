@@ -161,7 +161,7 @@ export function LoginForm({
             <DialogTrigger asChild>
               <Button
                 variant="link"
-                className="h-10 gap-1.5 text-xs text-primary"
+                className="h-auto gap-1.5 px-0 text-xs text-primary"
               >
                 <CircleHelp className="size-3.5" /> Lupa password?
               </Button>
