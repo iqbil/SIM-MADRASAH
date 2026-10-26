@@ -147,29 +147,39 @@ export const SIDEBAR_SECTIONS: SidebarSection[] = [
     label: "Absensi pegawai",
     icon: ClipboardCheck,
     items: [
-      { id: "check-in-out", label: "Masuk / pulang", access: "attendance.own" },
+      {
+        id: "check-in-out",
+        href: "/absensi/masuk-pulang",
+        label: "Masuk / pulang",
+        access: "attendance.own",
+      },
       {
         id: "my-attendance",
+        href: "/absensi/riwayat",
         label: "Riwayat absensi saya",
         access: "attendance.own",
       },
       {
         id: "attendance-records",
+        href: "/absensi/pegawai",
         label: "Absensi & izin pegawai",
         access: "attendance.manage",
       },
       {
         id: "work-patterns",
+        href: "/absensi/pola-kerja",
         label: "Pola kerja & kebijakan",
         access: "attendance.manage",
       },
       {
         id: "attendance-recap",
+        href: "/absensi/rekap",
         label: "Rekap kehadiran pegawai",
         access: "attendance.read",
       },
       {
         id: "attendance-corrections",
+        href: "/absensi/koreksi",
         label: "Persetujuan koreksi absensi",
         access: "attendance.correct",
       },
@@ -182,16 +192,19 @@ export const SIDEBAR_SECTIONS: SidebarSection[] = [
     items: [
       {
         id: "my-meetings",
+        href: "/realisasi/pertemuan",
         label: "Pertemuan mengajar saya",
         access: "teaching.own",
       },
       {
         id: "my-realizations",
+        href: "/realisasi/riwayat",
         label: "Realisasi & riwayat JP saya",
         access: "teaching.own",
       },
       {
         id: "verify-realizations",
+        href: "/realisasi/verifikasi",
         label: "Verifikasi realisasi",
         access: "teaching.verify",
       },

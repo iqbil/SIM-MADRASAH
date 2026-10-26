@@ -1,7 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { createServer } from "node:http";
 import { handleAcademic, resetAcademic } from "./academic-api.mjs";
+import { handleAttendance, resetAttendance } from "./attendance-api.mjs";
 import { handleMaster, resetMaster } from "./master-api.mjs";
+import { handleTeaching, resetTeaching } from "./teaching-api.mjs";
 
 const roles = [
   ["kepala_madrasah", "Kepala Madrasah"],
@@ -98,6 +100,7 @@ const navigationDefaults = {
   orang_tua_wali: [],
 };
 const navigationProfiles = {
+  verifikator: { role: "operator", navigation: ["teaching.verify"] },
   bk_berizin: { role: "guru_bk", navigation: ["bk.internal", "bk.share"] },
   bendahara_bermandat: {
     role: "bendahara",
@@ -200,6 +203,31 @@ createServer(async (request, response) => {
       !record.expired &&
       !record.revoked,
   );
+  if (url.pathname.startsWith("/api/v1/teaching/")) {
+    if (!masterSession)
+      return json(response, 401, { message: "Unauthenticated." });
+    handleTeaching({
+      body,
+      method: request.method,
+      response,
+      url,
+      username: masterSession.user.username,
+    });
+    return;
+  }
+  if (url.pathname.startsWith("/api/v1/attendance/")) {
+    if (!masterSession)
+      return json(response, 401, { message: "Unauthenticated." });
+    handleAttendance({
+      body,
+      form,
+      method: request.method,
+      response,
+      url,
+      username: masterSession.user.username,
+    });
+    return;
+  }
   if (url.pathname.startsWith("/api/v1/academic/")) {
     if (!masterSession)
       return json(response, 401, { message: "Unauthenticated." });
@@ -233,6 +261,8 @@ createServer(async (request, response) => {
   if (url.pathname === "/__test/reset") {
     resetMaster();
     resetAcademic();
+    resetAttendance();
+    resetTeaching();
     managedUsers = [
       {
         id: 1,
