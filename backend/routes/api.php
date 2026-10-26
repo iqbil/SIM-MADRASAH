@@ -8,11 +8,14 @@ use App\Http\Controllers\Api\V1\AcademicScheduleController;
 use App\Http\Controllers\Api\V1\AcademicYearController;
 use App\Http\Controllers\Api\V1\AccountRoleController;
 use App\Http\Controllers\Api\V1\AccountUserController;
+use App\Http\Controllers\Api\V1\AttendanceController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\GoogleAuthController;
 use App\Http\Controllers\Api\V1\MasterDataController;
 use App\Http\Controllers\Api\V1\MasterImportController;
 use App\Http\Controllers\Api\V1\MasterRelationController;
+use App\Http\Controllers\Api\V1\StudentAttendanceController;
+use App\Http\Controllers\Api\V1\TeachingController;
 use App\Http\Middleware\RequirePasswordChanged;
 use Illuminate\Support\Facades\Route;
 
@@ -103,6 +106,51 @@ Route::prefix('v1/academic')->name('api.v1.academic.')->middleware(['auth:api', 
     Route::post('meetings/{meeting}/substitute', [AcademicScheduleController::class, 'assignSubstitute'])->whereNumber('meeting')->name('meetings.substitute');
     Route::get('substitute-assignments', [AcademicScheduleController::class, 'indexSubstitutes'])->name('substitutes.index');
     Route::post('substitute-assignments/{substitute}/revoke', [AcademicScheduleController::class, 'revokeSubstitute'])->whereNumber('substitute')->name('substitutes.revoke');
+});
+
+Route::prefix('v1/attendance')->name('api.v1.attendance.')->middleware(['auth:api', RequirePasswordChanged::class, 'throttle:120,1'])->group(function (): void {
+    Route::get('status', [AttendanceController::class, 'status'])->name('status');
+    Route::post('clock', [AttendanceController::class, 'clock'])->middleware('throttle:10,1,attendance-clock:')->name('clock');
+    Route::get('me', [AttendanceController::class, 'me'])->name('me');
+    Route::get('policy', [AttendanceController::class, 'policy'])->name('policy');
+    Route::post('policy/versions', [AttendanceController::class, 'newPolicyVersion'])->name('policy.versions');
+    Route::get('records', [AttendanceController::class, 'indexRecords'])->name('records.index');
+    Route::post('records', [AttendanceController::class, 'storeRecord'])->name('records.store');
+    Route::get('records/{attendance}', [AttendanceController::class, 'showAttendance'])->whereNumber('attendance')->name('records.show');
+    Route::get('recap', [AttendanceController::class, 'recap'])->name('recap');
+    Route::get('corrections', [AttendanceController::class, 'indexCorrections'])->name('corrections.index');
+    Route::post('corrections', [AttendanceController::class, 'storeCorrection'])->name('corrections.store');
+    Route::post('corrections/{correction}/decision', [AttendanceController::class, 'decideCorrection'])->whereNumber('correction')->name('corrections.decision');
+    Route::get('work-patterns', [AttendanceController::class, 'indexWorkPatterns'])->name('work-patterns.index');
+    Route::post('work-patterns', [AttendanceController::class, 'storeWorkPattern'])->name('work-patterns.store');
+    Route::put('work-patterns/{pattern}', [AttendanceController::class, 'updateWorkPattern'])->whereNumber('pattern')->name('work-patterns.update');
+    Route::post('work-patterns/{pattern}/versions', [AttendanceController::class, 'newPatternVersion'])->whereNumber('pattern')->name('work-patterns.versions');
+    Route::post('work-patterns/{pattern}/assignments', [AttendanceController::class, 'assignPattern'])->whereNumber('pattern')->name('work-patterns.assign');
+    Route::get('work-assignments', [AttendanceController::class, 'indexAssignments'])->name('work-assignments.index');
+    Route::post('work-days/generate', [AttendanceController::class, 'generateWorkDays'])->name('work-days.generate');
+    Route::get('captures/{capture}', [AttendanceController::class, 'showCapture'])->whereNumber('capture')->name('captures.show');
+    Route::get('captures/{capture}/photo', [AttendanceController::class, 'capturePhoto'])->whereNumber('capture')->name('captures.photo');
+});
+
+Route::prefix('v1/teaching')->name('api.v1.teaching.')->middleware(['auth:api', RequirePasswordChanged::class, 'throttle:120,1'])->group(function (): void {
+    Route::get('meetings', [TeachingController::class, 'indexMeetings'])->name('meetings.index');
+    Route::get('meetings/{meeting}', [TeachingController::class, 'showMeeting'])->whereNumber('meeting')->name('meetings.show');
+    Route::get('realizations', [TeachingController::class, 'ownRealizations'])->name('realizations.index');
+    Route::post('meetings/{meeting}/realizations', [TeachingController::class, 'storeRevision'])->whereNumber('meeting')->name('realizations.store');
+    Route::get('revisions/{revision}', [TeachingController::class, 'showRevision'])->whereNumber('revision')->name('revisions.show');
+    Route::post('revisions/{revision}/submit', [TeachingController::class, 'submitRevision'])->whereNumber('revision')->name('revisions.submit');
+    Route::post('revisions/{revision}/decision', [TeachingController::class, 'decideRevision'])->whereNumber('revision')->name('revisions.decision');
+    Route::get('verifications', [TeachingController::class, 'indexVerifications'])->name('verifications.index');
+});
+
+Route::prefix('v1/student-attendance')->name('api.v1.student-attendance.')->middleware(['auth:api', RequirePasswordChanged::class, 'throttle:120,1'])->group(function (): void {
+    Route::get('classes', [StudentAttendanceController::class, 'classes'])->name('classes');
+    Route::get('roster', [StudentAttendanceController::class, 'roster'])->name('roster');
+    Route::post('record', [StudentAttendanceController::class, 'record'])->name('record');
+    Route::get('recap', [StudentAttendanceController::class, 'recap'])->name('recap');
+    Route::get('corrections', [StudentAttendanceController::class, 'corrections'])->name('corrections');
+    Route::post('corrections', [StudentAttendanceController::class, 'storeCorrection'])->name('corrections.store');
+    Route::post('corrections/{correction}/decision', [StudentAttendanceController::class, 'decideCorrection'])->whereNumber('correction')->name('corrections.decision');
 });
 
 Route::prefix('v1/master')->name('api.v1.master.')->middleware(['auth:api', RequirePasswordChanged::class, 'throttle:120,1'])->group(function (): void {

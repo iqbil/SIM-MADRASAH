@@ -898,3 +898,458 @@ D. BACKLOG: lib/academic.ts masih menyimpan ekspor lama tak terpakai
 
 STATUS MODUL AKADEMIK & KELAS: LENGKAP (tahun ajaran s.d. guru pengganti).
 Roadmap berikutnya: Absensi Pegawai (FR-05, foto+GPS) sesuai urutan roadmap.
+
+=== SESI 2026-10-25: roadmap-agents.md DIBUAT ===
+File roadmap-agents.md (sebelumnya kosong) diisi peta runtutan modul lintas
+sesi: 16 modul dipetakan ke FR-01..FR-17 + seksi sidebar, dengan status
+(SELESAI: FR-01 akun, FR-02 data master, FR-03/04 akademik lengkap; BERIKUTNYA:
+FR-05 Absensi Pegawai; lalu FR-06 Realisasi, FR-07 Absensi Siswa, FR-08 Honor,
+FR-09 Bank soal (tabel exam_packages* — dikoreksi dari draf awal), FR-10 BK,
+FR-11 TU, FR-12 Portal wali, FR-13 Website, FR-14 Laporan, FR-15 Sistem,
+FR-16 PDP & FR-17 Notifikasi sebagai lintas-modul). Termasuk: tabel DB per
+modul (diverifikasi ke database.MD), item sidebar yang diaktifkan tiap modul
+("Kelas perwalian saya" → FR-07), alur kerja 6 langkah yang sudah terbukti
+(backend→audit→frontend→verifikasi→dokumentasi), dan aturan tetap. Agent
+berikutnya: kerjakan modul pertama yang berstatus ⬜ mengikuti alur kerja §D,
+lalu perbarui status file ini.
+
+=== SESI 2026-10-25: MODUL ABSENSI PEGAWAI (FR-05) BACKEND+FRONTEND LENGKAP ===
+Sesuai roadmap-agents.md #4. Desain TERVERIFIKASI ke SRS sebelum build: aksi
+masuk/pulang = self-service per pegawai dengan foto kamera baru + GPS
+perangkat (FR-05-01/04); petugas hanya jalur administratif (izin/sakit/cuti/
+dinas + fallback FR-05-07); bukti foto privat (FR-05-06); koreksi approval
+petugas BERBEDA, tenggat 7 hari (FR-05-02/03); kompresi server WebP
+(FR-05-05); policy versi non-retroaktif (FR-05-06).
+
+A. BACKEND (21 rute /api/v1/attendance):
+   1. AttendanceDataAccess: otorisasi dari token NavigationAccess (attendance.
+      own otomatis utk akun terhubung pegawai aktif; manage=operator/super;
+      correct=HANYA mandat; reports=kepala). Katalog izin baru (attendance.
+      manage/correct/reports) didaftarkan ke AccountAccess::managedPermissions
+      agar bisa di-grant via role/mandat.
+   2. AttendancePhotoPipeline: GD bila tersedia, else biner ImageMagick
+      (ATTENDANCE_IMAGEMAGICK_BIN / magick / convert / FlyEnv). Validasi gambar
+      → auto-orient EXIF → resize ≤1280 tanpa upscale → WebP kualitas turun
+      80→60 hingga ≤300KiB → strip metadata. Mesin dev TANPA php-gd — pipeline
+      memakai ImageMagick; produksi sebaiknya aktifkan php-gd.
+   3. AttendanceService: ensureBaseline (DEC-16 + pola DEFAULT Sen-Sab 07:00-
+      14:00 tol 10 + policy v1 — idempoten, runtime, BUKAN migrasi);
+      ensureWorkDay (hari kerja dibuat sesuai pola; libur kalender
+      blocks_employee_work → is_work_required=false, TIDAK alpa); clock
+      (multipart: validasi umur foto/lokasi ≤60s, akurasi ≤100m, kunci
+      idempotensi operation_key replay-safe 200, tolak ganda 422; file webp di
+      disk local + row files(classification='internal') + capture dgn
+      policy_snapshot; late_minutes vs scheduled_start+toleransi); status/me/
+      policy; storeRecord petugas (entry_mode='officer', tanpa bukti);
+      koreksi request/decide (pemohon≠penyetuju, expected_lock_version,
+      tenggat policy.correction_deadline_days, lock_version++ saat apply);
+      recap per pegawai (hadir/terlambat/izin/sakit/cuti/dinas/tanpa_catatan);
+      pola kerja CRUD+versi (tutup versi lama H-1) + penetapan pegawai (tutup
+      lama) + generator hari kerja; policy versi baru (efektif ≥besok).
+   4. Controller+resource: GET status/me/policy/records/recap/corrections/
+      work-patterns/work-assignments/captures/{id}(/photo biner image/webp
+      privat); POST clock(throttle 10/m)/records/corrections(+decision)/
+      work-patterns(+versions/assignments)/work-days/generate/policy/versions.
+   5. MysqlAttendanceApiTest 4 test/102 asersi: akses per role+linkage
+      pegawai; alur clock penuh (validasi kebaruan/akurasi/idempotenti replay,
+      file webp+ukuran, akses bukti terbatas, tolak ganda, pulang); record
+      petugas + koreksi (403 tanpa mandat → 422 pemohon=penyetuju → applied
+      oleh operator kedua bermandat; tenggat 10 hari ditolak); pola versi+
+      penetapan+generator+rekap+riwayat. Suite MySQL PENUH: 148/6773 HIJAU.
+   6. Gotcha skema: entry_mode CHECK IN ('self','officer','import');
+      files.classification CHECK (pakai 'internal'); work_patterns TANPA
+      created_by (versions punya); captures.recorded_at tidak fillable
+      (forceFill); AttendanceCorrection relasi = employeeAttendance (bukan
+      attendance); eager-load constraint closure menerima relasi bukan Builder.
+
+B. FRONTEND:
+   1. BFF /api/attendance (JSON + multipart clock tervalidasi ulang + streaming
+      biner foto bukti privat, allowlist regex + Origin check). lib/attendance.
+      ts + area "attendance" di api-client/backend.
+   2. Halaman /absensi/[section] (guard via navigation): masuk-pulang (kamera
+      getUserMedia + canvas JPEG + geolocation; petunjuk pemulihan FR-05-07;
+      kartu status hari ini + chips kebijakan), riwayat (tabel + lihat bukti
+      foto via blob), pegawai (filter tanggal/pegawai/tercatat + dialog catat
+      status + ajukan koreksi), pola-kerja (tab terkontrol: pola/penetapan/
+      kebijakan; dialog hari-aktif; generator 14 hari; policy versi baru),
+      rekap (ringkasan per pegawai + rincian harian), koreksi (daftar + keputusan
+      hanya utk nav attendance.correct).
+   3. Sidebar: 6 item absensi AKTIF (/absensi/*). Komponen bersama academic-
+      shared dipakai ulang (AcademicList/FormDialog/FilterSelect/DateFilter/
+      ConfirmAction) sesuai design-system v1.7 (pola Bar tab di pola-kerja).
+   4. Mock attendance-api.mjs (pola 7 hari agar bebas kalender; clock multipart
+      validasi akurasi/umur; captures photo webp 1x1) + kawat auth-api/reset.
+   5. e2e attendance.spec 4 test: kamera+GPS palsu → masuk & pulang sukses;
+      operator catat izin + ajukan koreksi + halaman koreksi tanpa tombol
+      (tanpa mandat); kepala baca rekap & ditolak halaman kelola; wali tanpa
+      linkage → 404 halaman mandiri.
+
+C. VERIFIKASI: biome 129 file 0 warning; build 0 error; Playwright 76 passed
+   (72 lama + 4 baru); MySQL suite 148 passed (6773 asersi).
+
+D. CATATAN/BACKLOG: produksi perlu php-gd (atau pastikan ImageMagick terpasang
+   + set ATTENDANCE_IMAGEMAGICK_BIN); notifikasi in-app (FR-17) belum terkirim
+   saat koreksi menunggu — menyusul modul #16; upload foto client JPEG kanvas
+   0.92 (bisa ditingkatkan kompresi klien); /me riwayat pakai bentuk rows
+   khusus (bukan resource) — konsisten tapi berbeda dari list lain.
+
+STATUS: roadmap #4 Absensi Pegawai SELESAI penuh. Berikutnya roadmap #5:
+Realisasi Mengajar (FR-06) — tabel teaching_realizations/realization_revisions
+/realization_verifications sudah tersedia; sumber meetings dari modul jadwal.
+
+=== SESI 2026-10-26: AUDIT MODUL ABSENSI PEGAWAI (frontend+backend vs SRS) ===
+Lingkup: 21 endpoint absensi vs Bab II (matriks akses) + FR-05-01..07; buruan
+bug frontend/backend. Hasil: 3 temuan diperbaiki; sisa sesuai.
+
+TEMUAN & PERBAIKAN:
+1. [AKSES/BUG-BE] GET /api/v1/attendance/policy hanya authorizeOwn → operator
+   murni (tanpa linkage pegawai) mendapat 403 di tab "Kebijakan" halaman Pola
+   kerja. DIPERBAIKI: izinkan attendance.manage ATAU pegawai aktif (petugas
+   butuh kebijakan untuk halaman kelola). Regresi ditambahkan di
+   MysqlAttendanceApiTest (operator tanpa linkage → 200).
+2. [BUG-BE] Berkas foto yatim: Storage::put di dalam transaksi clock tidak
+   dibersihkan bila transaksi gagal setelahnya (rollback baris files tetapi
+   byte .webp tersisa di disk). DIPERBAIKI: $storedPath by-reference + catch
+   UniqueConstraintViolationException & Throwable → hapus berkas bila baris
+   files tidak ada, lalu lempar ulang.
+3. [BUG-FE] Tanggal off-by-one zona waktu: 6 titik memakai
+   new Date(...).toISOString().slice(0,10) untuk tanggal LOKAL WIB —
+   toISOString mengembalikan UTC sehingga pukul 00.00–07.00 WIB (dan batas
+   bulan) tanggalnya bergeser sehari: tanggal awal filter Absensi & izin,
+   default "berlaku mulai" pola kerja, rentang generator hari kerja, dan
+   rentang bulan Riwayat/Rekap. DIPERBAIKI: helper baru lib/attendance
+   todayWib()/wibMonthRange()/wibAddDays() (toLocaleDateString en-CA tz
+   Asia/Jakarta + aritmetika Date.UTC) diterapkan di 6 titik.
+4. [MOCK] Paritas bentuk data: objek kehadiran mock kini menyertakan
+   attendance_status + captures seperti serialisasi backend (badge status di
+   Riwayat untuk baris petugas tidak lagi "—").
+
+AUDIT YANG DINYATAKAN SESUAI (diperiksa, tanpa temuan):
+- Peta akses 21 endpoint: status/clock/me = pegawai aktif terhubung akun
+  (attendance.own otomatis via NavigationAccess); records/patterns/assignments/
+  generate/policy-versi = attendance.manage (operator/super); corrections
+  index = manage|correct, decision = HANYA mandat attendance.correct (super
+  admin BUKAN bypass — sesuai Bab II 2.1/2.2); recap = manage|reports (kepala
+  baca saja, records ditolak — diuji); captures/foto = pemilik atau petugas
+  (pegawai lain 404). Guard halaman frontend mengikuti navigation token yang
+  sama; wali tanpa linkage pegawai → 404 halaman mandiri (diuji e2e).
+- FR-05-01..07: foto baru kamera + GPS wajib aksi normal; izin/sakit/cuti/
+  dinas petugas tanpa bukti; idempotensi operation_key (replay 200); umur
+  ≤60 dtk & akurasi ≤100 m; WebP ≤300KiB strip EXIF tanpa upscale; bukti
+  privat (files classification 'internal'); koreksi before/after + approval
+  petugas BERBEDA + tenggat 7 hari + lock_version; libur kalender
+  blocks_employee_work → is_work_required=false (bukan alpa); shift snapshot
+  Senin–Sabtu 07:00–14:00 tol 10 dari pola DEFAULT (DEC-16) baseline runtime
+  idempoten (bukan migrasi).
+- Diverifikasi ulang: MySQL suite 148 test hijau (attendance 4 test/103
+  asersi + regresi policy); frontend lint 0 warning, build bersih, Playwright
+  76 passed.
+
+CATATAN non-blocking (backlog): mandat attendance.correct belum membedakan
+scope institution vs employee (baseline: mandat apa pun membuka menu);
+notifikasi koreksi menunggu (FR-17) menyusul modul #16; kompresi sisi klien
+JPEG kanvas 0.92 bisa diturunkan untuk hemat kuota.
+
+STATUS: modul Absensi Pegawai TETAP SELESAI + audi; roadmap berikutnya #5
+Realisasi Mengajar (FR-06).
+
+=== SESI 2026-10-26: MODUL REALISASI MENGAJAR (FR-06) BACKEND+FRONTEND LENGKAP ===
+Sesuai roadmap-agents.md #5. Desain diverifikasi ke SRS: guru PELAKSANA
+(terjadwal ATAU pengganti aktif) mengajukan realisasi pertemuan tugasnya
+(FR-06-01); verifikator bermandat menyetujui/menolak dengan alasan, BUKAN
+pengaju yang sama (Bab II); status pelaksanaan vs verifikasi terpisah
+(FR-06-03); isi diajukan immutable — revisi baru hanya sebelum diajukan /
+setelah ditolak (BR-04); satu realisasi per pertemuan, tidak ada JP ganda
+(BR-05/AC-07); sumber jadwal historis tetap menunjuk pertemuan asli.
+
+A. BACKEND (8 rute /api/v1/teaching):
+   1. TeachingDataAccess: teaching.own (role guru) utk aksi mandiri;
+      verifikasi HANYA mandat permission realizations.verify (didaftarkan ke
+      AccountAccess::managedPermissions agar bisa di-grant; NavigationAccess
+      menu teaching.verify sudah ada dari awal). assertMeetingDuty: hanya guru
+      terjadwal/pengganti aktif boleh menyentuh pertemuan (orang lain 404).
+   2. TeachingService:
+      - saveRevision: buat teaching_realizations (UK meeting) + revisi #1
+        atomik dgn pointer current_revision_id; revisi lanjut wajib
+        revision_reason + hanya status not_submitted/rejected + hanya oleh
+        pelaksana yang mencatat revisi terkini (pengganti/guru lain tidak
+        menimpa). not_held → JP/menit dipaksa 0 + alasan wajib; held →
+        actual_minutes default snapshot pertemuan.
+      - submitRevision: not_submitted → pending (submitted_at/by).
+      - decideRevision: mandat (mandate_id disimpan pada verification), tolak
+        verifikator=pengaju, satu keputusan final per revisi (UK), approve →
+        approved / reject → rejected; operation_key uuid.
+      - ownHistory: revisi terkini per realisasi milik pelaksana + total
+        JP/pertemuan disetujui (hanya held+approved masuk JP).
+   3. Model: RealizationRevision + relasi meeting() hasOneThrough (fix
+      RelationNotFound); TeachingDataResource menyematkan konteks
+      pertemuan/pelaksana/pengaju/keputusan.
+   4. MysqlTeachingApiTest 3 test/99 asersi: peta akses (operator/kepala
+      ditolak, guru hanya penugasannya, verifikasi perlu mandat, pengganti
+      sah); siklus penuh draf→kirim→tolak→revisi#2→kirim→setujui + anti ganda
+      + edit saat menunggu ditolak + total JP; pengganti mencatat sebagai
+      pelaksana & guru terjadwal tidak dapat menimpa.
+   5. FIX regresi: NavigationAccessTest kini firstOrCreate utk permission
+      'realizations.verify' (katalog seeder bertambah). Suite MySQL PENUH:
+      151 test/6873 asersi HIJAU.
+
+B. FRONTEND (design-system v1.7, komponen academic-shared dipakai ulang):
+   1. BFF /api/teaching (JSON, allowlist + Origin check) + lib/teaching.ts +
+      area "teaching" di api-client/backend.
+   2. /realisasi/pertemuan (guru): daftar pertemuan tugas (badge
+      pengganti/status), dialog Catat/Revisi realisasi (pelaksanaan, materi,
+      JP, durasi, alasan tidak terlaksana wajib kondisional, alasan revisi),
+      Kirim utk verifikasi (ConfirmAction alasan).
+   3. /realisasi/riwayat (guru): kartu total JP & pertemuan disetujui + tabel
+      revisi terkini dgn filter tanggal/status.
+   4. /realisasi/verifikasi (mandat): antrean menunggu (default) + riwayat
+      keputusan; Setujui/Tolak dengan alasan (Tolak merusak=destructive).
+   5. Sidebar: 3 item seksi "Realisasi mengajar" AKTIF. Mock teaching-api.mjs
+      (guru↔pegawai 3001 konsisten academic mock; profil "verifikator" khusus
+      e2e dgn teaching.verify) + e2e teaching.spec 3 test (alur guru
+      draf→kirim; verifikator menyetujui → riwayat guru total JP; guard
+      navigasi: operator/verifikator tanpa teaching.own → 404).
+
+C. VERIFIKASI: biome 137 file 0 warning; build 0 error; Playwright 79 passed
+   (76 + 3 baru); MySQL 151 passed (6873 asersi).
+
+D. CATATAN backlog: jam mulai/selesai aktual (actual_started/ended_at) belum
+   diminta di UI (kolom tersedia di API); notifikasi pengajuan/keputusan
+   (FR-17) menyusul modul #16; mandate scope per kelas/semester utk
+   verifikator belum dibedakan (baseline institution).
+
+STATUS: roadmap #5 Realisasi Mengajar SELESAI penuh. Berikutnya #6 Absensi
+Siswa (FR-07) — mengaktifkan item "Kelas perwalian saya".
+
+=== SESI 2026-10-26: AUDIT LINTAS-MODUL MENYELURUH (akun → realisasi) + PRIORITAS MVP ===
+Lingkup: seluruh API backend (routes/api.php, 130 rute / 6 area) + frontend
+(manajemen akun, data master, akademik, absensi pegawai, realisasi mengajar)
+vs SRS v1.3 + design-system.md v1.7; dilanjutkan analisis urutan modul sisa
+untuk tahap awal pemakaian.
+
+A. AUDIT MEKANIS BFF↔BACKEND (probe 146 kombinasi metode+path per area):
+   Server next start dinyalakan; setiap rute backend diprobe lewat BFF tanpa
+   kuki — 404 berarti terblokir allowlist. HASIL: 0 gap nyata. 3 kandidat
+   ternyata false-positive: /api/auth/me dilayani sebagai /api/auth/session
+   (+ panggilan server-side langsung), google/redirect lewat rute khusus
+   /api/auth/google (dengan validasi tujuan), dan users/{id}/reset memakai
+   nama resmi reset-password (BFF≡backend≡UI). Diff terbalik 42 path
+   pemanggilan frontend: semuanya cocok rute backend.
+B. AUDIT OTORISASI: pola arsitektur "controller tipis → guard di service"
+   konsisten di 6 area; 72 method controller tanpa guard eksplisit SEMUANYA
+   mendelegasi ke service yang memanggil *DataAccess::authorize* — dan tiap
+   modul memiliki test matriks peran (403/404) dalam suite (total 151 test
+   MySQL hijau saat audit ini). Tidak ditemukan endpoint terbuka.
+C. AUDIT SRS per modul (rekap, detail di entri audit masing-masing):
+   FR-01 auth/akun (rotasi+replay cookie HttpOnly, BFF Origin), FR-02 master
+   (impor, relasi, versi optimistik 409+alasan), FR-03/04 akademik (versi
+   jadwal, benturan, generator pertemuan, pengganti), FR-05 absensi pegawai
+   (foto+GPS idempoten, koreksi mandat≠pemohon, libur≠alpa), FR-06 realisasi
+   (pelaksana terjadwal/pengganti, revisi immutable, verifikasi mandat ≠
+   pengaju, JP hanya held+approved) — SEMUA SESUAI Bab II & FR masing-masing.
+D. AUDIT DESIGN-SYSTEM v1.7: seluruh 7 TabsList memakai pola Bar tab kanon;
+   satu h1 per halaman ✓; hex literal hanya di panel seni halaman login
+   (desain v1.5 yang dipertahankan sesuai keputusan user) + 1 AvatarFallback
+   (#edf1eb → kandidat token bg-secondary, backlog kosmetik). DIPERBAIKI:
+   2 tombol h-9 (bukti riwayat & muat ulang lokasi) dinormalkan ke h-11.
+   Verifikasi ulang: lint 0, build bersih, e2e absensi 4/4.
+E. BACKLOG TERBUKA (terdokumentasi, non-blocking): scope mandat masih
+   institution-level (attendance.correct & realizations.verify); FR-17
+   notifikasi belum terkirim; jam mulai/selesai aktual realisasi belum
+   diminta UI (API siap); produksi perlu php-gd; noop cleanup file yatim
+   sudah dihandle.
+
+F. PRIORITAS MODUL SISA UNTUK TAHAP AWAL PAKAI (dasar: SRS Bab IX + 9.1
+   "MVP tahap 1–2 dan laporan dasar; selesaikan satu alur guru → jadwal →
+   pertemuan → realisasi → verifikasi → honor locked"):
+   1. #6 Absensi Siswa (FR-07) — melengkapi fase 2 kehadiran; wali kelas
+      mengisi harian; mengaktifkan "Kelas perwalian saya". TANPA ini,
+      kesiswaan harian masih manual. [PALING DINI]
+   2. #7 Honor (FR-08) — menutup irisan alur lengkap 9.1: realisasi
+      terverifikasi → tarif → periode → pemeriksaan → pengesahan/lock.
+      Prasyarat utama "dipakai nyata" untuk keuangan guru. Setelah ini
+      SIKLUS OPERASIONAL INTI madrasah lengkap end-to-end.
+   3. #13 Laporan & Ekspor (FR-14) — "laporan dasar" bagian MVP; data
+      #6+#7 baru berarti bila bisa direkap/diekspor.
+   4. #12 Portal Wali (FR-12) — bergantung data #6 (kehadiran anak);
+      nilai adopsi tinggi.
+   5. #15 PDP — bagian persetujuan publikasi foto siswa (prasyarat #11
+      publikasi galeri berfoto siswa).
+   6. #11 Website (FR-13) — kehadiran publik.
+   7. #16 Notifikasi (FR-17) — tempel ke kejadian yang sudah hidup
+      (koreksi, verifikasi, keputusan honor).
+   8. #8 Bank Soal, #9 BK, #10 TU — fase 4 SRS; mandiri, urutan bebas
+      (disarankan urut nomor).
+   9. #14 Pengaturan Sistem (FR-15) — UI audit/backup/retensi DIPERLUKAN
+      sebelum pilot/UAT (tahap 6) sebagai pengerasan; sisanya #15 (DSR)
+      menyusul bertahap.
+   Ringkas: 6 → 7 → 13 → 12 → 15(persetujuan) → 11 → 16 → 8 → 9 → 10 →
+   14(pra-pilot) → 15(sisa).
+
+STATUS AUDIT: SELURUH MODUL TERBANGUN (FR-01..FR-06) LOLOS — tidak ada bug
+baru; 2 tombol dinormalkan ke design-system. Rencana tahap awal pakai
+dicatat juga di roadmap-agents.md §A. Berikutnya dikerjakan: #6 Absensi
+Siswa (FR-07).
+
+================================================================================
+[LOG MODUL ABSENSI SISWA (FR-07) BACKEND + FRONTEND LENGKAP]
+Tanggal/Waktu: 2026-10-26 ( pagi ) +07:00
+Acuan: SRS v1.3 (FR-07-01..03, BR-08..09, DEC-07, AC-10, Bab II matriks akses),
+database.MD §8, design-system.md v1.7, roadmap-agents.md #6
+
+================================================================================
+RINGKASAN PENGERJAAN
+================================================================================
+Melanjutkan pengerjaan modul Absensi Siswa (FR-07) yang tertunda dari sesi sebelumnya.
+Mematuhi instruksi khusus: tidak membuat controller baru di app/Http/Controllers
+karena StudentAttendanceController sudah dibuat sebelumnya; melanjutkan dan
+menyempurnakan API backend serta UI frontend selaras dengan design-system.md.
+
+A. SISI BACKEND:
+1. Controller yang ada diverifikasi dan dipertahankan:
+   - app/Http/Controllers/Api/V1/StudentAttendanceController.php:
+     7 endpoint /api/v1/student-attendance:
+     * GET classes (daftar kelas dalam cakupan penugasan pencatat + ringkasan keterisian)
+     * GET roster (daftar anggota kelas aktif pada tanggal + status absensi + kebijakan)
+     * POST record (simpan batch absensi harian kelas-tanggal; unik siswa-tanggal)
+     * GET recap (rekap per tanggal dan per siswa; ketiadaan catatan = belum_dicatat, bukan alpa)
+     * GET corrections (daftar koreksi siswa; pemegang mandat melihat semua, guru ter-scope)
+     * POST corrections (pengajuan koreksi absensi siswa dengan expected_lock_version)
+     * POST corrections/{correction}/decision (keputusan setuju/tolak oleh pemegang mandat attendance.correct berbeda dari pemohon)
+2. Perbaikan pada app/Services/StudentAttendanceService.php:
+   - Memperbaiki method authorizeClass($user, $period, $date = null) agar parameter
+     $date diteruskan ke effectivePolicy(), sehingga tanggal absensi tervalidasi pada
+     semester dan kebijakan yang tepat (bukan selalu tanggal hari ini).
+3. Pengujian Backend:
+   - tests/Feature/MysqlStudentAttendanceApiTest.php: 3 test / 80 assertions.
+   - Suite MySQL penuh: 154 passed / 6953 assertions (tanpa regresi).
+
+B. SISI FRONTEND (design-system v1.7):
+1. BFF Proxy (frontend/app/api/student-attendance/[...path]/route.ts):
+   - Proxy allowlist GET (classes|roster|recap|corrections) dan POST (record|corrections|corrections/decision).
+   - Validasi Origin, method, kuki HttpOnly, body JSON, dan query param terfilter.
+2. Halaman & Komponen Siswa:
+   - app/(portal)/absensi-siswa/[section]/page.tsx: Guard izin students.attendance; generateStaticParams (harian, rekap).
+   - components/student-attendance/daily-attendance.tsx:
+     * Heading dengan overline "Absensi siswa" (AcademicHeading disempurnakan dengan prop category).
+     * Filter kelas & tanggal (WIB Asia/Jakarta).
+     * Tombol cepat "Hadir" dan Select status per siswa; badge "Belum dicatat" untuk siswa belum tercatat.
+     * Tombol "Simpan N siswa" batch dengan transaksi aman.
+     * Tombol "Ajukan koreksi" untuk siswa yang sudah tercatat; dialog AcademicFormDialog dengan field status_code, catatan, dan alasan perubahan wajib.
+     * Perbaikan bug: menyertakan reason: body.reason pada pengajuan koreksi ke API.
+   - components/student-attendance/student-recap.tsx:
+     * Rekap per tanggal (tabel kolom Hadir, Sakit, Izin, Alpa, Belum dicatat, Anggota).
+     * Rekap per siswa dengan jumlah hari aktif dan rincian per status.
+     * Menegaskan ketiadaan catatan sebagai "Belum dicatat" (bukan alpa, sesuai BR-09).
+   - components/academic/homeroom-class.tsx:
+     * Menghidupkan menu "Kelas perwalian saya" (/akademik/perwalian) untuk wali kelas (token class.own).
+     * Roster kelas perwalian dengan status kehadiran hari ini.
+3. Integrasi Persetujuan Koreksi (components/attendance/attendance-corrections.tsx):
+   - Menambahkan Bar Tab design-system v1.7 ("Koreksi pegawai" | "Koreksi siswa") untuk pemegang mandat attendance.correct.
+   - Tab "Koreksi siswa" memuat antrean koreksi siswa (siswa, kelas & tanggal, perubahan, pemohon & alasan, status).
+   - Dialog konfirmasi tindakan (ConfirmAction alertdialog) untuk Setujui atau Tolak dengan alasan keputusan.
+4. Perbaikan dan Pelengkap:
+   - frontend/lib/attendance.ts: menambahkan 'alpa: "Alpa"' ke statusLabels.
+   - frontend/tests/fixtures/student-attendance-api.mjs: memperbaiki tipe perbandingan studentId (string vs number) dan menyediakan struktur studentDailyAttendance lengkap.
+
+================================================================================
+HASIL PENGUJIAN DAN VERIFIKASI
+================================================================================
+1. Backend Tests:
+   - php -l: OK (StudentAttendanceController, StudentAttendanceService, MysqlStudentAttendanceApiTest).
+   - Laravel Pint: Clean.
+   - PHPUnit Unit: 5 passed, 36 assertions.
+   - PHPUnit MySQL (phpunit.mysql.xml): 154 passed, 6953 assertions (100% green).
+2. Frontend Tests:
+   - Biome Format & Lint: `pnpm format && pnpm lint` -> 145 files checked, 0 errors, 0 warnings.
+   - Next.js Production Build: `pnpm build` -> Compiled successfully, Finished TypeScript in 2.1s, 38/38 static/prerender pages generated.
+   - Playwright E2E Tests:
+     * `pnpm exec playwright test tests/e2e/student-attendance.spec.ts` -> 3 passed (9.1s):
+       - homeroom teacher fills daily attendance and sees recap
+       - correction requested by teacher and approved by mandated officer (end-to-end melalui tab Koreksi siswa)
+       - access guard rejects roles without duty
+     * Seluruh suite Playwright: 82 passed (2.4m) tanpa regresi.
+
+STATUS: Modul #6 Absensi Siswa (FR-07) SELESAI PENUH.
+Berikutnya pada roadmap: Modul #7 Honor & Keuangan (FR-08).
+
+================================================================================
+[PERBAIKAN BUG] RUNTIME TYPEERROR PADA /realisasi/riwayat (AcademicList Pagination)
+Tanggal/Waktu: 2026-10-26 09:15:00 +07:00
+================================================================================
+Gejala:
+- Runtime TypeError: Cannot read properties of undefined (reading 'total')
+  pada `components/academic/academic-shared.tsx (152:38) @ AcademicList`
+  saat pengguna mengakses URL `http://localhost:3000/realisasi/riwayat`.
+
+Akar Masalah:
+- Endpoint backend `GET /api/v1/teaching/realizations` (TeachingController::ownRealizations)
+  mengembalikan `data: { rows: $page->toArray(), totals: { ... } }`.
+- Method `LengthAwarePaginator::toArray()` bawaan Laravel meletakkan field pagination
+  (`total`, `current_page`, `last_page`, `per_page`) langsung di tingkat atas (root object),
+  BUKAN di dalam sub-objek `meta` seperti yang dilakukan oleh Laravel API Resource collection
+  (`TeachingDataResource::collection(...)`).
+- Komponen `AcademicList` (`components/academic/academic-shared.tsx`) mengasumsikan
+  `result.meta.total` selalu ada. Ketika menerima struktur paginator direct, `result.meta`
+  bernilai undefined sehingga akses `result.meta.total` memicu error fatal.
+
+Perbaikan yang Dilakukan:
+1. `frontend/lib/academic.ts`:
+   - Memperluas tipe `AcademicPage<T>` dengan properti pagination tingkat root opsional (`total`, `current_page`, `last_page`, `per_page`).
+   - Menambahkan fungsi helper `normalizeAcademicPage<T>(raw: unknown): AcademicPage<T>` yang secara otomatis mendeteksi dan menormalisasi baik format Resource (`raw.meta`), format direct paginator (`raw.total`), maupun raw array. Menjamin ketersediaan `data`, `meta: { current_page, last_page, total }`, serta properti root.
+2. `frontend/components/academic/academic-shared.tsx`:
+   - Memanggil `normalizeAcademicPage<T>(data)` pada penanganan hasil `load(page)`.
+   - Menghitung variabel aman `totalCount`, `currentPage`, dan `lastPage` menggunakan fallback bertingkat.
+   - Menggunakan `totalCount` pada rendering jumlah data dan konfigurasi `Pager`.
+   - Menggunakan optional chaining `!result?.data?.length` pada penentuan status data kosong.
+3. `frontend/components/teaching/my-realizations.tsx`:
+   - Menambahkan fallback aman `result.data?.rows ?? { data: [], meta: { current_page: 1, last_page: 1, total: 0 } }`.
+4. `frontend/components/attendance/attendance-corrections.tsx`:
+   - Menambahkan fallback aman `res.data?.rows ?? { data: [], meta: { current_page: 1, last_page: 1, total: 0 } }`.
+5. Backend Services:
+   - `backend/app/Services/TeachingService.php`: Menyertakan array `'meta'` (`current_page`, `last_page`, `per_page`, `total`) pada key `'rows'` pada `ownHistory()`.
+   - `backend/app/Services/StudentAttendanceService.php`: Menyertakan array `'meta'` pada key `'rows'` pada `corrections()`.
+   - `backend/app/Services/AttendanceService.php`: Menyertakan array `'meta'` pada key `'rows'` pada `recap()`.
+
+Hasil Verifikasi:
+- Frontend format & lint: Biome check clean (145 files).
+- Next.js build: `pnpm build` sukses (38/38 routes prerendered).
+- Playwright E2E: 82/82 passed (termasuk verifikasi riwayat realisasi guru).
+- Backend PHPUnit: 154/154 passed (6953 assertions).
+
+================================================================================
+[PERBAIKAN BUG & KLARIFIKASI] VALIDASI WORK-DAYS/GENERATE & ALUR DATA PEGAWAI
+Tanggal/Waktu: 2026-10-26 09:30:00 +07:00
+================================================================================
+1. Perbaikan Bug validation.required pada Dialog "Buat hari kerja pegawai" (/absensi/pola-kerja):
+   - Gejala:
+     Muncul error `validation.required` saat menekan tombol "Buat hari kerja" pada dialog `GenerateDialog` (/absensi/pola-kerja tab Penetapan & hari kerja).
+   - Akar Masalah:
+     Backend `AttendanceService::generateWorkDays` mewajibkan `'reason' => ['required', 'string', 'min:10', 'max:1000']`.
+     Namun di frontend, `GenerateDialog` di `attendance-patterns.tsx` tidak meneruskan parameter `reason` dari `ConfirmAction` ke payload body `attendanceRequest("work-days/generate", "POST", ...)`.
+     Hal serupa juga ditemukan pada mutasi penetapan pola kerja (`work-patterns/{pattern}/assignments`), pembaruan versi kebijakan (`policy/versions`), dan pencatatan kehadiran administratif (`records` dan `corrections`).
+   - Berkas yang Diperbaiki:
+     * `frontend/components/attendance/attendance-patterns.tsx`:
+       - `GenerateDialog`: Meneruskan `reason` pada payload `work-days/generate`.
+       - `assigning`: Meneruskan `reason: body.reason` pada `work-patterns/{pattern}/assignments`.
+       - `policying`: Meneruskan `reason: body.reason` pada `policy/versions`.
+     * `frontend/components/attendance/attendance-records.tsx`:
+       - `recording`: Meneruskan `reason: body.reason` pada `records`.
+       - `correcting`: Meneruskan `reason: body.reason` pada `corrections`.
+
+2. Alur Pengelolaan Pegawai (Jawaban Pertanyaan Pengguna):
+   - Pegawai BUKAN dibuat dari role atau Manajemen Pengguna (`/pengguna`).
+   - Pegawai adalah entitas Data Master (`employees`), dikelola di:
+     `Data master` -> `Data pegawai` (`/data-master/employees`).
+   - Alur Pengisian Data:
+     1) Buka menu `/data-master/employees` -> klik "+ Tambah pegawai" (isi Nama, NIK, No. Pegawai, dll.).
+     2) Jika pegawai memerlukan akses login sistem, buat akun di `/pengguna` lalu hubungkan ke identitas orang yang sama (`Person`).
+     3) Di menu `/absensi/pola-kerja`:
+        - Buka tab "Pola kerja", klik "Tetapkan pegawai" pada pola kerja yang diinginkan.
+        - Pilih pegawai dari dropdown (data pegawai yang aktif akan otomatis muncul).
+     4) Setelah penetapan dibuat, baris penetapan muncul di tab "Penetapan & hari kerja", lalu tombol "+ Buat hari kerja" dapat dijalankan untuk meng-generate 14 hari kerja ke depan.
+
+Hasil Pengujian:
+- Next.js Production Build: Sukses (38/38 routes).
+- Playwright E2E: 4/4 attendance tests passed.
+- Backend PHPUnit: 4/4 MySQL attendance tests passed (103 assertions).

@@ -279,6 +279,7 @@ export function AttendanceRecords({ canManage }: { canManage: boolean }) {
               work_date: body.work_date,
               status_code: body.status_code,
               notes: body.notes,
+              reason: body.reason,
             });
             reload();
           }}
@@ -314,6 +315,7 @@ export function AttendanceRecords({ canManage }: { canManage: boolean }) {
                   ...(body.notes ? { notes: body.notes } : {}),
                 },
                 expected_lock_version: correcting.attendance?.lock_version,
+                reason: body.reason,
               });
               reload();
             } catch (error) {

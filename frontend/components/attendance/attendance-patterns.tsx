@@ -410,6 +410,7 @@ export function AttendancePatterns() {
               {
                 employee_id: Number(body.employee_id),
                 effective_from: body.effective_from,
+                reason: body.reason,
               },
             );
             reload();
@@ -481,6 +482,7 @@ export function AttendancePatterns() {
               photo_quality: policy.photo_quality,
               gps_max_accuracy_meters: Number(body.gps_max_accuracy_meters),
               gps_max_age_seconds: Number(body.gps_max_age_seconds),
+              reason: body.reason,
             });
             reload();
           }}
@@ -640,10 +642,11 @@ function GenerateDialog({
       description="Membuat baris hari kerja untuk pegawai dengan penetapan pola aktif selama 14 hari ke depan. Tanggal libur kalender ditandai tidak wajib kerja dan tidak dihitung alpa."
       submitLabel="Buat hari kerja"
       onClose={onClose}
-      action={async () => {
+      action={async (reason) => {
         await attendanceRequest("work-days/generate", "POST", {
           date_from: today,
           date_to: end,
+          reason,
         });
         reload();
       }}

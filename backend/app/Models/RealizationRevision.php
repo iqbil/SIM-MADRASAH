@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Attributes\Table;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\HasOneThrough;
 
 #[Table('realization_revisions')]
 #[Fillable([
@@ -51,6 +52,12 @@ class RealizationRevision extends DomainModel
     public function realization(): BelongsTo
     {
         return $this->belongsTo(TeachingRealization::class, 'realization_id', 'id');
+    }
+
+    /** Pertemuan sumber realisasi (melalui teaching_realizations). @return HasOneThrough<Meeting, TeachingRealization, $this> */
+    public function meeting(): HasOneThrough
+    {
+        return $this->hasOneThrough(Meeting::class, TeachingRealization::class, 'id', 'id', 'realization_id', 'meeting_id');
     }
 
     /** @return BelongsTo<Employee, $this> */

@@ -139,7 +139,12 @@ export const SIDEBAR_SECTIONS: SidebarSection[] = [
         label: "Guru pengganti",
         access: "academic.substitutes.view",
       },
-      { id: "my-class", label: "Kelas perwalian saya", access: "class.own" },
+      {
+        id: "my-class",
+        href: "/akademik/perwalian",
+        label: "Kelas perwalian saya",
+        access: "class.own",
+      },
     ],
   },
   {
@@ -217,11 +222,13 @@ export const SIDEBAR_SECTIONS: SidebarSection[] = [
     items: [
       {
         id: "daily-attendance",
+        href: "/absensi-siswa/harian",
         label: "Absensi harian siswa",
         access: "students.attendance",
       },
       {
         id: "student-attendance-recap",
+        href: "/absensi-siswa/rekap",
         label: "Rekap kehadiran siswa",
         access: "students.attendance",
       },

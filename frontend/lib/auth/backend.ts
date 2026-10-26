@@ -22,6 +22,7 @@ export function backendUrl(
     | "master"
     | "academic"
     | "attendance"
+    | "student-attendance"
     | "teaching" = "auth",
 ): string {
   const base = process.env.API_BASE_URL ?? "http://127.0.0.1:8000/api/v1";
@@ -37,6 +38,7 @@ export async function backendFetch(
     | "master"
     | "academic"
     | "attendance"
+    | "student-attendance"
     | "teaching" = "auth",
 ): Promise<Response> {
   try {
@@ -63,6 +65,7 @@ export async function backendJson<T>(
     | "master"
     | "academic"
     | "attendance"
+    | "student-attendance"
     | "teaching" = "auth",
 ): Promise<T> {
   const response = await backendFetch(path, init, area);

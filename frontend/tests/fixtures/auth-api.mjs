@@ -3,6 +3,10 @@ import { createServer } from "node:http";
 import { handleAcademic, resetAcademic } from "./academic-api.mjs";
 import { handleAttendance, resetAttendance } from "./attendance-api.mjs";
 import { handleMaster, resetMaster } from "./master-api.mjs";
+import {
+  handleStudentAttendance,
+  resetStudentAttendance,
+} from "./student-attendance-api.mjs";
 import { handleTeaching, resetTeaching } from "./teaching-api.mjs";
 
 const roles = [
@@ -101,6 +105,7 @@ const navigationDefaults = {
 };
 const navigationProfiles = {
   verifikator: { role: "operator", navigation: ["teaching.verify"] },
+  mandat_absensi: { role: "operator", navigation: ["attendance.correct"] },
   bk_berizin: { role: "guru_bk", navigation: ["bk.internal", "bk.share"] },
   bendahara_bermandat: {
     role: "bendahara",
@@ -203,6 +208,18 @@ createServer(async (request, response) => {
       !record.expired &&
       !record.revoked,
   );
+  if (url.pathname.startsWith("/api/v1/student-attendance/")) {
+    if (!masterSession)
+      return json(response, 401, { message: "Unauthenticated." });
+    handleStudentAttendance({
+      body,
+      method: request.method,
+      response,
+      url,
+      username: masterSession.user.username,
+    });
+    return;
+  }
   if (url.pathname.startsWith("/api/v1/teaching/")) {
     if (!masterSession)
       return json(response, 401, { message: "Unauthenticated." });
@@ -263,6 +280,7 @@ createServer(async (request, response) => {
     resetAcademic();
     resetAttendance();
     resetTeaching();
+    resetStudentAttendance();
     managedUsers = [
       {
         id: 1,

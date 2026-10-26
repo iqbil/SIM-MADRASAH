@@ -31,6 +31,7 @@ import {
   type AcademicPage,
   type AcademicRecord,
   academicError,
+  normalizeAcademicPage,
 } from "@/lib/academic";
 import { AuthRequestError } from "@/lib/auth/client";
 import type { ApiError } from "@/lib/auth/types";
@@ -39,18 +40,18 @@ import type { FieldDefinition } from "@/lib/master-data";
 export function AcademicHeading({
   title,
   description,
+  category = "Akademik & kelas",
   action,
 }: {
   title: string;
   description: string;
+  category?: string;
   action?: ReactNode;
 }) {
   return (
     <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
       <div>
-        <p className="mb-2 text-[11px] text-muted-foreground">
-          Akademik &amp; kelas
-        </p>
+        <p className="mb-2 text-[11px] text-muted-foreground">{category}</p>
         <h1 className="text-[27px] font-semibold tracking-tight sm:text-3xl">
           {title}
         </h1>
@@ -124,7 +125,7 @@ export function AcademicList<T extends AcademicRecord>({
     load(page)
       .then((data) => {
         if (active) {
-          setResult(data);
+          setResult(normalizeAcademicPage<T>(data));
           setFailure("");
         }
       })
@@ -144,12 +145,23 @@ export function AcademicList<T extends AcademicRecord>({
     (column) => column !== desktopColumns[0] && !column.hidden,
   );
 
+  const totalCount =
+    result?.meta?.total ?? (result as { total?: number } | null)?.total ?? 0;
+  const currentPage =
+    result?.meta?.current_page ??
+    (result as { current_page?: number } | null)?.current_page ??
+    1;
+  const lastPage =
+    result?.meta?.last_page ??
+    (result as { last_page?: number } | null)?.last_page ??
+    1;
+
   return (
     <Card className="rounded-2xl border border-border/70 py-0 ring-0">
       <CardContent className="p-4 sm:p-5">
         <div className="mb-4 flex items-center justify-between gap-3">
           <p className="text-xs text-muted-foreground">
-            {result ? `${result.meta.total} data` : busy ? "Memuat…" : "—"}
+            {result ? `${totalCount} data` : busy ? "Memuat…" : "—"}
           </p>
           <div className="flex items-center gap-2">
             {create && (
@@ -178,7 +190,7 @@ export function AcademicList<T extends AcademicRecord>({
             {failure}
           </p>
         )}
-        {busy && !result ? null : !result?.data.length ? (
+        {busy && !result ? null : !result?.data?.length ? (
           <div className="py-12 text-center">
             <p className="text-sm font-medium">{emptyTitle}</p>
             <p className="mt-2 text-xs leading-5 text-muted-foreground">
@@ -255,15 +267,11 @@ export function AcademicList<T extends AcademicRecord>({
               ))}
             </div>
             <Pager
-              meta={
-                result?.meta
-                  ? {
-                      page: result.meta.current_page,
-                      last_page: result.meta.last_page,
-                      total: result.meta.total,
-                    }
-                  : { page: 1, last_page: 1, total: 0 }
-              }
+              meta={{
+                page: currentPage,
+                last_page: lastPage,
+                total: totalCount,
+              }}
               setPage={setPage}
               busy={busy}
             />

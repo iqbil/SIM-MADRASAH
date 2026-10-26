@@ -106,9 +106,11 @@ class NavigationAccessTest extends MysqlAuthTestCase
     {
         $user = User::factory()->create();
         foreach (['payroll.review', 'payroll.approve', 'publication.publish', 'realizations.verify'] as $code) {
-            $permission = Permission::query()->create([
-                'code' => $code, 'module' => explode('.', $code)[0], 'action' => explode('.', $code)[1], 'is_sensitive' => true,
-            ]);
+            // realizations.verify kini bagian katalog seeder; buat bila belum ada.
+            $permission = Permission::query()->firstOrCreate(
+                ['code' => $code],
+                ['module' => explode('.', $code)[0], 'action' => explode('.', $code)[1], 'is_sensitive' => true],
+            );
             $mandate = AuthorizationMandate::query()->forceCreate([
                 'user_id' => $user->id, 'permission_id' => $permission->id, 'scope_type' => 'institution',
                 'effective_from' => now('UTC')->subHour(), 'effective_to' => now('UTC')->addHour(),

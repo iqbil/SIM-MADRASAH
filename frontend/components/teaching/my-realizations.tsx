@@ -113,7 +113,12 @@ export function MyRealizations() {
             }`,
           );
 
-          return result.data.rows;
+          return (
+            result.data?.rows ?? {
+              data: [],
+              meta: { current_page: 1, last_page: 1, total: 0 },
+            }
+          );
         }}
         columns={[
           {

@@ -9,7 +9,8 @@ export type AcademicSection =
   | "kalender"
   | "penugasan"
   | "jadwal"
-  | "pengganti";
+  | "pengganti"
+  | "perwalian";
 
 export const ACADEMIC_SECTIONS: Record<
   AcademicSection,
@@ -44,6 +45,10 @@ export const ACADEMIC_SECTIONS: Record<
     title: "Guru pengganti",
     permission: "academic.substitutes.view",
   },
+  perwalian: {
+    title: "Kelas perwalian saya",
+    permission: "class.own",
+  },
 };
 
 export type AcademicRecord = {
@@ -55,7 +60,69 @@ export type AcademicRecord = {
 export type AcademicPage<T = AcademicRecord> = {
   data: T[];
   meta: { current_page: number; last_page: number; total: number };
+  current_page?: number;
+  last_page?: number;
+  total?: number;
+  per_page?: number;
 };
+
+/** Normalisasi respons halaman dari API (mendukung format Resource Laravel, LengthAwarePaginator direct, dan array). */
+export function normalizeAcademicPage<T>(raw: unknown): AcademicPage<T> {
+  if (!raw || typeof raw !== "object") {
+    return {
+      data: [],
+      meta: { current_page: 1, last_page: 1, total: 0 },
+      current_page: 1,
+      last_page: 1,
+      total: 0,
+    };
+  }
+
+  const record = raw as Record<string, unknown>;
+  const rawMeta =
+    typeof record.meta === "object" && record.meta !== null
+      ? (record.meta as Record<string, unknown>)
+      : null;
+
+  const data: T[] = Array.isArray(record.data)
+    ? (record.data as T[])
+    : Array.isArray(raw)
+      ? (raw as T[])
+      : [];
+
+  const total =
+    typeof rawMeta?.total === "number"
+      ? rawMeta.total
+      : typeof record.total === "number"
+        ? record.total
+        : data.length;
+
+  const current_page =
+    typeof rawMeta?.current_page === "number"
+      ? rawMeta.current_page
+      : typeof record.current_page === "number"
+        ? record.current_page
+        : 1;
+
+  const last_page =
+    typeof rawMeta?.last_page === "number"
+      ? rawMeta.last_page
+      : typeof record.last_page === "number"
+        ? record.last_page
+        : 1;
+
+  return {
+    data,
+    meta: {
+      current_page,
+      last_page,
+      total,
+    },
+    current_page,
+    last_page,
+    total,
+  };
+}
 
 export type AcademicContext = {
   active_academic_year_id: number | null;

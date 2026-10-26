@@ -1,7 +1,13 @@
 import { AuthRequestError, renewSession } from "@/lib/auth/client";
 
 export async function apiResponse(
-  area: "accounts" | "master" | "academic" | "attendance" | "teaching",
+  area:
+    | "accounts"
+    | "master"
+    | "academic"
+    | "attendance"
+    | "teaching"
+    | "student-attendance",
   path: string,
   method = "GET",
   data?: unknown,
@@ -55,7 +61,13 @@ export async function apiResponse(
 }
 
 export async function apiRequest<T>(
-  area: "accounts" | "master" | "academic" | "attendance" | "teaching",
+  area:
+    | "accounts"
+    | "master"
+    | "academic"
+    | "attendance"
+    | "teaching"
+    | "student-attendance",
   path: string,
   method = "GET",
   data?: unknown,

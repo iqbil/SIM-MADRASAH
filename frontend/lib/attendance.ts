@@ -134,6 +134,7 @@ export const statusLabels: Record<string, string> = {
   sakit: "Sakit",
   cuti: "Cuti",
   dinas_luar: "Dinas luar",
+  alpa: "Alpa",
 };
 
 export const entryModeLabel = (mode: unknown): string =>

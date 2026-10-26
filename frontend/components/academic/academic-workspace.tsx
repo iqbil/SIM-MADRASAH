@@ -8,6 +8,7 @@ import { AcademicPeriods } from "@/components/academic/academic-periods";
 import { AcademicSchedules } from "@/components/academic/academic-schedules";
 import { AcademicSubstitutes } from "@/components/academic/academic-substitutes";
 import { AcademicTransitions } from "@/components/academic/academic-transitions";
+import { HomeroomClass } from "@/components/academic/homeroom-class";
 import type { AcademicSection } from "@/lib/academic";
 
 export function AcademicWorkspace({
@@ -34,5 +35,7 @@ export function AcademicWorkspace({
       return <AcademicSchedules access={access} />;
     case "pengganti":
       return <AcademicSubstitutes access={access} />;
+    case "perwalian":
+      return <HomeroomClass />;
   }
 }

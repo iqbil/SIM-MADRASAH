@@ -48,7 +48,10 @@ async function AcademicPageContent({
   }
   const access = [...new Set([...nav, ...(user.permissions ?? [])])];
   const required = ACADEMIC_SECTIONS[section as AcademicSection].permission;
-  const allowed = nav.has("academic.manage") || nav.has(required);
+  const allowed =
+    required === "class.own"
+      ? nav.has("class.own")
+      : nav.has("academic.manage") || nav.has(required);
   if (!allowed) notFound();
   return (
     <AcademicWorkspace section={section as AcademicSection} access={access} />

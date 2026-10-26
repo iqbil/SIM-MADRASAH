@@ -25,7 +25,7 @@ class AccountAccess
     /** @return array<string, string> */
     public static function managedPermissions(): array
     {
-        return [...self::PERMISSIONS, ...MasterDataAccess::catalog()];
+        return [...self::PERMISSIONS, ...MasterDataAccess::catalog(), ...AttendanceDataAccess::managedPermissions(), ...TeachingDataAccess::managedPermissions()];
     }
 
     /** @return array<int, string> */
