@@ -47,7 +47,7 @@ class GoogleOAuthTest extends MysqlAuthTestCase
     public function test_seeded_owner_can_login_with_google_without_a_password(): void
     {
         $this->freezeTime();
-        config(['accounts.initial_admin.email' => 'owner@example.test', 'accounts.initial_admin.password' => null]);
+        $this->setInitialAdminEnvironment(['email' => 'owner@example.test', 'password' => null]);
         $this->seed(SuperAdminSeeder::class);
         $owner = User::query()->where('email', 'owner@example.test')->firstOrFail();
         $this->mockGoogle($owner->email);

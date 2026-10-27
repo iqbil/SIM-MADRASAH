@@ -101,7 +101,7 @@ export function AcademicClasses({ access }: { access: string[] }) {
     <div className="animate-enter space-y-6">
       <AcademicHeading
         title="Rombongan belajar"
-        description="Identitas rombel bersifat tetap; setiap tahun ajaran membuat periode kelas dengan snapshot tingkat agar laporan historis tidak berubah (AC-30)."
+        description="Identitas rombel bersifat tetap, setiap tahun ajaran membuat periode kelas dengan snapshot tingkat agar laporan historis tidak berubah."
         action={
           canManage ? (
             <Button

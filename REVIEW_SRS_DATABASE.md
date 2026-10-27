@@ -1,10 +1,78 @@
 # Review SRS dan rancangan database SIM Madrasah
 
-Tanggal review awal: 14 Oktober 2026. Pembaruan terakhir: **24 Oktober 2026 — penyelarasan dengan SRS v1.3 (kepatuhan UU PDP, notifikasi, uji keamanan independen, SOP absensi, performa frontend) beserta migration dan kamus database**.
+Tanggal review awal: 14 Oktober 2026. Pembaruan terakhir: **27 Oktober 2026 — audit kesesuaian SRS v1.4, database, roadmap dan implementasi API/BFF/UI**.
 
-Bagian status terbaru menilai kode/dokumen saat pembaruan ini. Temuan R-01–R-09 dalam bagian historis tetap merupakan rekaman sebelum revisi v1.2; pernyataan Inertia, keputusan terbuka, SQLite, migration belum tersedia, dan belum dijalankannya tes pada review awal tidak berlaku sebagai status aplikasi sekarang. Bukti pengujian lama dipisahkan dari audit dokumentasi ini.
+Bagian 27 Oktober adalah status aktif. Bagian 24/20/14 Oktober dipertahankan sebagai riwayat sesuai tanggalnya; hitungan tes/tabel dan pernyataan “belum tersedia” pada bagian lama tidak menggantikan status terbaru. Keberadaan rute ditelusuri ke controller/service, pembatas akses, frontend dan tes, bukan dianggap bukti UAT.
 
-## Pembaruan 24 Oktober 2026 — SRS v1.3 dan addendum database
+## Status aktif — 27 Oktober 2026
+
+Acuan: [SRS v1.4](SRS_SIM_Madrasah_MTs_Al_Karimiyyah.txt) §1.5/Bab II/VIII, [kamus database](backend/database/database.MD) §17/21/22, [roadmap](roadmap-agents.md), [API Laravel](backend/routes/api.php), service/DataAccess terkait, `frontend/app/api` dan tes implementasi yang tercatat di [log](log.txt).
+
+### Kesesuaian modul selesai dan rute
+
+| Roadmap | SRS | Kelompok `/api/v1` | Definisi rute | Status aktual |
+| --- | --- | --- | ---: | --- |
+| #1 Autentikasi/pengguna | FR-01 | `auth`, `accounts` | 9 + 10 | JWT/refresh/Google, profil/sandi/logout; akun, role/izin, audit; BFF/UI tersedia. |
+| #2 Data master | FR-02 | `master` | 22 | Identitas madrasah, delapan resource master, relasi wali/kategori/jabatan, impor CSV dengan pratinjau/error/konfirmasi; BFF/UI tersedia. |
+| #3 Akademik/kelas | FR-03–04 | `academic` | 60 | Periode/konteks, rombel/enrollment/mutasi, kalender, penugasan, slot/jadwal berversi, generator pertemuan, pembatalan/pengganti; BFF/UI termasuk perwalian tersedia. |
+| #4 Absensi pegawai | FR-05 | `attendance` | 21 | Foto/GPS, status petugas, pola/penetapan/hari kerja, policy/geofence berversi dengan peta, bukti privat, koreksi/rekap; BFF/UI tersedia. |
+| #5 Realisasi mengajar | FR-06 | `teaching` | 8 | Pertemuan pelaksana, revisi/submit dan verifikasi bermandat; BFF/UI tersedia. |
+| #6 Absensi siswa | FR-07 | `student-attendance` | 7 | Kelas/roster, record harian, rekap dan koreksi/keputusan; BFF/UI tersedia. |
+| #7–16 | FR-08–17 | Belum ada kelompok API bisnis | 0 | Honor, soal, BK, TU, portal wali, website, laporan/ekspor, sistem, privasi dan notifikasi masih backlog. Struktur tabel/model tersedia. |
+
+**137 definisi rute** dari `php artisan route:list --path=api/v1 --json`; GET|HEAD dihitung satu, placeholder `{resource}`/`{action}` tidak diperluas. Angka ini bukan jumlah layar atau izin untuk semua role. Dashboard role dan rekap yang sudah tersedia bukan penyelesaian FR-14; audit per modul bukan penyelesaian FR-15. Hubungan wali yang dapat diverifikasi di master belum berarti portal wali selesai. Modul berikutnya tetap #7/FR-08.
+
+### Ketidaksesuaian dokumentasi yang diperbaiki
+
+| Bagian tertinggal | Penyelarasan |
+| --- | --- |
+| Status auth/shell saja dan menu domain nonaktif | Status aktif FR-01–FR-07 pada keempat dokumen; matriks tujuh kelompok API dan pemisahan backlog FR-08–FR-17. |
+| Akademik masih disebut 31 rute, jadwal/pertemuan dan BFF/UI belum ada | Akademik kini 60 rute, termasuk jadwal/slot/pertemuan/pengganti dan halaman perwalian. |
+| API/BFF serta daftar permission masih auth/accounts saja | BFF tujuh area; katalog role 45 izin, academic.* terpisah; izin efektif tetap diperiksa per objek/mandat. |
+| Absensi foto/GPS hanya struktur dan geofence tidak tersedia | Kamera/kompresi/API/UI sudah tersedia; geofence opsional berversi FR-05-08 dengan editor peta dan validasi server. |
+| Inventaris database 330 CHECK dan migration geofence belum tercantum | 22 migration, 137 tabel (128 domain + 9 infrastruktur), 393 FK, 331 CHECK; lima atribut geofence pada policy dan snapshot JSON bukti. |
+| Default absensi disebut seluruhnya pekerjaan setup | Bootstrap baseline pegawai dan policy siswa sudah ada; lokasi nyata, penugasan, kalender dan mandat tetap onboarding. |
+| Pernyataan database operasional tidak pernah disentuh | Riwayat pengujian lama tetap terisolasi; pemulihan database latihan 27 Oktober adalah pengecualian yang diotorisasi dan dicatat. Audit dokumen ini hanya baca metadata. |
+| Tautan SRS historis tidak ada di root dan bagian geofence memutus tabel Markdown | Link arsip diarahkan ke docs/archive; tabel kehadiran disatukan kembali, status historis diberi label tanggal. |
+
+### Hak akses dan batas implementasi
+
+- [AccountAccess](backend/app/Services/AccountAccess.php) dan endpoint roles menyediakan 45 izin terkelola: 10 accounts.*, 31 master.*, 3 attendance.*, realizations.verify. Pemberian dibatasi `grantable_permissions` dan `can_assign`, kode role sistem dilindungi; pemberi tidak boleh menaikkan scope institusi melampaui miliknya. UI memfilter katalog berdasarkan permissions auth/me (akun/master/akademik), sehingga attendance.* dan realizations.verify belum dapat dipilih di UI. Katalog 14 academic.* dikelola `AcademicDataAccess`, belum menjadi pilihan editor role. UI administrasi mandat belum tersedia.
+- [AcademicDataAccess](backend/app/Services/AcademicDataAccess.php) dan layanan membatasi guru/wali menurut penugasan aktif serta kelas/periode; operator/Super Admin dapat mengelola, kepala membaca institusi. Mutasi membutuhkan `academic.enrollments.manage`; filter perwalian hanya kelas wali aktif.
+- [AttendanceDataAccess](backend/app/Services/AttendanceDataAccess.php) memeriksa pegawai aktif milik akun, kewenangan petugas, scope koreksi dan mandat aktif. Pengaturan policy/geofence memerlukan kewenangan institusi; mandat kelas/semester/pegawai saja tidak cukup. Koreksi harus diputus orang berbeda dengan versi/tenggat yang sah.
+- [TeachingDataAccess](backend/app/Services/TeachingDataAccess.php) membatasi pengajuan pada pelaksana pertemuan; verifikasi memerlukan mandat aktif realizations.verify sesuai institusi/semester/kelas/pegawai pelaksana, termasuk guru pengganti. Kepala/Super Admin tidak otomatis menjadi verifikator. Queue/detail/keputusan dibatasi konsisten. Hanya held+approved, tidak batal/terhalang kalender, yang masuk total JP sesuai filter; JP dibatasi rencana dan durasi aktual 40 menit/JP.
+- [StudentAttendanceService](backend/app/Services/StudentAttendanceService.php) memakai scope kelas penugasan/institusi, mode daily, batas input 23.59 WIB dan koreksi 7 hari dengan persetujuan berbeda; sesudah tenggat memerlukan mandat. Tidak ada baris berarti belum dicatat. API koreksi siswa dan pegawai terpisah. Mode pertemuan/both tetap nonaktif.
+- BFF menggunakan cookie HttpOnly, Origin dan allowlist rute/query/metode serta no-store. Mutasi biasa JSON; unggah CSV master/foto clock memakai multipart khusus. Bukti foto/GPS privat tidak diberikan ke publik/wali atau log umum.
+
+Akun awal kini dibaca langsung di `backend/database/seeders/SuperAdminSeeder.php`; file konfigurasi akun dan pemanggilan `config()` akun dihapus sesuai arahan pengguna. Nilai awal dan perlindungan akun lama tetap sama; keterangan konfigurasi pada riwayat 20 Oktober dibaca sesuai tanggalnya.
+
+### Geofence, database dan rollback
+
+Lima atribut sudah tersedia melalui [migration geofence](backend/database/migrations/2026_10_27_090758_add_geofence_to_employee_attendance_policies.php): `geofence_enabled` default false; `geofence_name`, `geofence_latitude`, `geofence_longitude`, `geofence_radius_meters` nullable. Radius aktif 25–5.000 m; CHECK `ck_eap_geofence` mewajibkan konfigurasi lengkap dan foto/GPS. Tidak perlu database/tabel lokasi baru; konfigurasi dan jarak disimpan di `employee_attendance_captures.policy_snapshot`.
+
+Editor pada `/absensi/pola-kerja` → Kebijakan foto/GPS memakai Leaflet/OpenStreetMap, klik/geser pin dan input manual. Rute tetap `GET attendance/policy` dan `POST attendance/policy/versions`, bukan endpoint geofence baru. Versi prospektif paling cepat besok dan sesudah versi terjadwal terakhir; alasan wajib. UI mengirim `expected_policy_id`, API menolak ID usang dengan 409 tetapi mengizinkan field ini dihilangkan untuk kompatibilitas client lama. Policy berlaku dan terjadwal dibedakan. Frontend menampilkan alert di luar radius/posisi belum pasti, memblokir submit dan mengambil GPS ulang. Server menerima hanya jarak Haversine + akurasi <= radius; penolakan 422 terjadi sebelum penulisan foto/absensi. Histori dan fallback petugas dipertahankan; tidak ada pelacakan latar belakang atau jaminan anti-Fake GPS.
+
+Metadata lokal dibaca pada MySQL **9.7.4**: **137 tabel, 393 FK, 331 CHECK, 22 migration**. Target produksi tetap **MySQL 8.4**. Database latihan telah dipulihkan setelah rollback parsial atas konfirmasi pengguna tanpa backup: schema, akun serta hak akses asli yang dapat dipulihkan tersedia; data latihan domain lain yang terhapus harus diisi ulang dan sesi memerlukan login ulang. Snapshot keadaan tersisa bukan backup sebelum rollback. [GuardedMigrator](backend/app/Services/GuardedMigrator.php) menghentikan batch yang mencakup downgrade identitas ketika email NULL sebelum `down()` pertama; guard NOT NULL asli tetap ada. `migrate` memasang fitur baru; `migrate:rollback` membatalkan batch dan bukan cara memasang migration.
+
+### Bukti dan pekerjaan tersisa
+
+Hasil sesi implementasi yang dicatat di log, diperiksa kembali sebagai bukti historis:
+
+| Cakupan | Hasil |
+| --- | --- |
+| Backend MySQL penuh | 170/170 tes, 7.264 asersi. |
+| Regresi geofence berikutnya | 11/11 tes, 217 asersi. |
+| Regresi rollback/seeder/akun berikutnya | 17/17 tes, 178 asersi. |
+| Inventaris backend sekarang | 173 kasus; bukan klaim suite penuh 173 sudah dijalankan. |
+| Frontend E2E lengkap | 94/94; API/kamera/GPS menggunakan fixture. |
+| Hydration development dan regresi layout geofence | 6/6 dan 9/9. |
+| Lint/build frontend | Biome 150 file bersih, build 38/38 halaman. |
+
+Audit dokumentasi ini memeriksa route list, source/tes, metadata database dan konsistensi dokumen; tidak menjalankan ulang suite aplikasi atau mengubah kode/data. Belum dibuktikan: OAuth Google nyata, GPS/kamera lapangan, versi MySQL deployment, TLS/proxy produksi, uji beban/pentest, restore produksi dan UAT. FR-08–FR-17, UI mandat lengkap, reset mandiri email dan sandi pertama Google-only, BFF/UI logout-all, worker ekspor/backup, pemeriksaan publish dengan konsen, serta dispatch/pusat notifikasi tetap pekerjaan berikutnya. Keberadaan tabel dan requirement DEC-20 in-app bukan bukti dispatch telah aktif.
+
+## Riwayat — 24 Oktober 2026 (bukan status implementasi terkini)
+
+### Pembaruan 24 Oktober 2026 — SRS v1.3 dan addendum database
 
 Acuan:
 
@@ -24,7 +92,7 @@ Acuan:
 | FR-17/DEC-20 notifikasi | `notifications` in-app per penerima dengan `read_at`; payload hanya referensi entitas; tanpa tabel kanal eksternal (backlog). |
 | Register DEC-01–DEC-21 | `BusinessDecisionSeeder` (onboarding, idempoten): 22 baris `business_decisions` baseline; DEC-16 dua versi (v1 superseded 14 Okt, v2 baseline addendum 20 Okt dengan `supersedes_id`); DEC-20/21 efektif 24 Okt. Menutup poin "seed DEC" yang sebelumnya berstatus setup tertunda. Ditetapkan sebagai seeder, bukan migration: percobaan migration-seed membuat 24 tes error karena tes migration/absensi memigrasi skema dengan asumsi register kosong (dan rollback berbenturan FK `supersedes_id` self-reference). |
 
-Alur publish konten kini mewajibkan validasi konsen aktif untuk seluruh `content_student_links` (§13.6, §15.2); penarikan konsen memicu peninjauan konten terbit pada siklus publikasi berikutnya (BR-28).
+Rancangan alur publish konten mewajibkan validasi konsen aktif untuk seluruh `content_student_links` (§13.6, §15.2); penarikan konsen memicu peninjauan konten terbit pada siklus publikasi berikutnya (BR-28).
 
 ### Verifikasi yang dijalankan
 
@@ -52,11 +120,11 @@ Alur publish konten kini mewajibkan validasi konsen aktif untuk seluruh `content
 
 Belum dibuktikan oleh pembaruan ini: layanan domain privasi/notifikasi, kompresi foto nyata, kamera/GPS browser, worker laporan/backup, uji beban, restore, pentest, dan UAT.
 
-## Status 20 Oktober 2026
+## Riwayat — 20 Oktober 2026 (bukan status implementasi terkini)
 
 Acuan:
 
-- [SRS revisi v1.2 dengan addendum foto/GPS dan autentikasi JWT/Google](SRS_SIM_Madrasah_MTs_Al_Karimiyyah_2026_2027_Revisi_v1_2.docx).
+- [SRS revisi v1.2 dengan addendum foto/GPS dan autentikasi JWT/Google](docs/archive/SRS_SIM_Madrasah_MTs_Al_Karimiyyah_2026_2027_Revisi_v1_2.docx).
 - [Kamus database kanonik](backend/database/database.MD), terutama §1.3 (kontrak auth), §4.1 (tabel JWT/OAuth), §8.1 (foto/GPS), §21 (migration), dan §22 (status implementasi).
 - [API Laravel](backend/routes/api.php), [layanan token](backend/app/Services/JwtTokenService.php), [autentikasi](backend/app/Services/AuthenticationService.php), serta [BFF/cookie frontend](frontend/lib/auth/cookies.ts).
 - [Design system](design-system.md) versi 1.3: shadcn sejak awal, penggunaan ulang komponen dan konsistensi seluruh halaman.
@@ -140,7 +208,7 @@ Tanggal: 14 Oktober 2026.
 
 Dokumen yang ditinjau:
 
-- `SRS_SIM_Madrasah_MTs_Al_Karimiyyah_2026_2027_Revisi_v1_1.docx`.
+- `docs/archive/SRS_SIM_Madrasah_MTs_Al_Karimiyyah_2026_2027_Revisi_v1_1.docx`.
 - `backend/datatabase/database.MD` (636 baris).
 
 Pemeriksaan tambahan: manifest dependensi, konfigurasi database default, dan migration infrastruktur repository. Isi dokumen diperlakukan sebagai bahan review. Pemeriksaan ini tidak mengesahkan kebijakan bisnis, tidak menerapkan skema, dan tidak menjalankan pengujian migration domain. Dokumen sumber tidak diubah.

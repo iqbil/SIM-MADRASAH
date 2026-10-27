@@ -63,7 +63,7 @@ export function HomeroomClass() {
       <AcademicHeading
         category="Akademik & kelas"
         title="Kelas perwalian saya"
-        description="Daftar siswa kelas perwalian beserta status kehadiran hari ini; pengisian absensi dilakukan pada menu Absensi harian siswa."
+        description="Daftar siswa kelas perwalian beserta status kehadiran hari ini, pengisian absensi dilakukan pada menu Absensi harian siswa."
       />
       {failure && <DataFailure message={failure} />}
       {classes.length > 1 && (

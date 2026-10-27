@@ -102,7 +102,7 @@ export function AttendanceCorrectionRequests({
       <AcademicHeading
         category="Absensi pegawai"
         title="Persetujuan koreksi absensi"
-        description="Koreksi disetujui petugas yang berbeda dari pemohon; setelah diterapkan hanya nilai kehadiran yang berubah — bukti foto/GPS asli tetap utuh."
+        description="Koreksi disetujui petugas yang berbeda dari pemohon, setelah diterapkan hanya nilai kehadiran yang berubah — bukti foto/GPS asli tetap utuh."
       />
       {canCorrect && (
         <Tabs

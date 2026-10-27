@@ -23,24 +23,23 @@ import {
   statusLabels,
   wibTime,
 } from "@/lib/attendance";
-
-type Capture = {
-  latitude: number;
-  longitude: number;
-  accuracy: number;
-  timestamp: number;
-};
+import {
+  assessGeofence,
+  geofenceMessage,
+  type LocationReading,
+} from "@/lib/geofence";
 
 export function AttendanceClock() {
   const [status, setStatus] = useState<ClockStatus | null>(null);
   const [failure, setFailure] = useState("");
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState("");
-  const [location, setLocation] = useState<Capture | null>(null);
+  const [location, setLocation] = useState<LocationReading | null>(null);
   const [locationError, setLocationError] = useState("");
   const [busy, setBusy] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const operation = useRef<{ action: string; key: string } | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -96,7 +95,7 @@ export function AttendanceClock() {
     if (!("geolocation" in navigator)) {
       setLocationError("Perangkat tidak mendukung pengambilan lokasi.");
 
-      return;
+      return null;
     }
     try {
       const position = await new Promise<GeolocationPosition>(
@@ -108,16 +107,19 @@ export function AttendanceClock() {
           });
         },
       );
-      setLocation({
+      const reading = {
         latitude: position.coords.latitude,
         longitude: position.coords.longitude,
         accuracy: position.coords.accuracy,
         timestamp: position.timestamp,
-      });
+      };
+      setLocation(reading);
+      return reading;
     } catch {
       setLocationError(
         "Lokasi belum didapat. Izinkan akses lokasi, keluar ke ruang terbuka agar sinyal GPS baik, lalu tekan muat ulang lokasi.",
       );
+      return null;
     }
   }, []);
 
@@ -158,24 +160,31 @@ export function AttendanceClock() {
     setBusy(true);
     setFailure("");
     try {
+      const freshLocation = await refreshLocation();
+      if (!freshLocation) throw new Error("Lokasi belum didapat.");
+      const boundary = assessGeofence(status.policy, freshLocation);
+      if (boundary.state !== "inside" && boundary.state !== "disabled")
+        throw new Error(geofenceMessage(boundary.state));
+      if (
+        freshLocation.accuracy > Number(status.policy.gps_max_accuracy_meters)
+      )
+        throw new Error(
+          "Akurasi GPS melebihi batas kebijakan. Keluar ke area terbuka lalu muat ulang GPS.",
+        );
       const photo = await capturePhoto();
       if (!photo) throw new Error("Kamera belum siap.");
-      if (!location) {
-        setLocationError(
-          "Lokasi belum didapat; muat ulang lokasi lalu ulangi.",
-        );
-        throw new Error("Lokasi belum didapat.");
-      }
+      if (operation.current?.action !== action)
+        operation.current = { action, key: crypto.randomUUID() };
       const form = new FormData();
       form.set("action", action);
-      form.set("operation_key", crypto.randomUUID());
-      form.set("latitude", String(location.latitude));
-      form.set("longitude", String(location.longitude));
-      form.set("accuracy_meters", String(location.accuracy ?? 0));
+      form.set("operation_key", operation.current.key);
+      form.set("latitude", String(freshLocation.latitude));
+      form.set("longitude", String(freshLocation.longitude));
+      form.set("accuracy_meters", String(freshLocation.accuracy));
       form.set("photo_taken_at", photo.takenAt);
       form.set(
         "location_captured_at",
-        new Date(location.timestamp).toISOString(),
+        new Date(freshLocation.timestamp).toISOString(),
       );
       form.set("photo", photo.blob, "photo.jpg");
       const result = await attendanceUpload("clock", form);
@@ -190,6 +199,7 @@ export function AttendanceClock() {
           ? "Absen masuk tercatat dengan foto dan GPS."
           : "Absen pulang tercatat dengan foto dan GPS.",
       );
+      operation.current = null;
       setStatus(result.payload.data as ClockStatus);
     } catch (error) {
       if (
@@ -214,12 +224,22 @@ export function AttendanceClock() {
     status !== null && (workDay === null || !workDay.is_work_required);
   const done = status?.next_action == null;
 
+  const boundary =
+    status && location ? assessGeofence(status.policy, location) : null;
+  const outside =
+    boundary && boundary.state !== "inside" && boundary.state !== "disabled";
+  const inaccurate =
+    status &&
+    location &&
+    location.accuracy > Number(status.policy.gps_max_accuracy_meters);
+  const locationBlocked = !location || !!outside || !!inaccurate;
+
   return (
     <div className="animate-enter space-y-6">
       <AcademicHeading
         category="Absensi pegawai"
         title="Masuk / pulang"
-        description="Aksi mandiri dengan foto langsung dari kamera dan lokasi perangkat; waktu yang dicatat adalah waktu server (WIB)."
+        description="Aksi mandiri dengan foto langsung dari kamera dan lokasi perangkat, waktu yang dicatat adalah waktu server (WIB)."
       />
       {failure && (
         <Alert variant="destructive">
@@ -303,12 +323,39 @@ export function AttendanceClock() {
                 <RefreshCw className="size-3.5" aria-hidden="true" /> Muat ulang
               </Button>
             </div>
+            {outside && (
+              <Alert variant="destructive">
+                <AlertDescription className="space-y-2">
+                  <p>{geofenceMessage(boundary.state)}</p>
+                  <p>
+                    Jarak sekitar {Math.round(boundary.distance)} m · radius{" "}
+                    {status?.policy.geofence_radius_meters} m · ketelitian ±
+                    {Math.round(location?.accuracy ?? 0)} m.
+                  </p>
+                </AlertDescription>
+              </Alert>
+            )}
+            {inaccurate && (
+              <Alert variant="destructive">
+                <AlertDescription>
+                  Akurasi GPS melebihi batas kebijakan. Keluar ke area terbuka
+                  lalu muat ulang GPS.
+                </AlertDescription>
+              </Alert>
+            )}
+            {boundary?.state === "inside" && (
+              <output className="block text-sm text-primary">
+                Lokasi berada di dalam radius {status?.policy.geofence_name} ·
+                jarak sekitar {Math.round(boundary.distance)} m. Lokasi
+                diperiksa ulang saat mengirim.
+              </output>
+            )}
             {status && (
               <div className="flex flex-col gap-2">
                 {status.next_action === "check_in" && (
                   <Button
                     className="h-12 text-sm"
-                    disabled={busy}
+                    disabled={busy || locationBlocked}
                     onClick={() => void submit("check_in")}
                   >
                     {busy && (
@@ -323,7 +370,7 @@ export function AttendanceClock() {
                 {status.next_action === "check_out" && (
                   <Button
                     className="h-12 text-sm"
-                    disabled={busy}
+                    disabled={busy || locationBlocked}
                     onClick={() => void submit("check_out")}
                   >
                     {busy && (

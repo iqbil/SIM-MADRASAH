@@ -24,6 +24,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 /**
  * Absensi pegawai (SRS v1.3 FR-05). Aksi masuk/pulang normal wajib foto kamera
@@ -88,7 +89,7 @@ class AttendanceService
         $today = today('Asia/Jakarta')->toDateString();
         $policy = EmployeeAttendancePolicy::query()
             ->where('effective_from', '<=', $today)
-            ->where(fn (Builder $q): Builder => $q->whereNull('effective_to')->orWhere('effective_to', '>=', $today))
+            ->where(fn (Builder $q): Builder => $q->whereNull('effective_to')->orWhere('effective_to', '>', $today))
             ->orderByDesc('effective_from')->first();
         if ($policy === null && $actor !== null) {
             $this->ensureBaseline($actor);
@@ -167,7 +168,7 @@ class AttendanceService
             'attendance' => $attendance?->only(['id', 'check_in_at', 'check_out_at', 'late_minutes', 'entry_mode', 'notes', 'lock_version', 'updated_at']),
             'attendance_status' => $attendance?->attendanceStatus?->only(['code', 'name']),
             'next_action' => $next,
-            'policy' => $policy->only(['id', 'requires_photo', 'requires_gps', 'photo_max_dimension', 'photo_quality', 'photo_max_size_bytes', 'gps_max_accuracy_meters', 'gps_max_age_seconds', 'correction_deadline_days']),
+            'policy' => $policy->only([...EmployeeAttendancePolicy::CAPTURE_FIELDS, 'correction_deadline_days']),
         ];
     }
 
@@ -189,6 +190,8 @@ class AttendanceService
 
         $replay = EmployeeAttendanceCapture::query()->where('operation_key', $values['operation_key'])->first();
         if ($replay !== null) {
+            abort_unless($replay->recorded_by === $actor->id && $replay->event_type === $values['action'], 409, 'Kunci operasi sudah digunakan untuk aksi lain.');
+
             return [...$this->status($actor), 'replayed' => true];
         }
 
@@ -204,6 +207,8 @@ class AttendanceService
         abort_unless((float) $values['accuracy_meters'] <= (float) $policy->gps_max_accuracy_meters, 422,
             'Akurasi GPS '.round((float) $values['accuracy_meters']).' meter melebihi batas '.round((float) $policy->gps_max_accuracy_meters).' meter; keluar ke ruang terbuka lalu ulangi.');
 
+        $geofenceDistance = AttendanceGeofence::assertWithin($policy, (float) $values['latitude'], (float) $values['longitude'], (float) $values['accuracy_meters']);
+
         $upload = $request->file('photo');
         abort_unless($upload !== null && $upload->isValid(), 422, 'Foto wajib diambil dari kamera saat mencatat.');
         $photo = $this->photos->process($upload, (int) $policy->photo_max_dimension, (int) $policy->photo_quality, (int) $policy->photo_max_size_bytes);
@@ -211,7 +216,7 @@ class AttendanceService
         $today = today('Asia/Jakarta')->toDateString();
         $storedPath = null;
         try {
-            $result = DB::transaction(function () use ($actor, $employee, $policy, $values, $now, $photoTakenAt, $locationAt, $photo, $today, $request, &$storedPath): array {
+            $result = DB::transaction(function () use ($actor, $employee, $policy, $values, $now, $photoTakenAt, $locationAt, $photo, $today, $request, $geofenceDistance, &$storedPath): array {
                 $workDay = $this->ensureWorkDay($employee->id, $today, $actor);
                 abort_unless($workDay !== null, 422, 'Hari ini bukan hari kerja menurut pola kerja Anda.');
                 abort_unless($workDay->is_work_required, 422, 'Hari ini libur/kegiatan madrasah; kehadiran tidak dicatat.');
@@ -255,7 +260,7 @@ class AttendanceService
                     'original_size_bytes' => $request->file('photo')->getSize(),
                     'photo_width' => $photo['width'], 'photo_height' => $photo['height'],
                     'compression_quality' => $photo['quality'],
-                    'policy_snapshot' => $policy->only(['id', 'requires_photo', 'requires_gps', 'photo_max_dimension', 'photo_quality', 'photo_max_size_bytes', 'gps_max_accuracy_meters', 'gps_max_age_seconds']),
+                    'policy_snapshot' => [...$policy->only(EmployeeAttendancePolicy::CAPTURE_FIELDS), 'geofence_distance_meters' => $geofenceDistance === null ? null : round($geofenceDistance, 2)],
                     'operation_key' => $values['operation_key'],
                 ]);
                 $capture->forceFill(['recorded_by' => $actor->id, 'recorded_at' => $now])->save();
@@ -604,8 +609,11 @@ class AttendanceService
     public function newPolicyVersion(User $actor, array $data, Request $request): EmployeeAttendancePolicy
     {
         return DB::transaction(function () use ($actor, $data, $request): EmployeeAttendancePolicy {
-            AttendanceDataAccess::authorizeManage($actor);
-            $current = $this->effectivePolicy();
+            AttendanceDataAccess::authorizePolicy($actor);
+            $decision = BusinessDecision::query()->where('code', 'DEC-16')->orderByDesc('version')->lockForUpdate()->firstOrFail();
+            $current = EmployeeAttendancePolicy::query()->where('code', 'EMP-ATTENDANCE')->orderByDesc('effective_from')->lockForUpdate()->firstOrFail();
+            abort_if(isset($data['expected_policy_id']) && (int) $data['expected_policy_id'] !== $current->id, 409, 'Kebijakan berubah. Muat ulang sebelum membuat versi baru.');
+            $data = [...$current->only(EmployeeAttendancePolicy::GEOFENCE_FIELDS), ...$data];
             $values = Validator::make($data, [
                 'effective_from' => ['required', 'date_format:Y-m-d', 'after:'.$current->effective_from->toDateString()],
                 'requires_photo' => ['required', 'boolean'],
@@ -615,11 +623,38 @@ class AttendanceService
                 'photo_quality' => ['required', 'integer', 'between:1,100'],
                 'gps_max_accuracy_meters' => ['required', 'numeric', 'min:1'],
                 'gps_max_age_seconds' => ['required', 'integer', 'min:1'],
+                'geofence_enabled' => ['required', 'boolean'],
+                'geofence_name' => [Rule::requiredIf((bool) ($data['geofence_enabled'] ?? false)), 'nullable', 'string', 'max:100'],
+                'geofence_latitude' => [Rule::requiredIf((bool) ($data['geofence_enabled'] ?? false)), 'nullable', 'numeric', 'between:-90,90', 'decimal:0,7'],
+                'geofence_longitude' => [Rule::requiredIf((bool) ($data['geofence_enabled'] ?? false)), 'nullable', 'numeric', 'between:-180,180', 'decimal:0,7'],
+                'geofence_radius_meters' => [Rule::requiredIf((bool) ($data['geofence_enabled'] ?? false)), 'nullable', 'integer', 'between:25,5000'],
                 'reason' => ['required', 'string', 'min:10', 'max:1000'],
+            ], [
+                'geofence_name.required' => 'Nama lokasi absensi wajib diisi.',
+                'geofence_latitude.required' => 'Pilih titik absensi pada peta atau isi latitude.',
+                'geofence_longitude.required' => 'Pilih titik absensi pada peta atau isi longitude.',
+                'geofence_radius_meters.required' => 'Radius absensi wajib diisi.',
+                'geofence_radius_meters.between' => 'Radius absensi harus 25 sampai 5.000 meter.',
             ])->validate();
+            abort_if($values['geofence_enabled'] && ! $values['requires_photo'], 422, 'Geofence memerlukan foto dan GPS wajib untuk aksi mandiri.');
+            $geofence = collect($values)->only(EmployeeAttendancePolicy::GEOFENCE_FIELDS)->all();
+            if (! $values['geofence_enabled']) {
+                $geofence = array_fill_keys(EmployeeAttendancePolicy::GEOFENCE_FIELDS, null);
+                $geofence['geofence_enabled'] = false;
+            }
             abort_unless($values['effective_from'] > today('Asia/Jakarta')->toDateString(), 422, 'Versi kebijakan baru harus berlaku mulai besok atau setelahnya.');
-            $decision = BusinessDecision::query()->where('code', 'DEC-16')->orderByDesc('version')->firstOrFail();
-            $current->forceFill(['effective_to' => CarbonImmutable::parse($values['effective_from'])->subDay()->toDateString()])->save();
+            if ($values['geofence_enabled'] || $current->geofence_enabled) {
+                $previousDecision = $decision;
+                $decision = new BusinessDecision([
+                    'code' => 'DEC-16', 'version' => $previousDecision->version + 1,
+                    'title' => 'Absensi pegawai dengan kebijakan titik dan radius', 'status' => 'baseline',
+                    'decision_text' => 'Foto dan GPS tetap wajib untuk aksi mandiri; geofence opsional sesuai versi policy. Titik dan radius dipilih pengelola; jarak Haversine beserta ketelitian GPS wajib berada dalam radius. Di luar/meragukan ditolak tanpa pencatatan; fallback administratif tetap melalui petugas dengan alasan dan audit.',
+                    'source_reference' => 'SRS v1.4 FR-05-08 / BR-24 / DEC-16',
+                    'effective_from' => $values['effective_from'], 'supersedes_id' => $previousDecision->id,
+                ]);
+                $decision->forceFill(['recorded_at' => now('UTC'), 'owner_user_id' => $actor->id])->save();
+            }
+            $current->forceFill(['effective_to' => $values['effective_from']])->save();
             $created = new EmployeeAttendancePolicy([
                 'code' => $current->code, 'version_number' => $current->version_number + 1, 'status' => 'baseline',
                 'correction_deadline_days' => $values['correction_deadline_days'],
@@ -630,11 +665,12 @@ class AttendanceService
                 'photo_max_size_bytes' => $values['photo_max_size_bytes'], 'photo_max_dimension' => $values['photo_max_dimension'],
                 'photo_quality' => $values['photo_quality'], 'gps_max_accuracy_meters' => $values['gps_max_accuracy_meters'],
                 'gps_max_age_seconds' => $values['gps_max_age_seconds'],
+                ...$geofence,
             ]);
             $created->save();
             $this->audit->audit($actor, 'attendance.policy_versioned', 'employee_attendance_policy', $created->id, $values['reason'],
-                $current->only(['effective_from', 'effective_to', 'requires_photo', 'gps_max_accuracy_meters']),
-                $created->only(['version_number', 'effective_from', 'requires_photo', 'gps_max_accuracy_meters']), $request);
+                $current->only(EmployeeAttendancePolicy::PUBLIC_FIELDS),
+                $created->only(EmployeeAttendancePolicy::PUBLIC_FIELDS), $request);
 
             return $created;
         });

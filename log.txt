@@ -1511,3 +1511,366 @@ Dokumentasi: frontend/README.md diperluas, design-system.md menjadi v1.9,
 roadmap-agents.md memperbarui bukti regresi dan keterangan GPS tanpa geofence.
 STATUS: Perbaikan aplikasi selesai dan lulus regresi. Overlay dari injeksi
 atribut ekstensi perlu ditangani pada profil browser yang mengaktifkannya.
+
+================================================================================
+[FITUR] TITIK DAN RADIUS ABSENSI PEGAWAI MELALUI PETA — SRS v1.4
+Tanggal/Waktu: 2026-10-27 16:41:30 +07:00
+================================================================================
+Permintaan:
+- Pengelola menentukan titik koordinat/radius melalui map; pegawai di luar
+  cakupan mendapat alert dan tidak dapat absen. Memperbarui SRS dan menjelaskan
+  dampak pada database yang sudah dipakai.
+
+Implementasi backend/database:
+1. Migration 2026_10_27_090758_add_geofence_to_employee_attendance_policies:
+   - geofence_enabled BOOLEAN DEFAULT false
+   - geofence_name VARCHAR(100) NULL
+   - geofence_latitude DECIMAL(10,7) NULL
+   - geofence_longitude DECIMAL(10,7) NULL
+   - geofence_radius_meters UNSIGNED INT NULL
+   CHECK menjaga flag, kelengkapan/nama, batas koordinat dan radius 25–5.000 m;
+   geofence aktif memerlukan foto/GPS aktif. Saat nonaktif atribut lokasi NULL.
+   Database MySQL dan tabel yang sama tetap digunakan, tanpa schema GIS/index
+   spasial tambahan atau koordinat produksi yang ditebak/dimasukkan otomatis.
+2. AttendanceGeofence menghitung jarak Haversine R=6.371.008,8 m. Keputusan memakai
+   jarak yang belum dibulatkan: distance + accuracy <= radius diterima;
+   distance - accuracy > radius ditolak sebagai di luar; sisanya meragukan dan
+   diminta memperbarui GPS. Server menolak 422 sebelum foto/file/absensi ditulis.
+   Aturan berlaku untuk masuk dan pulang serta request langsung ke API.
+3. Snapshot JSON bukti yang sudah ada menyimpan konfigurasi geofence dan jarak
+   pada saat absensi; data/waktu/bukti lama tidak ditimpa. Bukti tetap privat.
+   Idempotency key diperiksa juga terhadap pemilik dan jenis aksi.
+4. Policy baru memakai lock keputusan/versi terakhir, expected_policy_id (409
+   bila usang), validasi lengkap, alasan/audit dan versi DEC-16 prospektif.
+   Client lama yang tidak mengirim atribut geofence mewarisi konfigurasi terakhir.
+   Pengaturan memerlukan cakupan institusi: Operator/Super Admin, role berizin
+   eksplisit, atau mandat institusi. Mandat pegawai/kelas/semester tidak cukup.
+5. Memperbaiki bug lama penutupan policy dengan tanggal sehari sebelum penerus
+   (gagal constraint ketika versi baru mulai besok). Kini batas akhir eksklusif
+   sama dengan tanggal mulai penerus; migration menormalkan pasangan policy lama
+   berurutan yang memakai akhir inklusif, tanpa mengubah hari berlaku/bukti.
+   API policy menampilkan versi berlaku dan terjadwal secara terpisah, serta
+   can_manage untuk otorisasi editor frontend. Membuat beberapa versi masa depan
+   tidak lagi mengulang nomor versi dari policy yang masih berlaku hari ini.
+
+Implementasi frontend:
+1. Editor titik/radius memakai AcademicFormDialog yang tersedia; extra dapat
+   menerima busy agar peta/kontrol tambahan nonaktif ketika request berlangsung.
+   Peta Leaflet 1.9.4 dimuat pada effect browser, dengan tile OpenStreetMap dan
+   atribusi terlihat. Klik/geser pin mengisi latitude/longitude tujuh desimal;
+   radius langsung tampil sebagai lingkaran. Input manual dan tombol penggunaan
+   lokasi perangkat tersedia; latar map gagal tidak menghalangi input manual.
+2. Ringkasan membedakan policy berlaku dan terjadwal. Editor dibuka dari versi
+   terakhir termasuk versi mendatang; perubahan disimpan mulai besok/setelah
+   versi terjadwal terakhir, bukan langsung mengubah histori.
+   Pemicu dialog dipertahankan saat refresh agar pemulihan fokus tidak tiba-tiba
+   mengaktifkan tab Pola kerja. Tinggi map mengikuti viewport pada layar kecil.
+3. Halaman masuk/pulang menampilkan alert ketika posisi luar/meragukan atau GPS
+   tidak memenuhi akurasi, menonaktifkan tombol, dan mengambil GPS baru sebelum
+   pengiriman. Pemeriksaan final selalu di API; tidak ada bypass client/sukses
+   palsu dan bukan pelacakan lokasi latar belakang. Operation key dipertahankan
+   saat retry aksi yang belum mendapat konfirmasi.
+4. Leaflet adalah dependency baru untuk kebutuhan peta. Next.js package/lockfile
+   diselaraskan ke 16.4.3 yang sebelumnya terpasang: instalasi Leaflet sempat
+   memasang pin lama 16.4.0 yang ditolak build oleh pemeriksaan advisory.
+
+Dokumentasi:
+- SRS v1.4 (27 Oktober 2026): FR-05-08, pembaruan FR-05-04/06, BR-24, DEC-16,
+  AC-43–AC-45; mencatat cakupan izin, kondisi meragukan, versi prospektif,
+  snapshot, migration, fallback dan batas geofence browser.
+- backend/database/database.MD: lima kolom, CHECK, snapshot dan semantik periode.
+- frontend/README.md: langkah konfigurasi, kebutuhan migration, ketelitian GPS,
+  privasi/pemakaian tile serta fallback manual; design-system v1.10 dan roadmap
+  diperbarui. Tidak mengaktifkan modul backlog lain.
+
+Hasil verifikasi:
+- PHPUnit MySQL lengkap: 170/170 passed, 7.264 assertions (366,2 detik).
+- Regresi backend akhir: 11/11 passed, 217 assertions; termasuk satu test baru
+  migrasi populated legacy policy, normalisasi tanggal, rollback/up ulang dan
+  pemeriksaan institusi. Jumlah test backend setelah penambahan ini 171; satu
+  test migrasi ditambahkan setelah suite penuh lalu dijalankan terpisah.
+- Playwright produksi lengkap: 94/94 passed (2,9 menit).
+- Playwright hydration development: 6/6 passed (23,4 detik).
+- Setelah penyesuaian tinggi peta/header mobile: 9/9 tes geofence + responsif
+  passed (32,4 detik). Screenshot editor 320 px diperiksa.
+- Biome 150 file bersih, TypeScript lulus, production build 38/38 halaman.
+- Laravel Pint passed; git diff --check clean.
+
+Aktivasi pada database aplikasi:
+- Migration diuji hanya pada sim_madrasah_test, MySQL lokal 9.7.4. Database
+  operasional/.env tidak diubah. Server target MySQL 8.4 belum diuji langsung.
+- Setelah review/backup dan menyesuaikan target DB, jalankan dari backend:
+  php artisan migrate --force
+  Jangan menggunakan migrate:fresh/reset pada database berisi data.
+- Deploy backend/frontend bersama schema, lalu pengelola menetapkan titik nyata,
+  radius dan tanggal efektif pada Kebijakan foto/GPS. Legacy policy tetap tanpa
+  geofence hingga versi tersebut aktif. Tidak perlu database baru/Google API key.
+- E2E memakai API/tile/GPS/kamera fixture terisolasi; bukan UAT lapangan atau
+  klaim anti-fake-GPS. Koneksi/ketelitian perangkat nyata dan tile provider perlu
+  pemeriksaan operasional. GPS browser dapat dipalsukan; SOP fallback petugas
+  tetap diperlukan dan tidak menciptakan bukti foto/GPS palsu.
+
+STATUS: Implementasi geofence, SRS dan regresi selesai. Rollout schema operasional
+serta pemilihan koordinat nyata mengikuti langkah aktivasi di atas.
+
+================================================================================
+[PEMULIHAN & PERBAIKAN] ROLLBACK PARSIAL DAN SEEDER PERMISSION
+Tanggal/Waktu: 2026-10-27 17:10:09 +07:00
+================================================================================
+Konteks dan otorisasi:
+- User menjalankan php artisan rollback, menyetujui saran migrate:rollback, lalu
+  proses berhenti di downgrade identitas karena satu akun email NULL. Sebelum
+  berhenti, batch sudah menghapus tabel domain dan autentikasi.
+- User mengonfirmasi: tidak ada backup dan data hanya latihan. Pemulihan schema
+  dilakukan pada DB lokal sim_madrasah, tanpa reset/fresh atau menghapus akun.
+
+Diagnosis:
+- rollback bukan perintah Artisan; migrate:rollback membatalkan batch terakhir,
+  bukan hanya file migration yang sedang dibuka. Untuk penambahan geofence
+  seharusnya menjalankan php artisan migrate tanpa rollback sebelumnya.
+- users.email memang nullable di SIM. Guard down() yang menolak kembali menjadi
+  NOT NULL saat ada email kosong tetap benar dan tidak dihapus/dilemahkan.
+- Saat diperiksa, 5 migration masih Ran, 17 pending, 2 akun dan 2 persons masih
+  tersisa dengan tautan valid; satu akun tidak memiliki email.
+
+Pemulihan database latihan:
+1. Membuat salinan privat keadaan tersisa (SETELAH rollback, sebelum perbaikan),
+   bukan klaim backup sebelum rollback:
+   backend/storage/app/private/recovery/rollback-20261027-gKwpUT/surviving-state.sql
+   Folder 0700 dan file 0600; berkas diabaikan Git.
+2. Binary log MySQL aktif. Snapshot akses tepat sebelum DROP oauth_accounts
+   diekstrak sebagai DATA, tanpa menjalankan SQL dari binlog. Lima riwayat
+   user_roles (termasuk pencabutan lama) dan sepuluh role_permissions asli
+   dipulihkan; permission dicocokkan berdasarkan code, bukan ID yang ditebak.
+   Snapshot terbatas disimpan privat pada access-before-rollback.json.
+   Tidak membuat akun/email/password baru atau menebak role pemilik.
+3. Menjalankan migrate untuk membangun ulang schema. Ditemukan kegagalan lanjutan
+   migration seed_master_data_permissions: created_by guarded terbuang oleh
+   firstOrCreate sehingga MySQL menolak kolom audit yang kosong.
+4. Seeder diperbaiki lalu migrate dilanjutkan hingga seluruh 22 migration Ran,
+   termasuk lima kolom geofence; pending=0. db:seed selesai, cache dibersihkan.
+5. Verifikasi akhir: 2 akun, 2 persons, 1 akun email NULL, 5 riwayat role,
+   1 Super Admin dengan akses valid; kolom geofence tersedia. Endpoint publik
+   /api/v1/auth/options merespons 200. Pemulihan dicatat di audit_logs sebagai
+   system.rollback_recovered dengan pelaku CLI, bukan atribusi user palsu.
+6. Record latihan lain pada tabel yang sudah dihapus TIDAK otomatis dipulihkan;
+   harus diisi ulang bila diperlukan. Sesi JWT/OAuth yang terhapus memerlukan
+   login kembali; tidak mengklaim pemulihan seluruh data sebelum rollback.
+
+Perbaikan kode:
+- GuardedMigrator melalui binding migrator di AppServiceProvider melakukan
+  preflight sebelum batch rollback/reset dimulai. Jika target DAN path meliputi
+  extend_users_for_sim_identity dan ada email NULL, hentikan sebelum migration
+  down pertama. Pesan menjelaskan pemakaian migrate dan email sah, tanpa meminta
+  email palsu. Guard down() pada migration identitas tetap dipertahankan.
+- Target --step/--batch/--path tetap mengikuti framework; downgrade terbatas
+  geofence diperbolehkan meskipun ada akun email kosong. Pretend tidak menulis.
+- AccountAccessSeeder::seedOperatorMasterPermissions memakai firstOrNew dan
+  forceFill(created_by) hanya untuk grant baru. created_by tetap guarded bagi
+  input aplikasi; seed ulang tidak mengganti pembuat atau menduplikasi grant.
+
+Verifikasi:
+- Regresi MySQL pada sim_madrasah_test: 17/17 passed, 178 assertions.
+  Mencakup preflight rollback/reset tanpa penghapusan, rollback path geofence,
+  --step=1, migration legacy geofence, seeding dengan model guarded, idempotensi
+  grant/pembuat, serta suite manajemen akun.
+- Laravel Pint passed; git diff --check clean. Frontend tidak diubah.
+- Jumlah kasus backend sekarang 173 (dua tambahan: pengaman rollback dan seeder).
+- README frontend dan dokumen database diperbarui; .env tidak berubah.
+
+STATUS: Schema dan akses akun database latihan pulih; semua migration termasuk
+geofence sudah diterapkan. Untuk penambahan migration berikutnya gunakan migrate.
+
+================================================================================
+[AUDIT DOKUMENTASI] PENYELARASAN SRS, DATABASE, REVIEW DAN ROADMAP
+Tanggal/Waktu: 2026-10-27 17:31:31 +07:00
+================================================================================
+Permintaan: mencocokkan empat dokumen dengan modul yang sudah selesai pada
+backend/routes/api.php dan memperbarui dokumentasi yang tertinggal.
+
+Sumber pemeriksaan:
+- php artisan route:list --path=api/v1 --json, controller/service/DataAccess,
+  AuthUserResource, BFF dan komponen UI, migration, seeder serta tes terkait.
+- Metadata database lokal dibaca saja melalui information_schema/ledger:
+  MySQL 9.7.4; 137 tabel, 393 FK, 331 CHECK, 22 migration sudah Ran.
+  Target deployment tetap MySQL 8.4, bukan klaim pengujian ulang versi produksi.
+- Inventaris PHPUnit melalui --list-tests-xml: 173 kasus terdaftar; tidak
+  menjalankan ulang suite aplikasi pada sesi dokumentasi ini.
+
+Hasil pencocokan:
+- 137 definisi rute /api/v1: auth 9, accounts 10, master 22, academic 60,
+  attendance 21, teaching 8, student-attendance 7. GET|HEAD dihitung satu;
+  placeholder resource/action tidak diperluas menjadi seluruh variasinya.
+- Roadmap #1–#6 mencakup FR-01–FR-07 (akademik #3 memuat FR-03 dan FR-04).
+  FR-08–FR-17 masih backlog meskipun tabel/model dan primitif bersama tersedia.
+- Status lama auth/shell saja, akademik 31 rute, jadwal/pertemuan belum ada,
+  absensi foto/GPS hanya skema, dan BFF auth/accounts saja sudah diperbarui.
+- Katalog API role 45 izin: 10 accounts.*, 31 master.*, 3 attendance.* dan
+  realizations.verify; katalog academic.* terpisah. UI role memfilter melalui
+  permissions auth/me, sehingga attendance.* dan realizations.verify belum
+  dapat dipilih di UI. Administrasi mandat domain lengkap juga belum tersedia.
+  Batas ini dicatat, bukan diklaim sudah diperbaiki oleh audit dokumentasi.
+- Scope penugasan kelas/periode, mandat koreksi/verifikasi, pemisahan pemohon
+  dan pemutus, pegawai aktif, akses bukti privat serta kelola geofence hanya
+  kewenangan institusi dijelaskan sesuai layanan aktual.
+- Geofence tetap lewat policy dan policy/versions pada database yang sama;
+  lima kolom policy, snapshot JSON bukti, radius 25–5.000 m, versi prospektif,
+  alert UI dan validasi server jarak+akurasi. UI mengirim expected_policy_id;
+  field ini masih opsional pada API untuk kompatibilitas client lama.
+- Bootstrap policy absensi yang sudah ada dibedakan dari onboarding lokasi,
+  kalender, penugasan serta mandat nyata. Pemulihan database latihan sebelumnya
+  dicatat sebagai tindakan berizin, bukan klaim database tidak pernah disentuh.
+
+Dokumen diperbarui:
+1. SRS_SIM_Madrasah_MTs_Al_Karimiyyah.txt: status aktif §1.5, katalog akses,
+   arsitektur/BFF, penamaan kanonik dan status DEC yang sudah diimplementasikan.
+2. backend/database/database.MD: status, baseline/onboarding, daftar 22 migration,
+   geofence, inventaris terkini dan §22 API/UI/akses/bukti/batas implementasi.
+   Tabel kehadiran dan migration yang terputus oleh paragraf diperbaiki.
+3. REVIEW_SRS_DATABASE.md: review aktif 27 Oktober, matriks rute, ketidaksesuaian
+   dokumen, batas izin/UI, geofence, schema dan bukti; review lama diberi label
+   riwayat. Tautan DOCX historis diarahkan ke docs/archive.
+4. roadmap-agents.md: definisi selesai, jejak API, scope izin dan batas UI,
+   status migrasi lokal, aturan database uji dan antrean mulai #7/FR-08.
+
+Validasi:
+- Semua jumlah kelompok rute sesuai hasil Artisan; 22 file migration dan
+  inventaris 173 kasus tes cocok dengan dokumen.
+- Tautan lokal empat dokumen valid; status aktif/batas backlog dan angka skema
+  konsisten; git diff --check bersih.
+- Bukti sesi implementasi tetap diberi konteks: suite backend penuh 170/170,
+  regresi geofence 11/11, regresi rollback/akun 17/17, E2E 94/94, hydration 6/6;
+  tidak mengklaim suite penuh 173 sudah dijalankan atau UAT selesai.
+- Perubahan sesi ini hanya empat dokumen dan log. Tidak mengubah kode aplikasi,
+  .env, schema atau data database; perubahan kode sesi sebelumnya dipertahankan.
+
+STATUS: Keempat dokumen telah diselaraskan dengan implementasi modul selesai.
+
+================================================================================
+[REVISI DESIGN SYSTEM] PENYELARASAN DENGAN UI AKTUAL FR-01–FR-07
+Tanggal/Waktu: 2026-10-27 20:28:34 +0700
+================================================================================
+Permintaan: merevisi design-system.md berdasarkan UI yang sudah diimplementasikan.
+
+Pemeriksaan source:
+- globals.css, layout, konfigurasi shadcn, primitive UI, shell/header/sidebar,
+  FormDialog/ConfirmationDialog/Pager/DataLoading/DataFailure dan hook bersama.
+- academic-shared, fitur master/akademik/perwalian, absensi pegawai/policy/map,
+  realisasi, absensi siswa, katalog halaman serta spesifikasi E2E terkait.
+
+Perubahan dokumentasi (versi 1.11, 27 Oktober 2026):
+- Matriks halaman aktif FR-01–FR-07 dan batas backlog FR-08–FR-17; dashboard
+  awal serta toast tidak diklaim sebagai laporan/pusat notifikasi lengkap.
+- Inventaris sumber/helper lintas modul, termasuk AcademicHeading/List/
+  FormDialog, ConfirmAction, FilterSelect/DateFilter, MasterField/RecordPicker.
+- Token sidebar dan turunan radius dilengkapi dari CSS; variant Button,
+  ukuran compact primitive versus kontrol aplikasi 44/48 px diperjelas.
+- Pola kartu/tabel/gulir lokal, filter, status domain, loading/error/kosong,
+  fokus dialog, pending dan konflik dijelaskan sesuai implementasi.
+- Absensi pegawai bukan lagi fitur mendatang: kamera live, lokasi/akurasi,
+  alert radius, ringkasan hari, fallback petugas dan bukti privat didokumentasi.
+- Editor geofence: tab policy berlaku/terjadwal, can_manage, manual input,
+  Leaflet/OSM browser-only, skeleton/tile error, tinggi adaptif, zoom 44 px,
+  token pin/radius, inert saat busy, footer dan pemulihan fokus.
+- Realisasi/revisi/pengajuan/verifikasi, roster siswa/belum dicatat, rekap,
+  koreksi siswa dan kelas perwalian aktif dimasukkan sebagai pola UI tersedia.
+- Standar wajib dipisahkan dari bukti implementasi: ukuran default registry,
+  kelengkapan ARIA/kontras, batas UI izin/mandat, belum ada dark mode dan belum
+  ada pratinjau foto statis terpisah sebelum pengiriman clock tetap dijelaskan.
+- Empat rujukan versi aktif pada roadmap diperbarui menjadi design-system v1.11;
+  riwayat versi sebelumnya dipertahankan.
+
+Validasi:
+- Tautan lokal, 44 path sumber, token CSS, nama ekspor komponen bersama,
+  versi aktif/riwayat dan konsistensi referensi roadmap valid.
+- git diff --check bersih. Tidak menjalankan ulang lint/build/E2E karena tidak
+  ada perubahan kode aplikasi; angka E2E 94/94, hydration 6/6 dan regresi map
+  9/9 tetap diberi konteks sebagai bukti sesi implementasi sebelumnya.
+- Sesi ini mengubah design-system.md, referensi versi di roadmap dan log saja;
+  perubahan kode sesi sebelumnya tetap dipertahankan.
+
+STATUS: Design system v1.11 selaras dengan pola source UI yang tersedia.
+
+================================================================================
+[PERAPIAN SEEDER] PEMUSATAN KONFIGURASI AKUN AWAL
+Tanggal/Waktu: 2026-10-27 20:56:16 +0700
+================================================================================
+Permintaan: merapikan backend/database/seeders dan menyatukan nilai akun dari
+backend/config/accounts.php ke area seeder tanpa mengubah isi data seed.
+
+Perubahan:
+- Seluruh array akun awal dipindahkan utuh ke
+  database/seeders/SuperAdminSeeder::configuration(). Nama environment,
+  nilai default, normalisasi, password, validasi dan logika pembuatan akun
+  tetap sama; tidak menulis ulang akun yang sudah ada.
+- config/accounts.php menjadi penghubung tipis ke array milik seeder.
+  config('accounts.initial_admin.*'), override tes dan cache konfigurasi
+  Laravel tetap memakai kontrak lama. Tidak memindahkan pembacaan env ke run().
+- ReferenceDataSeeder memisahkan status siswa, absensi dan jenis soal ke
+  helper privat dengan urutan/nilai/firstOrCreate yang sama.
+- AccountAccessSeeder memisahkan seed role dan permission ke helper privat;
+  backfill grant operator dan perlindungan created_by sebelumnya dipertahankan.
+- DatabaseSeeder ditata sebagai daftar pemanggilan yang mudah dibaca, tetap
+  ReferenceDataSeeder lalu SuperAdminSeeder (yang memanggil AccountAccessSeeder).
+- BusinessDecisionSeeder tidak diubah dan tetap dijalankan terpisah saat
+  onboarding; tidak menambah seed DEC ke jalur default.
+- Rujukan sumber konfigurasi pada SRS dan kamus database diperbarui.
+
+Verifikasi:
+- Literal data dan urutannya pada ReferenceDataSeeder, AccountAccessSeeder,
+  BusinessDecisionSeeder serta gabungan konfigurasi lama/SuperAdminSeeder sama
+  dengan snapshot sebelum perapian. BusinessDecisionSeeder identik byte.
+- Fingerprint konfigurasi akun sebelum/sesudah sama. config:cache diuji memakai
+  APP_CONFIG_CACHE pada folder sementara privat, dibaca ulang dan dihapus;
+  konfigurasi akun tetap identik dan cache aplikasi normal tidak diubah.
+- Regresi MySQL: 27/27 tes lulus, 284 asersi (manajemen akun, Google OAuth
+  dengan mock, dan idempotensi referensi). Hasil:
+  /tmp/sim-seeders-regressions.log.
+- Mencakup seeding ulang tanpa menimpa akun/sandi/status/grant lama, penolakan
+  promosi akun yang bentrok, Google tanpa password terkonfigurasi dan baseline
+  referensi yang tidak menimpa label yang telah diubah.
+- PHP syntax valid; vendor/bin/pint --dirty --format agent passed;
+  git diff --check bersih.
+- Eksekusi seed hanya melalui tes pada sim_madrasah_test; tidak menjalankan
+  db:seed pada database operasional, mengubah .env atau menambah migration.
+
+STATUS: Struktur seeder rapi; nilai dan perilaku seed tetap dipertahankan.
+
+================================================================================
+[REVISI SEEDER] HAPUS KONFIGURASI AKUN, BACA LANGSUNG DI SEEDER
+Tanggal/Waktu: 2026-10-27 21:27:13 +0700
+================================================================================
+Arahan pengguna: hapus backend/config/accounts.php dan jangan memanggil config
+untuk akun awal; seluruh pengaturan akun harus langsung berada pada seeder.
+
+Perubahan:
+- Menghapus backend/config/accounts.php beserta penghubung dan method static
+  SuperAdminSeeder::configuration() dari perapian sebelumnya.
+- SuperAdminSeeder::run mendefinisikan array akun awal dan membaca langsung
+  INITIAL_ADMIN_EMAIL/NAME/USERNAME/PASSWORD melalui env(). Default email,
+  nama, username, password, validasi, audit, grant dan perlindungan akun lama
+  tetap dipertahankan. Tidak ada config('accounts...') atau adapter pengganti.
+- Ketika aplikasi memakai cache konfigurasi, seeder memuat environment dengan
+  Dotenv sebelum membaca akun. Ini pembacaan langsung environment, bukan
+  pengambilan nilai akun dari repository konfigurasi Laravel.
+- Tes akun/Google kini memakai environment sementara, dengan snapshot dan
+  pemulihan nilai ENV/SERVER/process dalam tearDown agar tidak bocor antar tes.
+- Kasus tes password kosong juga memverifikasi pembacaan file environment
+  sementara saat cache aplikasi aktif; nama dan username dari environment
+  diperiksa. File sementara dibersihkan dan .env proyek tidak diubah.
+- SRS, kamus database dan review aktif disesuaikan; keterangan penghubung config
+  pada entri log sebelumnya merupakan riwayat yang digantikan revisi ini.
+
+Verifikasi:
+- Regresi MySQL sim_madrasah_test: 27/27 tes lulus, 288 asersi, meliputi
+  manajemen akun, Google OAuth mock, seeding ulang tanpa menimpa akun lama,
+  password kosong, cache aktif, benturan identitas dan idempotensi referensi.
+  Bukti: /tmp/sim-seeders-direct-regressions.log.
+- File konfigurasi akun benar-benar tidak ada; pencarian kode app/config/
+  database/tests tidak menemukan accounts.initial_admin atau penghubung lama.
+- PHP syntax valid; Laravel Pint --dirty --format agent selesai;
+  git diff --check bersih.
+- Tidak menjalankan seed pada database operasional atau mengubah isi .env.
+
+STATUS: Pengaturan akun langsung di SuperAdminSeeder, tanpa file/pemanggilan
+konfigurasi akun. Isi data seed dan perlindungan akun lama tetap dipertahankan.

@@ -177,7 +177,7 @@ export function AcademicTransitions({ access }: { access: string[] }) {
     <div className="animate-enter space-y-6">
       <AcademicHeading
         title="Kenaikan & mutasi siswa"
-        description="Pratinjau terlebih dahulu, lalu konfirmasi untuk memproses kenaikan, kelulusan, pindah, atau keluar secara batch dengan riwayat tertelusuri (FR-03-03)."
+        description="Pratinjau terlebih dahulu, lalu konfirmasi untuk memproses kenaikan, kelulusan, pindah, atau keluar secara batch dengan riwayat tertelusuri."
       />
       <Card className="rounded-2xl border border-border/70 py-0 ring-0">
         <CardContent className="space-y-4 p-4 sm:p-5">

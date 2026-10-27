@@ -134,3 +134,25 @@ button:not(:disabled),
     transition-duration: 0.01ms;
   }
 }
+
+/* Leaflet lives inside an isolated map panel so controls stay below dialogs. */
+.attendance-map .leaflet-control-zoom a {
+  width: 44px;
+  height: 44px;
+  line-height: 44px;
+}
+.attendance-map .leaflet-control-attribution {
+  font-size: 12px;
+  max-width: 100%;
+}
+.attendance-map-pin {
+  background: var(--primary);
+  border: 3px solid var(--card);
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--primary);
+}
+.attendance-map-radius {
+  stroke: var(--primary);
+  fill: var(--primary);
+  fill-opacity: 0.12;
+}

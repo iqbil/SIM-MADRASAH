@@ -150,7 +150,7 @@ export function AcademicSubstitutes({ access }: { access: string[] }) {
     <div className="animate-enter space-y-6">
       <AcademicHeading
         title="Guru pengganti"
-        description="Penunjukan pengganti tercatat terpisah dari guru terjadwal; satu pengganti aktif per pertemuan dan benturan jadwal pengganti ditolak."
+        description="Penunjukan pengganti tercatat terpisah dari guru terjadwal, satu pengganti aktif per pertemuan dan benturan jadwal pengganti ditolak."
       />
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="mb-5 h-14! w-full justify-start gap-1 rounded-xl bg-secondary p-1 sm:w-auto">

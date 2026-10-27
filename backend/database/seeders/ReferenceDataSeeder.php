@@ -9,10 +9,14 @@ use Illuminate\Database\Seeder;
 
 class ReferenceDataSeeder extends Seeder
 {
-    /**
-     * Run the database seeds.
-     */
     public function run(): void
+    {
+        $this->seedStudentStatuses();
+        $this->seedAttendanceStatuses();
+        $this->seedQuestionTypes();
+    }
+
+    private function seedStudentStatuses(): void
     {
         foreach ([
             ['active', 'Aktif', false],
@@ -26,7 +30,10 @@ class ReferenceDataSeeder extends Seeder
                 'is_active' => true,
             ]);
         }
+    }
 
+    private function seedAttendanceStatuses(): void
+    {
         foreach ([
             'employee' => ['hadir' => 'Hadir', 'izin' => 'Izin', 'sakit' => 'Sakit', 'cuti' => 'Cuti', 'dinas_luar' => 'Dinas luar'],
             'student' => ['hadir' => 'Hadir', 'sakit' => 'Sakit', 'izin' => 'Izin', 'alpa' => 'Alpa'],
@@ -38,7 +45,10 @@ class ReferenceDataSeeder extends Seeder
                 ]);
             }
         }
+    }
 
+    private function seedQuestionTypes(): void
+    {
         foreach ([
             ['multiple_choice_single', 'Pilihan ganda satu jawaban', true],
             ['essay', 'Esai', false],

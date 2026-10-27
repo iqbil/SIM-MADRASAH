@@ -305,7 +305,7 @@ export function AcademicFormDialog({
   current?: AcademicRecord;
   onClose: () => void;
   submit: (body: Record<string, unknown>) => Promise<void>;
-  extra?: ReactNode;
+  extra?: ReactNode | ((busy: boolean) => ReactNode);
   submitLabel?: string;
 }) {
   const [busy, setBusy] = useState(false);
@@ -362,7 +362,7 @@ export function AcademicFormDialog({
           daftar, lalu ulangi perubahan Anda.
         </p>
       )}
-      {extra}
+      {typeof extra === "function" ? extra(busy) : extra}
       <section aria-label={title} className="space-y-4">
         {fields.map((field) => (
           <MasterField

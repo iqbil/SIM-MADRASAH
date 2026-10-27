@@ -27,9 +27,20 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'photo_quality',
     'gps_max_accuracy_meters',
     'gps_max_age_seconds',
+    'geofence_enabled',
+    'geofence_name',
+    'geofence_latitude',
+    'geofence_longitude',
+    'geofence_radius_meters',
 ])]
 class EmployeeAttendancePolicy extends DomainModel
 {
+    public const GEOFENCE_FIELDS = ['geofence_enabled', 'geofence_name', 'geofence_latitude', 'geofence_longitude', 'geofence_radius_meters'];
+
+    public const CAPTURE_FIELDS = ['id', 'requires_photo', 'requires_gps', 'photo_max_dimension', 'photo_quality', 'photo_max_size_bytes', 'gps_max_accuracy_meters', 'gps_max_age_seconds', ...self::GEOFENCE_FIELDS];
+
+    public const PUBLIC_FIELDS = [...self::CAPTURE_FIELDS, 'code', 'version_number', 'status', 'correction_deadline_days', 'effective_from', 'effective_to', 'updated_at'];
+
     /** @use HasFactory<EmployeeAttendancePolicyFactory> */
     use HasFactory;
 
@@ -44,6 +55,7 @@ class EmployeeAttendancePolicy extends DomainModel
         'photo_quality' => 80,
         'gps_max_accuracy_meters' => 100,
         'gps_max_age_seconds' => 60,
+        'geofence_enabled' => false,
     ];
 
     /** @return array<string, string> */
@@ -68,6 +80,10 @@ class EmployeeAttendancePolicy extends DomainModel
             'photo_quality' => 'integer',
             'gps_max_accuracy_meters' => 'decimal:2',
             'gps_max_age_seconds' => 'integer',
+            'geofence_enabled' => 'boolean',
+            'geofence_latitude' => 'decimal:7',
+            'geofence_longitude' => 'decimal:7',
+            'geofence_radius_meters' => 'integer',
         ];
     }
 

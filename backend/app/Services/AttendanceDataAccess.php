@@ -76,6 +76,19 @@ class AttendanceDataAccess
         abort_unless(self::allows($user, 'attendance.manage'), 403, 'Akses pengelolaan absensi tidak diberikan untuk peran Anda.');
     }
 
+    public static function canManagePolicy(User $user): bool
+    {
+        return array_intersect(self::roles($user), ['super_admin', 'operator']) !== []
+            || in_array('attendance.manage', AccountAccess::rolePermissions($user), true)
+            || AuthorizationMandate::activeFor($user, 'attendance.manage')->where('scope_type', 'institution')->exists();
+    }
+
+    public static function authorizePolicy(User $user): void
+    {
+        self::authorizeManage($user);
+        abort_unless(self::canManagePolicy($user), 403, 'Pengaturan kebijakan dan titik absensi memerlukan kewenangan seluruh institusi.');
+    }
+
     /** Mandat aktif permission attendance.correct milik pengguna; null bila tidak ada. @return array{id: int}|null */
     public static function correctMandate(User $user, ?ClassPeriod $period = null, ?string $date = null, ?int $employeeId = null): ?array
     {

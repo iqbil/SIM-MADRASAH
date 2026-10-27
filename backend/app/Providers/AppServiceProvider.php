@@ -4,8 +4,10 @@ namespace App\Providers;
 
 use App\Auth\JwtGuard;
 use App\Models\User;
+use App\Services\GuardedMigrator;
 use App\Services\JwtTokenService;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Database\Migrations\Migrator;
 use Illuminate\Foundation\Application;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -19,7 +21,15 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->extend('migrator', function (Migrator $current, Application $app): GuardedMigrator {
+            $guarded = new GuardedMigrator($app['migration.repository'], $app['db'], $app['files'], $app['events']);
+            foreach ($current->paths() as $path) {
+                $guarded->path($path);
+            }
+            $guarded->setConnection($current->getConnection());
+
+            return $guarded;
+        });
     }
 
     /**

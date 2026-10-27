@@ -1,23 +1,25 @@
 # Roadmap Modul SIM Madrasah — MTs Al Karimiyyah (untuk AI Agent)
 
 Peta runtutan modul yang **sudah** dan **harus** dikerjakan, mengikuti seksi menu
-sidebar (`frontend/lib/navigation/sidebar.ts`) dan modul SRS v1.3
+sidebar (`frontend/lib/navigation/sidebar.ts`) dan modul SRS v1.4
 (`SRS_SIM_Madrasah_MTs_Al_Karimiyyah.txt`, FR-01…FR-17, Bab IX tabel tahap).
 Dipelihara sebagai acuan kerja lintas sesi: setiap selesai satu modul, perbarui
 status di file ini dan tambahkan catatan sesi di `log.txt`.
 
-Terakhir diperbarui: **26 Oktober 2026** (audit dan perbaikan modul selesai FR-01–FR-07).
+Terakhir diperbarui: **27 Oktober 2026** (audit dokumentasi terhadap routes/api.php, SRS v1.4, skema aktual dan hasil implementasi).
 
 ---
 
 ## A. Ringkasan status
 
+**Arti selesai:** API backend, BFF/UI dan pengujian otomatis modul telah tersedia. Status ini bukan pengesahan UAT, kesiapan produksi, atau penyelesaian FR lintas modul seperti notifikasi/laporan. Roadmap #1–#6 mencakup **FR-01–FR-07**, karena #3 memuat FR-03 dan FR-04.
+
 | # | Modul (sidebar) | SRS | Status | Catatan |
 |---|---|---|---|---|
 | 1 | Autentikasi & pengguna (Beranda, Akun saya, Pengelolaan akun) | FR-01 | ✅ SELESAI | Login password/Google, JWT+BFF cookie HttpOnly, manajemen user/role/izin/audit |
-| 2 | Data master (8 item) | FR-02 | ✅ SELESAI | Termasuk impor CSV + tab perbaikan (design-system v1.9) |
+| 2 | Data master (8 item) | FR-02 | ✅ SELESAI | Termasuk impor CSV + tab perbaikan (design-system v1.11) |
 | 3 | Akademik & kelas (9 item aktif) | FR-03, FR-04 | ✅ SELESAI | Tahun ajaran s.d. jadwal pelajaran, guru pengganti, dan Kelas perwalian saya |
-| 4 | Absensi pegawai | FR-05 | ✅ SELESAI | Foto+GPS mandiri, izin/sakit/cuti/dinas, pola kerja, koreksi, rekap |
+| 4 | Absensi pegawai | FR-05 | ✅ SELESAI | Foto+GPS mandiri, titik/radius berversi via peta, izin/sakit/cuti/dinas, pola kerja, koreksi, rekap |
 | 5 | Realisasi mengajar | FR-06 | ✅ SELESAI | Guru pelaksana (terjadwal/pengganti) mengajukan revisi realisasi; verifikasi mandat, pemohon ≠ penyetuju |
 | 6 | Absensi siswa | FR-07 | ✅ SELESAI | Harian per wali kelas/guru; mengaktifkan "Kelas perwalian saya", koreksi approval petugas berbeda |
 | 7 | Honor & keuangan | FR-08 | ⬜ BERIKUTNYA | Tarif → periode → pemeriksaan → pengesahan/lock → penyesuaian |
@@ -41,6 +43,32 @@ Item sidebar yang masih bergambar jam (nonaktif) = modul belum dibangun; item
 mendapat `href` saat modulnya dikerjakan.
 
 ---
+
+### A.1 Jejak API modul selesai — 27 Oktober 2026
+
+Sumber: [routes/api.php](backend/routes/api.php), hasil `php artisan route:list --path=api/v1 --json`, controller/service/DataAccess terkait dan BFF `frontend/app/api`.
+
+| Roadmap / FR | Kelompok `/api/v1` | Definisi rute | Alur tersedia |
+| --- | --- | ---: | --- |
+| #1 / FR-01 | `auth` + `accounts` | 9 + 10 | JWT/refresh/Google, profil/sandi/logout; akun, role/izin, status/reset/sesi/Google unlink dan audit. |
+| #2 / FR-02 | `master` | 22 | Identitas madrasah, delapan resource, relasi wali/kategori/jabatan, impor CSV/template/pratinjau/error/konfirmasi. |
+| #3 / FR-03–04 | `academic` | 60 | Periode/konteks, rombel/enrollment/mutasi, kalender, penugasan, slot/jadwal berversi, pertemuan/pembatalan dan pengganti. |
+| #4 / FR-05 | `attendance` | 21 | Foto/GPS, policy/geofence berversi, bukti privat, status petugas, pola/penetapan/hari kerja, koreksi dan rekap. |
+| #5 / FR-06 | `teaching` | 8 | Pertemuan pelaksana, revisi/submit, detail, antrean dan keputusan verifikasi. |
+| #6 / FR-07 | `student-attendance` | 7 | Kelas/roster, input harian, rekap, pengajuan dan keputusan koreksi. |
+
+Total **137 definisi rute**; GET|HEAD dihitung satu, placeholder resource/action tidak diperluas. FR-08–FR-17 belum mempunyai kelompok API bisnis. Tabel/model, navigasi role, audit, impor dan rekap yang sudah ada tidak berarti modul honor/portal/publikasi/laporan/sistem/privasi/notifikasi selesai.
+
+Batas akses yang sudah diterapkan:
+
+- Akun/person/role harus aktif. API role menyediakan katalog 45 izin (10 accounts.*, 31 master.*, 3 attendance.*, realizations.verify), grantable_permissions dan proteksi role sistem; delegasi scope institusi tidak boleh melampaui pemberi. UI memfilter permissions auth/me (akun/master/akademik), sehingga attendance.* dan realizations.verify belum menjadi pilihan UI. Katalog academic.* terpisah; UI administrasi mandat lengkap belum tersedia.
+- Guru/wali membaca akademik dan mencatat siswa sesuai kelas/penugasan aktif; operator/Super Admin mengelola akademik, kepala membaca institusi. Preview/confirm mutasi perlu academic.enrollments.manage; perwalian memakai filter kelas wali aktif.
+- Pengelolaan policy/geofence hanya kewenangan institusi: Operator/Super Admin, role eksplisit attendance.manage atau mandat institusi. Mandat kelas/semester/pegawai tidak cukup. GET policy mengembalikan policy berlaku pada `data`, daftar `scheduled` dan `can_manage`; POST versi baru memerlukan alasan dan tanggal paling cepat besok/setelah versi terjadwal terakhir. UI mengirim expected_policy_id untuk konflik 409; field ini masih opsional di API demi kompatibilitas client lama.
+- Koreksi perlu mandat attendance.correct sesuai objek dan pemutus berbeda; verifikasi realisasi perlu mandat realizations.verify aktif yang mencakup pelaksana/pertemuan. Role kepala/Super Admin atau permission pada role saja tidak menggantikan mandat tersebut. Antrean/detail/keputusan dibatasi konsisten.
+- Geofence memblokir posisi luar/meragukan di UI dan server; jarak + akurasi harus <= radius 25–5.000 m. Foto/lokasi tetap mengikuti usia/akurasi policy. Riwayat dan fallback administratif dipertahankan; tidak ada pelacakan latar belakang atau jaminan anti-Fake GPS.
+- Absensi siswa tetap daily; tidak ada baris berarti belum dicatat, input sampai 23.59 WIB dan koreksi 7 hari/mandat sesudah tenggat. API koreksi siswa terpisah dari pegawai. Total JP realisasi hanya held+approved sah, dibatasi rencana/durasi dan filter.
+
+Rincian kontrak, lima kolom geofence dan batas pekerjaan tersedia di [database.MD §22](backend/database/database.MD#22-status-implementasi-dan-batas-dokumentasi--27-oktober-2026) dan [review aktif](REVIEW_SRS_DATABASE.md). Bukti pengujian pada bagian B berasal dari sesi implementasi; audit dokumentasi ini tidak menjalankan ulang suite aplikasi.
 
 ### Urutan tahap awal pemakaian (MVP, diputakhirkan 26 Oktober 2026)
 Berdasarkan SRS Bab IX dan §9.1 ("MVP tahap 1–2 dan laporan dasar; selesaikan
@@ -73,7 +101,7 @@ urutan pengerjaan modul sisa agar situs dapat dipakai nyata secepat mungkin:
    pembatalan), **guru pengganti** (satu aktif per pertemuan, penunjukan baru
    menutup yang lama). Cakupan guru/wali dibatasi penugasan aktif (Bab II).
 
-4. **FR-05 Absensi pegawai** — foto+GPS mandiri tanpa geofence, izin/sakit/cuti/dinas, pola kerja, koreksi, rekap.
+4. **FR-05 Absensi pegawai** — foto+GPS mandiri, geofence opsional berversi (SRS v1.4 FR-05-08), peta dan input manual, alert/validasi server termasuk ketelitian GPS; izin/sakit/cuti/dinas, pola kerja, koreksi, rekap. Policy lama tetap tanpa geofence sampai pengelola mengaktifkan versi baru.
 5. **FR-06 Realisasi mengajar** — guru pelaksana (terjadwal/pengganti aktif)
    mencatat realisasi draf lalu mengajukan; isi immutable, revisi baru hanya
    sebelum diajukan/setelah ditolak; verifikasi oleh pemegang mandat
@@ -88,29 +116,27 @@ urutan pengerjaan modul sisa agar situs dapat dipakai nyata secepat mungkin:
    mengaktifkan item "Kelas perwalian saya" (`/akademik/perwalian`) dan tab
    "Koreksi siswa" pada persetujuan koreksi absensi (`/absensi/koreksi`).
 
-Bukti setelah perbaikan audit 26 Oktober 2026: suite MySQL backend 165 test hijau
-(7176 asersi), regresi tambahan mandat 1 test/28 asersi; frontend Biome 146 file
-bersih + build 38/38 halaman + Playwright 90 test hijau; hydration development
-6 test hijau. Perbaikan akses institusi,
-cakupan mandat/penugasan, kontrak API, validasi JP/foto, dan konsistensi UI
-design-system v1.9 beserta batas bukti pengujian tercatat di `log.txt`.
-Baseline GPS tetap tanpa geofence; akurasi bukan radius. Perbaikan frontend
-lanjutan mencakup kebijakan dengan loading/retry, tab mobile/desktop, dan konteks
-navbar; diagnosis injeksi atribut ekstensi ada di `frontend/README.md`.
+Bukti per 27 Oktober 2026: backend suite penuh 170/170 lulus (7264 asersi),
+regresi akhir 11/11 lulus (217 asersi), termasuk tes migrasi geofence baru pada
+policy lama. Jumlah kasus backend pada sesi geofence 171; satu kasus migrasi ditambahkan
+setelah suite penuh dan dijalankan pada regresi akhir. Frontend E2E lengkap
+94/94 lulus; hydration development 6/6 lulus; Biome 150 file dan build 38/38 halaman.
+Perbaikan akses, snapshot, radius/ketelitian, versioning prospektif, dan bukti
+pengujian ada di `log.txt`. Design system terkini v1.11. Migration tambahan lima
+kolom diuji pada database test dan telah diterapkan ke database latihan lokal
+saat pemulihan di bawah. Aktivasi lokasi nyata tetap melalui policy prospektif,
+bukan reset database. Modul berikutnya tetap #7.
+
+Pemulihan rollback database latihan (27 Oktober 2026): seluruh 22 migration
+sudah Ran, termasuk geofence; 2 akun dan hak akses asli dipertahankan/dipulihkan.
+GuardedMigrator kini memeriksa downgrade identitas sebelum tabel batch dihapus;
+seeder mengisi created_by yang guarded dengan benar. Regresi akhir pemulihan
+17/17 lulus (178 asersi); jumlah kasus backend sekarang 173. Detail kehilangan
+data latihan lain, snapshot privat, dan langkah login ulang dicatat di log.
 
 ---
 
 ## C. Antrian modul berikutnya (urut kerja)
-
-### 6) Absensi siswa — FR-07 ✅ SELESAI (26 Oktober 2026)
-- **Item sidebar**: Absensi harian siswa (`/absensi-siswa/harian`); Rekap kehadiran siswa (`/absensi-siswa/rekap`); **mengaktifkan
-  "Kelas perwalian saya"** (`/akademik/perwalian`) di seksi Akademik; tab "Koreksi siswa" di Persetujuan koreksi (`/absensi/koreksi`).
-- **SRS**: FR-07-01…03, BR-08/09, DEC-07 (mode harian; 23.59 lokal; koreksi
-  7 hari approval berbeda; "tidak ada baris ≠ alpa"; mode pertemuan/both
-  nonaktif).
-- **Tabel**: `attendance_policies` (baseline daily),
-  `student_daily_attendances` (UK siswa+tanggal), `student_meeting_attendances`
-  (nonaktif), `attendance_corrections`.
 
 ### 7) Honor & keuangan — FR-08 ⬜ BERIKUTNYA
 - **Item sidebar**: Honor final saya; Tarif & komponen; Tugas tambahan &
@@ -174,7 +200,7 @@ navbar; diagnosis injeksi atribut ekstensi ada di `frontend/README.md`.
 ## D. Alur kerja per modul (pola yang sudah terbukti)
 
 1. **Baca acuan**: seksi SRS modul + Bab II (hak akses) + `backend/database/
-   database.MD` (tabel & aturan) + `design-system.md` (terkini v1.9) + sesi
+   database.MD` (tabel & aturan) + `design-system.md` (terkini v1.11) + sesi
    terakhir `log.txt`.
 2. **Backend dulu**: `*DataAccess` (katalog izin + scope) → `*Service`
    (`DB::transaction` retry 3, `lockForUpdate` parent, validasi `Validator`,
@@ -194,15 +220,23 @@ navbar; diagnosis injeksi atribut ekstensi ada di `frontend/README.md`.
 
 ## E. Aturan tetap
 
-- DB operasional `sim_madrasah` dan `.env` tidak disentuh; uji hanya pada
-  `sim_madrasah_test` (`DB_PASSWORD="$(grep ^DB_PASSWORD= .env | cut -d= -f2-)"`
-  di-export saat menjalankan phpunit.mysql.xml).
+- Pengujian memakai `sim_madrasah_test` melalui phpunit.mysql.xml; kredensial
+  disuplai environment lokal tanpa ditulis ke dokumentasi/log. `.env` tidak
+  diubah oleh audit ini. Database operasional tidak menjadi sasaran tes.
+  Pengecualian tercatat: pemulihan database latihan `sim_madrasah` pada
+  27 Oktober diotorisasi pengguna setelah rollback parsial; kini 22 migration
+  Ran, 137 tabel, 393 FK dan 331 CHECK. Data domain yang sudah terhapus tidak
+  otomatis kembali. Audit dokumentasi ini hanya membaca metadata.
+- Menambah fitur/migration memakai `php artisan migrate`. `migrate:rollback`
+  membatalkan batch terakhir, bukan file yang sedang dibuka. GuardedMigrator
+  mencegah batch downgrade identitas saat email NULL sebelum tabel dihapus;
+  ini pengaman kasus spesifik, bukan pemulihan data atau jaminan semua rollback.
 - Data baseline tidak dimasukkan lewat migrasi (pelajaran DEC: pakai seeder
   onboarding seperti `BusinessDecisionSeeder`).
 - Otorisasi selalu diperiksa server di setiap baca/tulis; tombol disembunyikan
   hanya pelengkap (Bab II 2.3).
 - Satu `h1` per halaman, kontrol `h-11`, komponen shadcn + token warna,
-  tab memakai pola Bar tab v1.7 — tidak ada hex/komponen baru tanpa alasan.
+  tab memakai pola Bar tab pada design-system terkini v1.11 — tidak ada hex/komponen baru tanpa alasan.
 - Fitur bertanda "nonaktif" di SRS (disposisi, mode absensi pertemuan/both,
   co-teaching, akun siswa, dsb.) tetap nonaktif; aktifkan hanya lewat revisi
   DEC yang disetujui.

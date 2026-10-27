@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\AttendanceDataResource;
 use App\Models\AttendanceCorrection;
 use App\Models\EmployeeAttendance;
+use App\Models\EmployeeAttendancePolicy;
 use App\Models\EmployeeWorkAssignment;
 use App\Models\EmployeeWorkDay;
 use App\Models\WorkPattern;
@@ -49,7 +50,12 @@ class AttendanceController extends Controller
             'Akses kebijakan absensi tidak diberikan untuk peran Anda.');
         $policy = $service->effectivePolicy($user);
 
-        return response()->json(['data' => $policy->only(['id', 'code', 'version_number', 'status', 'requires_photo', 'requires_gps', 'photo_max_size_bytes', 'photo_max_dimension', 'photo_quality', 'gps_max_accuracy_meters', 'gps_max_age_seconds', 'correction_deadline_days', 'effective_from', 'effective_to'])]);
+        return response()->json(['data' => $policy->only(EmployeeAttendancePolicy::PUBLIC_FIELDS),
+            'can_manage' => AttendanceDataAccess::canManagePolicy($user),
+            'scheduled' => AttendanceDataAccess::canManagePolicy($user)
+                ? EmployeeAttendancePolicy::query()->where('code', $policy->code)->where('effective_from', '>', today('Asia/Jakarta')->toDateString())->orderBy('effective_from')->get()->map(fn (EmployeeAttendancePolicy $item): array => $item->only(EmployeeAttendancePolicy::PUBLIC_FIELDS))->all()
+                : [],
+        ]);
     }
 
     public function newPolicyVersion(Request $request, AttendanceService $service): AttendanceDataResource

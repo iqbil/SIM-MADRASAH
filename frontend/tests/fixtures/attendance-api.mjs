@@ -1,4 +1,5 @@
 let policy;
+let scheduledPolicies;
 let patterns;
 let assignments;
 let workDays;
@@ -30,10 +31,16 @@ const EMPLOYEE_USERS = new Map([
 
 export function resetAttendance() {
   counter = 0;
+  scheduledPolicies = [];
   policy = {
     id: 1,
     code: "EMP-ATTENDANCE",
     version_number: 1,
+    geofence_enabled: false,
+    geofence_name: null,
+    geofence_latitude: null,
+    geofence_longitude: null,
+    geofence_radius_meters: null,
     status: "baseline",
     requires_photo: true,
     requires_gps: true,
@@ -344,7 +351,43 @@ export function handleAttendance({
     });
   }
 
-  if (resource === "policy") return ok(response, { data: policy });
+  if (resource === "policy") {
+    if (id === "versions" && method === "POST") {
+      if (!manage) return ok(response, { message: "Akses ditolak." }, 403);
+      const latest = scheduledPolicies.at(-1) ?? policy;
+      if (body.expected_policy_id !== latest.id)
+        return ok(response, { message: "Kebijakan berubah. Muat ulang." }, 409);
+      if (!body.reason || body.reason.length < 10)
+        return ok(response, { message: "Alasan minimal 10 karakter." }, 422);
+      if (
+        body.geofence_enabled &&
+        (!body.geofence_name ||
+          body.geofence_latitude == null ||
+          body.geofence_longitude == null ||
+          body.geofence_radius_meters < 25)
+      )
+        return ok(
+          response,
+          { message: "Titik dan radius belum lengkap." },
+          422,
+        );
+      const next = {
+        ...latest,
+        ...body,
+        id: latest.id + 1,
+        version_number: latest.version_number + 1,
+        updated_at: time(),
+        effective_to: null,
+      };
+      scheduledPolicies.push(next);
+      return ok(response, { data: next }, 201);
+    }
+    return ok(response, {
+      data: policy,
+      can_manage: manage,
+      scheduled: manage ? scheduledPolicies : [],
+    });
+  }
 
   if (resource === "records") {
     if (!manage)

@@ -1,4 +1,5 @@
 import { apiRequest, requestError } from "@/lib/api-client";
+import type { GeofencePolicy } from "@/lib/geofence";
 
 export type AttendanceSection =
   | "masuk-pulang"
@@ -58,6 +59,20 @@ export type AttendanceRecord = {
   [key: string]: unknown;
 };
 
+export type AttendancePolicy = AttendanceRecord &
+  GeofencePolicy & {
+    version_number: number;
+    requires_photo: boolean;
+    correction_deadline_days: number;
+    photo_max_size_bytes: number;
+    photo_max_dimension: number;
+    photo_quality: number;
+    gps_max_accuracy_meters: string;
+    gps_max_age_seconds: number;
+    effective_from: string;
+    effective_to: string | null;
+  };
+
 export type ClockStatus = {
   today: string;
   employee: {
@@ -87,7 +102,7 @@ export type ClockStatus = {
   } | null;
   attendance_status?: { code: string; name: string } | null;
   next_action: "check_in" | "check_out" | null;
-  policy: {
+  policy: GeofencePolicy & {
     id: number;
     requires_photo: boolean;
     requires_gps: boolean;

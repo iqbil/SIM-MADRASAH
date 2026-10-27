@@ -94,7 +94,7 @@ export function AcademicEnrollments({ access }: { access: string[] }) {
     <div className="animate-enter space-y-6">
       <AcademicHeading
         title="Keanggotaan & riwayat siswa"
-        description="Keanggotaan kelas bertanggal efektif; perpindahan menutup keanggotaan lama dan membuka yang baru sehingga riwayat tidak tertimpa (FR-03-02)."
+        description="Keanggotaan kelas bertanggal efektif, perpindahan menutup keanggotaan lama dan membuka yang baru sehingga riwayat tidak tertimpa."
         action={
           canManage ? (
             <Button

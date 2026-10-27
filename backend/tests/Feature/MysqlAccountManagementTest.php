@@ -19,6 +19,22 @@ use Tests\MysqlAuthTestCase;
 
 class MysqlAccountManagementTest extends MysqlAuthTestCase
 {
+    public function test_operator_permission_backfill_sets_protected_creator_and_preserves_existing_grants(): void
+    {
+        $actor = $this->admin();
+        $operator = Role::query()->where('code', 'operator')->firstOrFail();
+        $this->assertFalse(RolePermission::isUnguarded());
+        $this->assertFalse((new RolePermission)->isFillable('created_by'));
+        AccountAccessSeeder::seedOperatorMasterPermissions($actor);
+        $grants = RolePermission::query()->where('role_id', $operator->id)->get();
+        $this->assertNotEmpty($grants);
+        $this->assertSame([$actor->id], $grants->pluck('created_by')->unique()->all());
+        $ids = $grants->modelKeys();
+        AccountAccessSeeder::seedOperatorMasterPermissions(User::factory()->create());
+        $this->assertSame($ids, RolePermission::query()->where('role_id', $operator->id)->pluck('id')->all());
+        $this->assertSame([$actor->id], RolePermission::query()->where('role_id', $operator->id)->pluck('created_by')->unique()->all());
+    }
+
     private function admin(): User
     {
         $this->seed(AccountAccessSeeder::class);
@@ -134,10 +150,12 @@ class MysqlAccountManagementTest extends MysqlAuthTestCase
 
     public function test_database_seeder_creates_one_google_eligible_owner_without_credentials_file(): void
     {
-        config(['accounts.initial_admin.email' => 'owner@example.test', 'accounts.initial_admin.password' => 'Initial-password-123!']);
+        $this->setInitialAdminEnvironment(['email' => 'owner@example.test', 'name' => 'Pengelola Uji', 'username' => 'owner_seed', 'password' => 'Initial-password-123!']);
         $this->seed(DatabaseSeeder::class);
         $owner = User::query()->where('email', 'owner@example.test')->firstOrFail();
         $this->assertTrue(AccountAccess::isSuper($owner));
+        $this->assertSame('Pengelola Uji', $owner->name);
+        $this->assertSame('owner_seed', $owner->username);
         $this->assertNotNull($owner->email_verified_at);
         $this->assertFalse($owner->must_change_password);
         $this->assertTrue($owner->canSignIn());
@@ -160,9 +178,27 @@ class MysqlAccountManagementTest extends MysqlAuthTestCase
 
     public function test_owner_seeder_supports_google_login_without_a_configured_password(): void
     {
-        config(['accounts.initial_admin.email' => 'owner@example.test', 'accounts.initial_admin.password' => null]);
-        $this->seed(SuperAdminSeeder::class);
+        $this->setInitialAdminEnvironment(['email' => false, 'name' => false, 'username' => false, 'password' => false]);
+        $environmentPath = app()->environmentPath();
+        $environmentFile = app()->environmentFile();
+        $configurationIsCached = app()->configurationIsCached();
+        $directory = sys_get_temp_dir().'/sim-owner-seeder-'.bin2hex(random_bytes(8));
+        mkdir($directory, 0700);
+        file_put_contents($directory.'/.env', "INITIAL_ADMIN_EMAIL=owner@example.test\nINITIAL_ADMIN_NAME=\"Pengelola Cache\"\nINITIAL_ADMIN_USERNAME=owner_cached\nINITIAL_ADMIN_PASSWORD=(null)\n");
+
+        try {
+            app()->useEnvironmentPath($directory)->loadEnvironmentFrom('.env');
+            app()->instance('config_loaded_from_cache', true);
+            $this->seed(SuperAdminSeeder::class);
+        } finally {
+            app()->useEnvironmentPath($environmentPath)->loadEnvironmentFrom($environmentFile);
+            app()->instance('config_loaded_from_cache', $configurationIsCached);
+            unlink($directory.'/.env');
+            rmdir($directory);
+        }
         $owner = User::query()->where('email', 'owner@example.test')->firstOrFail();
+        $this->assertSame('Pengelola Cache', $owner->name);
+        $this->assertSame('owner_cached', $owner->username);
         $this->assertTrue($owner->canSignIn());
         $this->assertNotNull($owner->email_verified_at);
         $this->assertFalse($owner->must_change_password);
@@ -173,7 +209,7 @@ class MysqlAccountManagementTest extends MysqlAuthTestCase
     public function test_owner_seeder_does_not_promote_an_existing_account_with_the_same_email(): void
     {
         $user = User::factory()->create(['email' => 'owner@example.test']);
-        config(['accounts.initial_admin.email' => $user->email]);
+        $this->setInitialAdminEnvironment(['email' => $user->email]);
         try {
             $this->seed(SuperAdminSeeder::class);
             $this->fail('An existing user must not be promoted by the owner seeder.');

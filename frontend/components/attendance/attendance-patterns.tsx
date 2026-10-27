@@ -8,6 +8,7 @@ import {
   AcademicList,
   ConfirmAction,
 } from "@/components/academic/academic-shared";
+import { AttendancePolicyDialog } from "@/components/attendance/attendance-policy-dialog";
 import { DataFailure, DataLoading } from "@/components/layout/data-feedback";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,7 @@ import {
   attendanceRequest,
   dateOnly,
   dayLabel,
+  type AttendancePolicy as Policy,
   todayWib,
   WEEKDAYS,
   wibAddDays,
@@ -56,19 +58,6 @@ type AssignmentRow = AcademicRecord & {
   effective_to: string | null;
   workPattern?: { code: string; name: string } | null;
   employee?: { person?: { full_name?: string } | null } | null;
-};
-
-type Policy = AcademicRecord & {
-  version_number: number;
-  requires_photo: boolean;
-  correction_deadline_days: number;
-  photo_max_size_bytes: number;
-  photo_max_dimension: number;
-  photo_quality: number;
-  gps_max_accuracy_meters: string;
-  gps_max_age_seconds: number;
-  effective_from: string;
-  effective_to: string | null;
 };
 
 /** Ringkasan hari aktif versi terakhir, mis. "Senin–Sabtu 07:00–14:00". */
@@ -106,7 +95,15 @@ export function AttendancePatterns() {
     ),
   );
   const policyQuery = useAsyncData(
-    useCallback(() => attendanceRequest<{ data: Policy }>("policy"), []),
+    useCallback(
+      () =>
+        attendanceRequest<{
+          data: Policy;
+          scheduled: Policy[];
+          can_manage: boolean;
+        }>("policy"),
+      [],
+    ),
   );
   const employees: Option[] = (employeeQuery.data?.data ?? []).map((row) => ({
     value: String(row.id),
@@ -116,6 +113,8 @@ export function AttendancePatterns() {
     ),
   }));
   const policy = policyQuery.data?.data;
+  const scheduled = policyQuery.data?.scheduled ?? [];
+  const latestPolicy = scheduled.at(-1) ?? policy;
   const reloadEmployees = employeeQuery.reload;
   const reloadPolicy = policyQuery.reload;
   const reload = useCallback(() => {
@@ -129,7 +128,7 @@ export function AttendancePatterns() {
       <AcademicHeading
         category="Absensi pegawai"
         title="Pola kerja & kebijakan"
-        description="Pola kerja berversi per hari kerja; penetapan pegawai menggantikan pola lama secara efektif; generator hari kerja menandai libur kalender tanpa dianggap alpa."
+        description="Pola kerja berversi per hari kerja, penetapan pegawai menggantikan pola lama secara efektif, generator hari kerja menandai libur kalender tanpa dianggap alpa."
       />
       {employeeQuery.error && (
         <DataFailure
@@ -283,26 +282,34 @@ export function AttendancePatterns() {
         </TabsContent>
 
         <TabsContent value="policy" className="space-y-4">
-          {policyQuery.loading && <DataLoading />}
+          {policyQuery.loading && !policy && <DataLoading />}
+          {policyQuery.loading && policy && (
+            <output className="block text-sm text-muted-foreground">
+              Memuat kebijakan…
+            </output>
+          )}
           {policyQuery.error && (
             <DataFailure
               message={policyQuery.error}
               retry={() => void reloadPolicy()}
             />
           )}
-          {policy && !policyQuery.loading && !policyQuery.error && (
+          {policy && !policyQuery.error && (
             <Card className="rounded-2xl border border-border/70 py-0 ring-0">
               <CardContent className="space-y-4 p-4 sm:p-6">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <h2 className="text-base font-semibold">
                     Kebijakan berlaku (versi {policy.version_number})
                   </h2>
-                  <Button
-                    className="h-11 text-xs"
-                    onClick={() => setPolicying(true)}
-                  >
-                    Versi kebijakan baru
-                  </Button>
+                  {policyQuery.data?.can_manage && (
+                    <Button
+                      className="h-11 text-xs"
+                      disabled={policyQuery.loading}
+                      onClick={() => setPolicying(true)}
+                    >
+                      Versi kebijakan baru
+                    </Button>
+                  )}
                 </div>
                 <dl className="grid gap-3 text-sm sm:grid-cols-2">
                   <div>
@@ -335,7 +342,9 @@ export function AttendancePatterns() {
                       Pembatasan lokasi
                     </dt>
                     <dd className="font-medium">
-                      Tanpa titik pusat atau radius
+                      {policy.geofence_enabled
+                        ? `${policy.geofence_name} · radius ${policy.geofence_radius_meters} m`
+                        : "Tanpa titik pusat atau radius"}
                     </dd>
                   </div>
                   <div>
@@ -367,12 +376,34 @@ export function AttendancePatterns() {
                 </dl>
                 <p className="text-sm leading-6 text-muted-foreground">
                   Akurasi GPS adalah perkiraan ketelitian posisi perangkat,
-                  bukan jarak dari madrasah. Lokasi dicatat sebagai bukti
-                  kehadiran tanpa pembatasan titik atau radius.
+                  bukan jarak dari madrasah.{" "}
+                  {policy.geofence_enabled
+                    ? "Absensi hanya diterima bila posisi dan ketelitian GPS berada di dalam radius lokasi."
+                    : "Kebijakan ini tidak membatasi titik atau radius absensi."}
                 </p>
               </CardContent>
             </Card>
           )}
+          {scheduled.map((item) => (
+            <Card key={item.id} className="rounded-2xl border py-0 ring-0">
+              <CardContent className="space-y-2 p-4 sm:p-6">
+                <h2 className="text-base font-semibold">
+                  Kebijakan terjadwal (versi {item.version_number})
+                </h2>
+                <p className="text-sm">
+                  Berlaku mulai {dateOnly(item.effective_from)} ·{" "}
+                  {item.geofence_enabled
+                    ? `${item.geofence_name}, radius ${item.geofence_radius_meters} m`
+                    : "Geofence tidak aktif"}
+                </p>
+                {item.geofence_enabled && (
+                  <p className="break-all text-xs text-muted-foreground">
+                    Titik: {item.geofence_latitude}, {item.geofence_longitude}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          ))}
         </TabsContent>
       </Tabs>
 
@@ -445,71 +476,11 @@ export function AttendancePatterns() {
         <GenerateDialog onClose={() => setGenerating(false)} reload={reload} />
       )}
 
-      {policying && policy && (
-        <AcademicFormDialog
-          title="Versi kebijakan baru"
-          description="Kebijakan baru berlaku mulai besok atau setelahnya; data lama tidak diubah dan tidak retroaktif (FR-05-06)."
-          fields={[
-            {
-              name: "effective_from",
-              label: "Berlaku mulai",
-              required: true,
-              max: 10,
-              type: "date",
-            },
-            {
-              name: "requires_photo",
-              label: "Foto + GPS wajib untuk aksi mandiri",
-              type: "boolean",
-            },
-            {
-              name: "correction_deadline_days",
-              label: "Batas koreksi (hari)",
-              required: true,
-              type: "number",
-              max: 2,
-            },
-            {
-              name: "gps_max_accuracy_meters",
-              label: "Akurasi GPS maksimal (meter)",
-              hint: "Batas ketelitian posisi perangkat, bukan radius absensi dari madrasah.",
-              required: true,
-              type: "number",
-              max: 4,
-            },
-            {
-              name: "gps_max_age_seconds",
-              label: "Maksimal umur foto/lokasi (detik)",
-              required: true,
-              type: "number",
-              max: 3,
-            },
-          ]}
-          current={
-            {
-              requires_photo: policy.requires_photo,
-              correction_deadline_days: policy.correction_deadline_days,
-              gps_max_accuracy_meters: String(
-                Number(policy.gps_max_accuracy_meters),
-              ),
-              gps_max_age_seconds: policy.gps_max_age_seconds,
-            } as unknown as AcademicRecord
-          }
+      {policying && latestPolicy && (
+        <AttendancePolicyDialog
+          policy={latestPolicy}
           onClose={() => setPolicying(false)}
-          submit={async (body) => {
-            await attendanceRequest("policy/versions", "POST", {
-              effective_from: body.effective_from,
-              requires_photo: body.requires_photo === true,
-              correction_deadline_days: Number(body.correction_deadline_days),
-              photo_max_size_bytes: policy.photo_max_size_bytes,
-              photo_max_dimension: policy.photo_max_dimension,
-              photo_quality: policy.photo_quality,
-              gps_max_accuracy_meters: Number(body.gps_max_accuracy_meters),
-              gps_max_age_seconds: Number(body.gps_max_age_seconds),
-              reason: body.reason,
-            });
-            reload();
-          }}
+          onSaved={reload}
         />
       )}
     </div>

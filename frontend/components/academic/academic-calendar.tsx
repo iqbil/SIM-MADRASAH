@@ -66,7 +66,7 @@ export function AcademicCalendar({ access }: { access: string[] }) {
     <div className="animate-enter space-y-6">
       <AcademicHeading
         title="Kalender akademik"
-        description="Catat libur, kegiatan, dan ujian. Kejadian yang memblokir mengajar mencegah JP honor otomatis (DEC-04); kejadian tanpa kelas berlaku seluruh madrasah."
+        description="Catat libur, kegiatan, dan ujian. Kejadian yang memblokir mengajar mencegah JP honor otomatis, kejadian tanpa kelas berlaku seluruh madrasah."
         action={
           canManage ? (
             <Button

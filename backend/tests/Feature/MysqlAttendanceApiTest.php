@@ -2,12 +2,14 @@
 
 namespace Tests\Feature;
 
+use App\Models\EmployeeAttendancePolicy;
 use App\Models\Person;
 use App\Models\User;
 use App\Models\UserRole;
 use Carbon\CarbonImmutable;
 use Database\Seeders\AccountAccessSeeder;
 use Database\Seeders\ReferenceDataSeeder;
+use Firebase\JWT\JWT;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -292,5 +294,96 @@ class MysqlAttendanceApiTest extends MysqlAuthTestCase
             ->assertJsonPath('data.0.employeeAttendance.workDay.employee.person.full_name', $user->person->full_name)
             ->assertJsonPath('data.0.employeeAttendance.workDay.work_date', CarbonImmutable::parse(today('Asia/Jakarta')->toDateString(), 'UTC')->toJSON());
         $this->getJson('/api/v1/attendance/recap?employee_id='.$employeeId, $op)->assertOk()->assertJsonPath('data.summary.0.terlambat', 1);
+    }
+
+    /** @return array<string, mixed> */
+    private function geofencePolicyPayload(array $overrides = []): array
+    {
+        return [...[
+            'effective_from' => today('Asia/Jakarta')->addDay()->toDateString(),
+            'requires_photo' => true, 'correction_deadline_days' => 7,
+            'photo_max_size_bytes' => 307200, 'photo_max_dimension' => 1280, 'photo_quality' => 80,
+            'gps_max_accuracy_meters' => 100, 'gps_max_age_seconds' => 60,
+            'geofence_enabled' => true, 'geofence_name' => 'Madrasah uji',
+            'geofence_latitude' => '-6.7000000', 'geofence_longitude' => '108.5000000', 'geofence_radius_meters' => 100,
+            'reason' => 'Penetapan titik dan radius absensi oleh pengelola',
+        ], ...$overrides];
+    }
+
+    public function test_geofence_policy_is_authorized_validated_versioned_and_scheduled(): void
+    {
+        [, $admin] = $this->operator();
+        [$employee, $employeeId] = $this->employeeUser($admin);
+        $old = $this->getJson('/api/v1/attendance/policy', $admin)->assertOk()->json('data');
+        $payload = $this->geofencePolicyPayload(['expected_policy_id' => $old['id']]);
+        $this->postJson('/api/v1/attendance/policy/versions', $payload, $employee)->assertForbidden();
+        $scoped = User::factory()->create();
+        $mandate = DB::table('authorization_mandates')->insertGetId([
+            'user_id' => $scoped->id, 'permission_id' => DB::table('permissions')->where('code', 'attendance.manage')->value('id'),
+            'scope_type' => 'employee', 'employee_id' => $employeeId,
+            'effective_from' => now('UTC')->subSecond(), 'granted_by' => $scoped->id,
+            'reason' => 'Mandat terbatas satu pegawai untuk uji kebijakan', 'created_at' => now('UTC'), 'updated_at' => now('UTC'),
+        ]);
+        $scopedHeaders = ['Authorization' => 'Bearer '.$this->loginUser($scoped)['access_token']];
+        $this->getJson('/api/v1/attendance/policy', $scopedHeaders)->assertOk()->assertJsonPath('can_manage', false);
+        $this->postJson('/api/v1/attendance/policy/versions', $payload, $scopedHeaders)->assertForbidden();
+        DB::table('authorization_mandates')->where('id', $mandate)->update(['scope_type' => 'institution', 'employee_id' => null]);
+        $this->getJson('/api/v1/attendance/policy', $scopedHeaders)->assertOk()->assertJsonPath('can_manage', true);
+        foreach ([['geofence_latitude' => null], ['geofence_longitude' => 181], ['geofence_radius_meters' => 0], ['geofence_name' => ''], ['requires_photo' => false]] as $invalid) {
+            $this->postJson('/api/v1/attendance/policy/versions', [...$payload, ...$invalid], $admin)->assertUnprocessable();
+        }
+        $new = $this->postJson('/api/v1/attendance/policy/versions', $payload, $admin)->assertCreated()->assertJsonPath('data.geofence_enabled', true)->json('data');
+        $this->assertNotSame($old['id'], $new['id']);
+        $this->getJson('/api/v1/attendance/policy', $admin)->assertOk()->assertJsonPath('data.geofence_enabled', false)->assertJsonPath('scheduled.0.geofence_radius_meters', 100);
+        $this->getJson('/api/v1/attendance/policy', $employee)->assertOk()->assertJsonCount(0, 'scheduled');
+        $this->postJson('/api/v1/attendance/policy/versions', $payload, $admin)->assertConflict();
+        $this->postJson('/api/v1/attendance/policy/versions', [...$payload, 'expected_policy_id' => $new['id']], $admin)->assertUnprocessable();
+        $legacy = collect($payload)->except(EmployeeAttendancePolicy::GEOFENCE_FIELDS)->all();
+        $legacy['effective_from'] = today('Asia/Jakarta')->addDays(2)->toDateString();
+        $legacy['expected_policy_id'] = $new['id'];
+        $inherited = $this->postJson('/api/v1/attendance/policy/versions', $legacy, $admin)->assertCreated()->assertJsonPath('data.geofence_enabled', true)->json('data');
+        $disabled = $this->postJson('/api/v1/attendance/policy/versions', [...$payload,
+            'expected_policy_id' => $inherited['id'], 'effective_from' => today('Asia/Jakarta')->addDays(3)->toDateString(), 'geofence_enabled' => false,
+        ], $admin)->assertCreated()->json('data');
+        $this->assertNull($disabled['geofence_latitude']);
+        $this->assertNull($disabled['geofence_name']);
+        $this->assertDatabaseHas('employee_attendance_policies', ['id' => $old['id'], 'geofence_enabled' => 0]);
+        $this->assertDatabaseHas('audit_logs', ['event' => 'attendance.policy_versioned', 'object_id' => (string) $new['id']]);
+    }
+
+    public function test_geofence_blocks_direct_api_outside_and_uncertain_without_partial_writes(): void
+    {
+        Storage::fake('local');
+        [, $admin] = $this->operator();
+        [$headers, , $user] = $this->employeeUser($admin);
+        $policy = $this->postJson('/api/v1/attendance/policy/versions', $this->geofencePolicyPayload(), $admin)->assertCreated()->json('data');
+        $this->travelTo(CarbonImmutable::parse(today('Asia/Jakarta')->addDay()->toDateString().' 10:00:00', 'Asia/Jakarta'));
+        JWT::$timestamp = now('UTC')->timestamp;
+        try {
+            $headers = ['Authorization' => 'Bearer '.$this->loginUser($user)['access_token']];
+            $this->getJson('/api/v1/attendance/status', $headers)->assertOk()->assertJsonPath('data.policy.geofence_enabled', true);
+            $key = (string) Str::uuid();
+            $this->post('/api/v1/attendance/clock', $this->clockPayload(['operation_key' => $key, 'latitude' => -6.72, 'geofence_enabled' => false]), $headers)->assertUnprocessable();
+            $this->post('/api/v1/attendance/clock', $this->clockPayload(['latitude' => -6.70085]), $headers)->assertUnprocessable();
+            $this->assertDatabaseCount('employee_attendances', 0);
+            $this->assertDatabaseCount('employee_attendance_captures', 0);
+            $this->assertDatabaseCount('files', 0);
+            $this->assertCount(0, Storage::disk('local')->allFiles());
+            $this->post('/api/v1/attendance/clock', $this->clockPayload(['operation_key' => $key]), $headers)->assertOk();
+            $capture = DB::table('employee_attendance_captures')->first();
+            $snapshot = json_decode($capture->policy_snapshot, true);
+            $this->assertSame($policy['id'], $snapshot['id']);
+            $this->assertSame(100, $snapshot['geofence_radius_meters']);
+            $this->assertEquals(0, $snapshot['geofence_distance_meters']);
+            $this->post('/api/v1/attendance/clock', $this->clockPayload(['action' => 'check_out', 'operation_key' => $key]), $headers)->assertConflict();
+            $this->post('/api/v1/attendance/clock', $this->clockPayload(['action' => 'check_out', 'latitude' => -6.72]), $headers)->assertUnprocessable();
+            $this->assertNull(DB::table('employee_attendances')->value('check_out_at'));
+            $this->assertDatabaseCount('files', 1);
+            $this->post('/api/v1/attendance/clock', $this->clockPayload(['action' => 'check_out']), $headers)->assertOk();
+            $this->assertDatabaseCount('employee_attendance_captures', 2);
+        } finally {
+            JWT::$timestamp = null;
+            $this->travelBack();
+        }
     }
 }

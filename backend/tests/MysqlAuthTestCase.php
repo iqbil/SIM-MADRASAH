@@ -7,6 +7,29 @@ use Illuminate\Support\Facades\DB;
 
 abstract class MysqlAuthTestCase extends TestCase
 {
+    /** @var array<string, array{env: mixed, server: mixed, process: string|false}> */
+    private array $initialAdminEnvironment = [];
+
+    /** @param array<string, string|false|null> $values */
+    protected function setInitialAdminEnvironment(array $values): void
+    {
+        foreach ($values as $key => $value) {
+            $name = 'INITIAL_ADMIN_'.strtoupper($key);
+            $this->initialAdminEnvironment[$name] ??= [
+                'env' => $_ENV[$name] ?? null,
+                'server' => $_SERVER[$name] ?? null,
+                'process' => getenv($name),
+            ];
+            if ($value === false) {
+                unset($_ENV[$name], $_SERVER[$name]);
+                putenv($name);
+            } else {
+                $_ENV[$name] = $_SERVER[$name] = $value ?? '(null)';
+                putenv($name.'='.($value ?? '(null)'));
+            }
+        }
+    }
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -22,6 +45,21 @@ abstract class MysqlAuthTestCase extends TestCase
 
     protected function tearDown(): void
     {
+        foreach ($this->initialAdminEnvironment as $name => $values) {
+            if ($values['env'] === null) {
+                unset($_ENV[$name]);
+            } else {
+                $_ENV[$name] = $values['env'];
+            }
+            if ($values['server'] === null) {
+                unset($_SERVER[$name]);
+            } else {
+                $_SERVER[$name] = $values['server'];
+            }
+            putenv($values['process'] === false ? $name : $name.'='.$values['process']);
+        }
+        $this->initialAdminEnvironment = [];
+
         if ($this->app !== null && DB::getDriverName() === 'mysql' && DB::transactionLevel() > 0) {
             DB::rollBack();
         }

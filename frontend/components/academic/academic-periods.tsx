@@ -105,7 +105,7 @@ export function AcademicPeriods({ access }: { access: string[] }) {
     <div className="animate-enter space-y-6">
       <AcademicHeading
         title="Tahun ajaran & semester"
-        description="Kelola tahun ajaran, semester, dan satu periode aktif yang menjadi acuan seluruh modul madrasah (DEC-19)."
+        description="Kelola tahun ajaran, semester, dan satu periode aktif yang menjadi acuan seluruh modul madrasah."
         action={
           canManage ? (
             <div className="flex flex-wrap gap-2">

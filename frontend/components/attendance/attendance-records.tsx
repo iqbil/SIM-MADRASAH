@@ -84,7 +84,7 @@ export function AttendanceRecords({ canManage }: { canManage: boolean }) {
       <AcademicHeading
         category="Absensi pegawai"
         title="Absensi & izin pegawai"
-        description="Petugas mencatat izin, sakit, cuti, dan dinas luar tanpa bukti foto; pencatatan ini juga menjadi fallback administratif bila kamera/GPS pegawai gagal (FR-05-07)."
+        description="Petugas mencatat izin, sakit, cuti, dan dinas luar tanpa bukti foto, pencatatan ini juga menjadi fallback administratif bila kamera/GPS pegawai gagal."
       />
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="flex flex-wrap items-end gap-3">

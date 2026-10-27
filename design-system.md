@@ -1,13 +1,13 @@
 # Design System — SIM Madrasah MTs Al Karimiyyah
 
-Versi 1.9 · 26 Oktober 2026 · Berlaku untuk seluruh `frontend/`.
+Versi 1.11 · 27 Oktober 2026 · Berlaku untuk seluruh `frontend/`.
 
-Dokumen ini menjadi pedoman implementasi UI/UX dari autentikasi hingga seluruh modul madrasah. Perubahan berikutnya wajib mengacu ke pedoman ini. Ketentuan bisnis, otorisasi, dan data mengikuti SRS serta kontrak API; design system mengatur cara pengguna berinteraksi dengan ketentuan tersebut.
+Dokumen ini menjadi pedoman implementasi UI/UX dari autentikasi hingga seluruh modul madrasah. Perubahan berikutnya wajib mengacu ke pedoman ini. Ketentuan bisnis, otorisasi, dan data mengikuti [SRS v1.4](SRS_SIM_Madrasah_MTs_Al_Karimiyyah.txt) serta kontrak API; design system mengatur cara pengguna berinteraksi dengan ketentuan tersebut. Status modul mengikuti [roadmap](roadmap-agents.md). Revisi 1.11 mencocokkan pedoman dengan source UI yang sudah tersedia, tanpa mengubah kode aplikasi.
 
 ## 1. Prinsip dan aturan wajib
 
 1. **Mobile menjadi prioritas.** Semua alur utama dapat diselesaikan pada lebar 320 px, menggunakan sentuhan dan keyboard, tanpa menggulir seluruh halaman secara horizontal.
-2. **Komponen interaktif wajib shadcn/ui.** Gunakan komponen lokal `frontend/components/ui/`. Komponen baru ditambahkan melalui registry shadcn dengan style `radix-nova`, lalu disesuaikan dengan token proyek. Elemen semantik seperti `main`, `section`, `form`, `fieldset`, dan `dl` tetap menggunakan HTML.
+2. **Komponen interaktif wajib shadcn/ui.** Gunakan komponen lokal `frontend/components/ui/`. Komponen baru ditambahkan melalui registry shadcn dengan style `radix-nova`, lalu disesuaikan dengan token proyek. Elemen semantik seperti `main`, `section`, `form`, `fieldset`, dan `dl` tetap menggunakan HTML. Leaflet merupakan pengecualian untuk interaksi peta/native zoom; bungkus dengan komponen fitur dan ikuti ukuran, fokus, token serta alternatif input manual pada §10.2.
 3. **Satu identitas visual.** Warna hijau madrasah, latar netral hangat, kartu putih, tipografi Geist, ikon Lucide, dan ruang kosong yang cukup. Warna tidak berubah menurut role.
 4. **Pola interaksi seragam.** Aksi yang sama memakai label, urutan, indikator proses, modal, dan pesan hasil yang sama di semua modul.
 5. **Tampilkan keadaan yang sebenarnya.** Angka berasal dari API; bedakan memuat, kosong, gagal, dan tidak berizin. Loading tidak ditampilkan sebagai angka nol.
@@ -15,6 +15,8 @@ Dokumen ini menjadi pedoman implementasi UI/UX dari autentikasi hingga seluruh m
 7. **Perbaiki penyebab error.** Peringatan hydration/prerender harus diperiksa, bukan disembunyikan secara global.
 8. **Gunakan ulang sebelum membuat.** Jangan membuat komponen baru jika komponen yang ada dapat memenuhi kebutuhan melalui komposisi, props, atau variant yang wajar. Aturan ini berlaku untuk komponen dasar, layout, form, modal, notifikasi, dan komponen fitur, sejak halaman pertama sampai pengembangan sistem selesai.
 9. **Halaman baru mengikuti halaman yang sudah ada.** Modul dan role dapat berbeda isi serta hak aksesnya, tetapi memakai shell, token, ukuran kontrol, pola form, dialog, tabel, dan keadaan UI yang sama. Jangan membuat identitas visual atau kumpulan komponen dasar tersendiri per modul/role.
+
+**Cara membaca:** tabel sumber dan bagian “implementasi saat ini” mendeskripsikan source yang ada. Aturan wajib/checklist adalah target untuk halaman baru dan komponen yang diubah, bukan klaim seluruh halaman telah lulus semua pemeriksaan. Status tes adalah bukti sesuai sesi, bukan sertifikasi aksesibilitas/UAT.
 
 Pedoman berlaku langsung untuk halaman baru dan komponen yang diubah. Bagian lama yang belum memenuhi ukuran teks atau kontrol di bawah ini harus diselaraskan saat dikerjakan; dokumen ini tidak menyatakan seluruh tampilan lama sudah memenuhi semua kriteria aksesibilitas.
 
@@ -33,6 +35,7 @@ Pedoman berlaku langsung untuk halaman baru dan komponen yang diubah. Bagian lam
 | Layout login/pemulihan/password | `frontend/components/auth/auth-frame.tsx` |
 | State kosong dashboard | `frontend/components/dashboard/empty-dashboard.tsx` |
 | Loading halaman | `frontend/components/layout/page-skeleton.tsx` |
+| Titik/radius absensi | `frontend/components/attendance/attendance-policy-dialog.tsx`, `frontend/components/attendance/attendance-geofence-map.tsx`, `frontend/lib/geofence.ts` |
 | Loading/error data lintas fitur | `frontend/components/layout/data-feedback.tsx` (`DataLoading`, `DataFailure`); alias master dipertahankan |
 | Breakpoint sidebar | `frontend/hooks/use-mobile.ts` |
 | Referensi form akun, role, konfirmasi | `frontend/components/accounts/account-workspace.tsx` |
@@ -40,8 +43,13 @@ Pedoman berlaku langsung untuk halaman baru dan komponen yang diubah. Bagian lam
 | Konfirmasi tindakan lintas fitur | `frontend/components/layout/confirmation-dialog.tsx` |
 | Pagination dan alasan perubahan | `frontend/components/layout/pager.tsx`, `frontend/components/layout/reason-field.tsx` |
 | Data master, form domain, relasi dan impor | `frontend/components/master/`, `frontend/lib/master-data.ts` |
-| Modul Akademik & Kelas (tahun ajaran/semester, rombel, keanggotaan, mutasi, kalender, penugasan) | `frontend/components/academic/`, `frontend/lib/academic.ts`, BFF `frontend/app/api/academic/` |
+| Modul Akademik & Kelas (periode, rombel, keanggotaan/mutasi, kalender, penugasan, jadwal/pertemuan, pengganti, perwalian) | `frontend/components/academic/`, `frontend/lib/academic.ts`, BFF `frontend/app/api/academic/` |
 | Request sesi dan loading data bersama | `frontend/lib/api-client.ts`, `frontend/hooks/use-async-data.ts`, `frontend/hooks/use-dialog-focus.ts` |
+| Heading/daftar/form/filter lintas modul | `frontend/components/academic/academic-shared.tsx` — dipakai akademik, absensi, realisasi dan siswa |
+| Masuk/pulang, riwayat, status petugas, pola, rekap dan koreksi | `frontend/components/attendance/`, `frontend/lib/attendance.ts`, BFF `frontend/app/api/attendance/[...path]/route.ts` |
+| Realisasi/pengajuan dan verifikasi | `frontend/components/teaching/`, `frontend/lib/teaching.ts`, BFF `frontend/app/api/teaching/[...path]/route.ts` |
+| Absensi harian dan rekap siswa | `frontend/components/student-attendance/`, `frontend/lib/student-attendance.ts`, BFF `frontend/app/api/student-attendance/[...path]/route.ts` |
+| Regresi UI/responsif/hydration | `frontend/tests/e2e/`, `frontend/playwright.config.ts` |
 | Nama role dan tujuan ruang kerja | `frontend/lib/auth/roles.ts` |
 
 Alur pemilihan komponen: periksa komponen lokal → cari komponen shadcn yang sesuai → tambahkan jika belum tersedia → susun menjadi komponen fitur. Jangan membuat dialog, dropdown, checkbox, atau toast sendiri dengan `div` dan event handler.
@@ -75,12 +83,39 @@ Hindari abstraksi yang membutuhkan banyak flag untuk perilaku yang tidak berkait
 | Identitas madrasah | `Brand` | Gunakan variant/props yang tersedia; jangan membuat logo dan nama sekolah ulang pada halaman. |
 | Input password dan tombol keluar | `PasswordInput`, `LogoutButton` | Gunakan perilaku tampil/sembunyi password serta alur keluar yang sudah ada. |
 | Memuat shell/halaman | `ShellSkeleton`, `PageSkeleton`, primitive `Skeleton` | Gunakan fallback yang sesuai. Bila bentuk halaman berbeda, susun skeleton dari primitive yang ada tanpa membuat primitive loading kedua. |
-| Dashboard awal kosong | `EmptyDashboard` dan primitive `Empty` | `EmptyDashboard` khusus konteks dashboard role; daftar kosong modul lain disusun dari `Empty` dengan isi yang relevan. |
+| Dashboard awal kosong | `EmptyDashboard` dan primitive `Empty` | `EmptyDashboard` khusus konteks dashboard role; daftar kosong modul lain memakai Empty atau pesan inline sesuai pola source pada §9/§10; bedakan kosong, loading dan gagal. |
 | Dialog, konfirmasi, detail | `Dialog`, `AlertDialog`, `Sheet`, `ScrollArea` | Pakai struktur pada §8. `UserEditor`, `RoleEditor`, dan `ActionDialog` tetap memuat aturan akun; kerangka tampilannya memakai `FormDialog`/`ConfirmationDialog` bersama. `ReasonField` menjadi kolom alasan lintas fitur. Jangan mengimpor workspace akun untuk menggunakan pola umum. |
 | Daftar, status, pagination | `Table`, `Badge`, pola kartu mobile, dan `Pager` bersama di `components/layout/pager.tsx` | Pakai metadata halaman/jumlah hasil yang nyata dan nonaktifkan pagination saat pending. Jangan menyalin fungsi pagination ke modul lain. |
 | Form dan notifikasi | `Label`, `Input`, `Textarea`, `Select`, `Checkbox`, `Button`, `Alert`, `Toaster` | Satu pola label/error/pending. `Toaster` hanya pada root layout, fitur memakai `toast` yang sama. |
 
+Komponen fitur yang sudah dipakai lintas domain tetap berada pada lokasi berikut; jangan membuat salinan hanya untuk mengganti nama domain:
+
+| Ekspor | Lokasi | Kontrak penggunaan |
+| --- | --- | --- |
+| `AcademicHeading` | `components/academic/academic-shared.tsx` | `category`, `title`, `description`, `action`; category harus sesuai pekerjaan (Akademik & kelas, Absensi pegawai, Realisasi mengajar, Absensi siswa). |
+| `AcademicList` | File yang sama | `load(page)`, columns, judul/metadata/aksi baris, opsi create dan reloadKey; menggabungkan loading/error, refresh, tabel `md`, kartu mobile serta Pager. Data halaman dinormalisasi oleh `normalizeAcademicPage`. |
+| `AcademicFormDialog` | File yang sama | FieldDefinition, alasan, submit async, current/expected_updated_at dan konflik; `extra` menerima ReactNode atau fungsi `(busy) => ReactNode` untuk field/peta tambahan. |
+| `ConfirmAction` | File yang sama | Membungkus ConfirmationDialog dengan alasan dan aksi async; label/dampak mengikuti proses domain. |
+| `FilterSelect`, `DateFilter` | File yang sama | Filter berlabel; Select shadcn mengubah opsi “Semua” menjadi nilai kosong. Jangan tampilkan sentinel `__all` kepada pengguna. |
+| `MasterField`, `RecordPicker` | `components/master/master-fields.tsx` | Kontrol berdasarkan FieldDefinition dan pencarian referensi server; tetap gunakan input/label/error yang sama. |
+| `AttendancePolicyDialog`, `AttendanceGeofenceMap` | `components/attendance/` | Editor policy melalui AcademicFormDialog; peta adalah field pendamping koordinat/radius, bukan shell/dialog baru. |
+
+Path pada tabel inventaris komponen relatif terhadap `frontend/`; ini lokasi aktual, bukan instruksi memindahkan seluruh helper akademik ke folder baru.
+
 Inventaris ini menyatakan komponen yang benar-benar ada saat revisi ini. Jangan menganggap nama pola sebagai komponen yang sudah diekspor, dan jangan mengimpor seluruh workspace akun untuk memakai satu bagian tampilan. Lokasi fitur tetap mengikuti domain; komponen lintas fitur ditempatkan di direktori bersama yang sudah tersedia dan sesuai fungsinya.
+
+### 2.3 Halaman yang sudah mempunyai UI
+
+| Area / SRS | Halaman atau pola aktif | Acuan UI |
+| --- | --- | --- |
+| Autentikasi & akun / FR-01 | `/login`, `/ganti-password`, `/sesi/perbarui`, `/akun`, `/pengguna`, `/dashboard/[role]` | AuthFrame, AccountWorkspace, AppShell dan EmptyDashboard. Dashboard role masih tampilan awal/navigasi. |
+| Data master / FR-02 | `/data-master/[section]` | MasterWorkspace: delapan bagian, relasi, pencarian, form/detail dan impor. |
+| Akademik & kelas / FR-03–04 | `/akademik/[section]`, termasuk jadwal, pengganti dan `/akademik/perwalian` | AcademicWorkspace, AcademicList/FormDialog dan HomeroomClass. |
+| Absensi pegawai / FR-05 | `/absensi/{masuk-pulang,riwayat,pegawai,pola-kerja,rekap,koreksi}` | AttendanceClock/History/Records/Patterns/Recap/CorrectionRequests; editor policy/geofence pada pola-kerja. |
+| Realisasi / FR-06 | `/realisasi/{pertemuan,riwayat,verifikasi}` | MyMeetings, MyRealizations, Verifications; daftar dan dialog bersama. |
+| Absensi siswa / FR-07 | `/absensi-siswa/{harian,rekap}`, tab Koreksi siswa pada `/absensi/koreksi` | DailyAttendance, StudentRecap dan alur koreksi bersama. |
+
+Halaman privat memakai requireUser/Suspense serta pemeriksaan navigation/permissions. URL langsung tanpa akses mengikuti guard halaman/backend, bukan hanya menyembunyikan menu. Kehadiran entri pada katalog sidebar tidak berarti halaman tersedia; FR-08–FR-17 tetap backlog sebagaimana roadmap. Kebutuhan tampilan honor, BK, publikasi, portal wali, laporan, privasi dan notifikasi in-app berikutnya adalah pedoman, bukan UI selesai. Toast Sonner adalah umpan balik aksi; belum merupakan pusat notifikasi FR-17.
 
 ## 3. Token visual
 
@@ -107,10 +142,14 @@ Gunakan kelas semantik seperti `bg-background`, `bg-card`, `text-foreground`, `t
 | `--destructive` | `oklch(0.577 0.245 27.325)` | Error dan tindakan berisiko |
 | `--sidebar` | `#ffffff` | Permukaan navigasi |
 | `--sidebar-foreground` | `#32463b` | Teks navigasi |
+| `--card-foreground`, `--popover-foreground` | `var(--foreground)` | Teks kartu/dialog/menu |
+| `--sidebar-primary`, `--sidebar-primary-foreground` | `#1b5945`, `#ffffff` | Aksi/identitas sidebar |
+| `--sidebar-accent`, `--sidebar-accent-foreground` | `#eef4eb`, `#1b5945` | Pilihan/hover sidebar |
+| `--sidebar-border`, `--sidebar-ring` | `#e2e7df`, `#59937a` | Batas dan fokus sidebar |
 
 Hijau ringan menggunakan turunan token, misalnya `bg-primary/5` dan `border-primary/10`. Hindari warna hex baru di halaman. Pengecualian terbatas untuk identitas resmi pihak ketiga, gambar, dan overlay foto autentikasi. Jika dibutuhkan warna semantik sukses/peringatan/informasi pada modul baru, definisikan token bersama dan dokumentasikan sebelum dipakai; jangan menambahkan palet berbeda di setiap modul.
 
-Status selalu memiliki label teks. Contoh: `Aktif`, `Nonaktif`, `Terverifikasi`, `Belum terverifikasi`; warna atau ikon saja tidak cukup. Grafik mendatang harus memakai seri yang dapat dibedakan, label/legenda, serta alternatif tekstual; token grafik netral saat ini belum menjadi palet final untuk grafik data.
+Status selalu memiliki label teks. Contoh: `Aktif`, `Nonaktif`, `Terverifikasi`, `Belum terverifikasi`; warna atau ikon saja tidak cukup. Grafik mendatang harus memakai seri yang dapat dibedakan, label/legenda, serta alternatif tekstual; token grafik netral `--chart-1`…`--chart-5` saat ini belum menjadi palet final untuk grafik data; belum ada dashboard grafik lintas modul.
 
 Tema yang aktif saat ini **light**. Sonner juga menggunakan tema light. Dark mode baru boleh ditambahkan bersama token lengkap, provider, dan pengujian; jangan mengikuti preferensi OS hanya pada sebagian komponen.
 
@@ -118,7 +157,7 @@ Tema yang aktif saat ini **light**. Sonner juga menggunakan tema light. Dark mod
 
 - Geist untuk seluruh UI; Geist Mono untuk kode/identitas teknis pendek yang memang perlu dibaca pengguna.
 - Satu `h1` per halaman. Gunakan `h2` untuk bagian dan `h3` untuk subbagian, meskipun teks dibungkus `CardTitle` atau `EmptyTitle`.
-- Judul halaman: 24–28 px pada mobile, 30–32 px pada layar lebar, `font-semibold`, `tracking-tight`.
+- Judul halaman: 24–28 px pada mobile, 30–32 px pada layar lebar, `font-semibold`, `tracking-tight`. AcademicHeading saat ini memakai `text-[27px] sm:text-3xl`, category `text-xs`, deskripsi `text-sm leading-6 max-w-2xl`. Gunakan category prop agar konteks domain benar.
 - Judul kartu/dialog: 14–16 px, `font-medium` atau `font-semibold`.
 - Isi utama dan label: 14–16 px, tinggi baris 1,5–1,75. Deskripsi panjang tidak dipaksa menjadi huruf kecil.
 - Metadata sekunder: minimal 12 px untuk pengembangan baru. Teks 10–11 px yang masih ada merupakan bagian lama yang perlu diperbaiki bertahap.
@@ -138,10 +177,12 @@ Gunakan satuan kelipatan 4 px: 4, 8, 12, 16, 20, 24, 32, 40, 48. Jarak antarkelo
 | `rounded-lg` | 12 px |
 | `rounded-xl` | 16,8 px |
 | `rounded-2xl` | 21,6 px |
+| `rounded-3xl` | 26,4 px |
+| `rounded-4xl` | 31,2 px |
 
 Input/tombol memakai `rounded-lg`; kartu, dialog, dan bagian dashboard memakai `rounded-xl`/`rounded-2xl`; avatar dan badge dapat membulat penuh. Lengkung 32 px pada panel login mobile adalah pengecualian identitas autentikasi.
 
-Kartu utama cukup memakai border lembut, tanpa bayangan berat. Dropdown memakai bayangan ringan; dialog/sheet memakai bayangan lebih kuat dan overlay gelap. Hindari border ganda akibat menambahkan ring dan border tanpa meninjau komponen dasar.
+Kartu daftar/ringkasan domain saat ini umumnya memakai `rounded-2xl border border-border/70 py-0 ring-0` dengan isi `p-4 sm:p-5` (kamera dapat `sm:p-6`). Kartu utama cukup memakai border lembut, tanpa bayangan berat. Dropdown memakai bayangan ringan; dialog/sheet memakai bayangan lebih kuat dan overlay gelap. Hindari border ganda akibat menambahkan ring dan border tanpa meninjau komponen dasar.
 
 ## 4. Layout dan responsivitas
 
@@ -182,7 +223,7 @@ Gunakan `AppHeader` pada seluruh halaman portal. Konten navbar mengikuti batas l
 ### Menu sidebar dan modul yang belum tersedia
 
 - Kelompok modul memakai `Collapsible` shadcn bersama komponen `Sidebar`. Kelompok dapat dibuka dengan keyboard dan pada mode ikon membuka sidebar desktop kembali; drawer tetap dapat digulir pada mobile/tablet.
-- Menu Data Master sudah aktif pada `/data-master/{section}` untuk delapan bagian katalog; `href` didefinisikan pada katalog sidebar yang sama. Menu operasional yang sudah tersedia tetap berupa `Link` dengan status aktif dan `aria-current`. Menu yang belum memiliki halaman berupa tombol **disabled**, tanpa `href`, dengan ikon jam dan nama aksesibel `Nama menu — Segera hadir`. Keterangan status tersedia di awal kelompok modul; jangan membuat tautan `#`, halaman kosong, atau toast saat menu diklik.
+- Menu selesai mencakup Data Master, Akademik/jadwal/pengganti/perwalian, Absensi pegawai, Realisasi dan Absensi siswa sesuai §2.3. Data Master aktif pada `/data-master/{section}` untuk delapan bagian katalog; `href` didefinisikan pada katalog sidebar yang sama. Menu operasional yang sudah tersedia tetap berupa `Link` dengan status aktif dan `aria-current`. Menu yang belum memiliki halaman berupa tombol **disabled**, tanpa `href`, dengan ikon jam dan nama aksesibel `Nama menu — Segera hadir`. Keterangan status tersedia di awal kelompok modul; jangan membuat tautan `#`, halaman kosong, atau toast saat menu diklik.
 - Katalog tunggal berada di `lib/navigation/sidebar.ts`; hanya mencakup fitur baseline SRS. PPDB, akun siswa, ujian online, rapor, SPP, pembayaran digital, DOCX, disposisi, dan fitur lain yang nonaktif tidak ditampilkan.
 - Visibilitas modul berasal dari `navigation` pada respons pengguna Laravel. Jika field tidak tersedia/kosong, sembunyikan modul. Menu akun memakai `accounts.view` dari `permissions`. Jangan menambahkan fallback yang memberikan akses berdasarkan nama role di frontend.
 - Perubahan `navigation` juga diperiksa oleh `SessionMonitor` pada pemeriksaan sesi berkala (60 detik saat tab terlihat), `pageshow`, dan saat tab kembali terlihat; jika berubah, muat ulang konteks dashboard.
@@ -230,6 +271,19 @@ import { Button } from "@/components/ui/button";
 </Button>
 ```
 
+Variant Button yang tersedia pada primitive lokal:
+
+| Variant | Penggunaan dan tampilan aktual |
+| --- | --- |
+| `default` | Aksi utama; primary dengan teks primary-foreground. |
+| `outline` | Aksi sekunder, filter/refresh/kelola, batal; border dan background aplikasi. |
+| `secondary` | Aksi pendamping dengan permukaan secondary. |
+| `ghost` | Aksi toolbar/menu yang tidak perlu border tetap. |
+| `destructive` | Aksi berisiko; latar destructive/10 dan teks destructive, bukan merah penuh. Tetap jelaskan dampak dan gunakan konfirmasi bila diperlukan. |
+| `link` | Aksi berwujud tautan dengan warna primary dan underline saat hover. Navigasi memakai Link/asChild. |
+
+Ukuran primitive saat ini: Button default/icon 32 px, lg/icon-lg 36 px; Input default 32 px dengan teks 16 px mobile/14 px mulai md. Tinggi aplikasi berasal dari `h-11`/`size-11`, tombol auth/clock dari `h-12`; SelectTrigger dan Tabs pada pola tertentu memakai `h-11!`/`h-14!` untuk mengatasi tinggi registry. Jangan mengubah seluruh primitive hanya agar satu pemanggil muat. Warna richColors toast berasal dari Sonner; status domain tetap memakai Badge/token semantik, bukan menyalin warna toast sebagai palet baru.
+
 Gunakan ikon Lucide berukuran 16–20 px, gaya stroke konsisten. Ikon tombol selalu mempunyai label teks atau `aria-label`; tooltip bukan pengganti nama aksesibel. Ikon dekoratif diberi `aria-hidden`.
 
 ## 6. Pola halaman dan navigasi
@@ -239,12 +293,12 @@ Susunan halaman modul: konteks/judul → deskripsi singkat → aksi utama → ri
 - Satu aksi primer yang paling menonjol pada setiap konteks; tindakan sekunder memakai outline/ghost.
 - Nama menu menjelaskan pekerjaan, misalnya `Pengelolaan akun`, bukan nama tabel database.
 - Pergantian role hanya menawarkan role milik pengguna. Role aktif adalah preferensi navigasi, bukan pemberian izin.
-- Dashboard awal tetap memakai `Empty` sampai tersedia data/modul nyata. Tautan cepat hanya menuju fitur yang sudah tersedia dan boleh diakses.
+- Dashboard awal memakai `EmptyDashboard`/`Empty`; ini bukan dashboard statistik lintas domain meskipun modul operasional sudah aktif. Tautan cepat hanya menuju fitur yang sudah tersedia dan boleh diakses.
 - Halaman akun pribadi memakai informasi berlabel (`dl`) dan bagian keamanan terpisah.
 - Login/password/pembaruan sesi memakai `AuthFrame`; panel identitasnya tidak disalin ke tiap halaman.
-- Latar `AuthFrame` memakai ilustrasi lingkungan sekolah dengan overlay hijau tua; teks panel kiri bersifat faktual dan institusional (overline, garis emas `#e9d6a3`, judul sekala sedang, daftar kemampuan portal) — tanpa tagline pemasaran, pill kaca, atau tipografi hero besar. Penggantian dengan foto asli madrasah dilakukan melalui aset bersama dengan pertimbangan beban muat (NFR-15).
+- Latar `AuthFrame` memakai ilustrasi lingkungan sekolah dengan overlay hijau tua; teks panel kiri bersifat faktual dan institusional (overline, garis emas `#e9d6a3`, judul skala sedang, daftar kemampuan portal) — tanpa tagline pemasaran, pill kaca, atau tipografi hero besar. Penggantian dengan foto asli madrasah dilakukan melalui aset bersama dengan pertimbangan beban muat (NFR-15).
 
-Komponen fitur baru ditempatkan menurut domain (`components/attendance`, `components/students`, dan seterusnya); komponen dasar tetap di `components/ui`. Jangan menaruh aturan bisnis domain ke dalam `Button`, `Dialog`, atau komponen UI dasar lainnya.
+Komponen fitur baru ditempatkan menurut domain yang sudah ada (`components/attendance`, `components/teaching`, `components/student-attendance`, dan seterusnya); komponen dasar tetap di `components/ui`. Jangan menaruh aturan bisnis domain ke dalam `Button`, `Dialog`, atau komponen UI dasar lainnya.
 
 ### Kontrak konsistensi antarhalaman
 
@@ -297,11 +351,11 @@ Label aksi menggunakan kata kerja spesifik: `Tambah pengguna`, `Buat akun`, `Sim
 
 - Struktur: `DialogHeader` → form dengan **body yang bisa digulir** → `DialogFooter`.
 - Header dan footer tetap terlihat; hanya isi form yang bergulir. Fieldset yang menonaktifkan field berada di dalam kontainer gulir agar tidak menutupi tombol.
-- Batas tinggi `calc(100dvh - 2rem)`. Lebar default `calc(100% - 2rem)`, maksimum 512 px untuk form; informasi singkat dapat maksimum 384 px.
+- Batas tinggi `calc(100dvh - 2rem)`. FormDialog memakai maksimum 512 px (`max-w-lg`); ConfirmationDialog maksimum 448 px (`max-w-md`). Dialog bantuan ringkas memakai maksimum 384 px (`max-w-sm`). Lebar mengikuti primitive dialog dan margin viewport; FormDialog pada mobile menjadi panel bawah selebar layar.
 - Form pada mobile dapat menjadi panel bawah selebar layar dengan sudut atas membulat. Tetap memakai `Dialog` shadcn, bukan overlay custom.
 - Beri ruang untuk tombol tutup 44 px dan safe area perangkat. Gunakan `dvh` agar mengikuti perubahan viewport; tetap uji keyboard virtual pada perangkat nyata.
 - Setiap dialog memiliki `DialogTitle` dan `DialogDescription` yang menjelaskan tujuan/dampaknya.
-- Fokus terperangkap di dialog; Escape/klik luar bekerja untuk dialog biasa ketika tidak pending. Saat ditutup, kembalikan fokus ke pemicu atau kontrol daftar yang relevan.
+- Fokus terperangkap di dialog; Escape/klik luar bekerja untuk dialog biasa ketika tidak pending. FormDialog/ConfirmationDialog memakai useDialogFocus: kembali ke pemicu bila masih terpasang, fallback ke tombol aktif pada main bila pemicu hilang; jangan merebut fokus bila overlay lain masih terbuka. Error keseluruhan difokuskan melalui ref/tabIndex=-1. Pertahankan pemicu editor policy saat data diperbarui agar fokus tidak berpindah ke tab pertama.
 
 ### Alert Dialog
 
@@ -323,7 +377,7 @@ Password sementara hanya muncul pada dialog khusus setelah sukses; saat dialog d
 | Validasi gagal | Error field/`Alert` tetap berada di form; pengguna dapat memperbaiki isian |
 | Request gagal | Pesan aman, data/isian tidak hilang, ada kesempatan mencoba kembali |
 | Pending | Skeleton/spinner sesuai konteks; `aria-busy` bila relevan |
-| Data benar-benar kosong | `Empty` berisi judul, penjelasan, dan aksi relevan jika diizinkan |
+| Data benar-benar kosong | Judul, penjelasan dan aksi relevan jika diizinkan. Dashboard/master memakai `Empty`; AcademicList dan beberapa roster memakai pesan terpusat/border dashed, tanpa menggandakan primitive loading/error |
 | Pencarian tanpa hasil | Jelaskan hasil pencarian kosong; beri cara mengubah/menghapus filter |
 | Tanpa izin | Ikuti kebijakan route/backend; jangan menampilkan isi sensitif sesaat sebelum redirect |
 | Sesi berakhir | Arahkan ke pemulihan sesi/login dengan pesan yang jelas |
@@ -331,7 +385,7 @@ Password sementara hanya muncul pada dialog khusus setelah sukses; saat dialog d
 
 Jangan menggunakan toast untuk informasi yang harus dibaca sebelum tindakan berisiko. Informasi tersebut ditempatkan di dialog/form. Toast tidak boleh berisi detail upstream, stack trace, token, atau data konseling/honor.
 
-## 10. Tabel, filter, dan pola modul berikutnya
+## 10. Daftar dan pola modul yang sudah diimplementasikan
 
 - Daftar akun menggunakan kartu pada layar kecil, tabel mulai `md`. Modul lain memilih breakpoint menurut isi, dengan pola interaksi tetap sama.
 - Identitas utama, status, dan tombol Kelola mudah ditemukan. Jangan memuat semua kolom desktop ke kartu mobile.
@@ -341,9 +395,45 @@ Jangan menggunakan toast untuk informasi yang harus dibaca sebelum tindakan beri
 - Angka memakai format `id-ID`; mata uang rupiah memakai format yang sesuai. Waktu ditampilkan konsisten dengan zona `Asia/Jakarta`; tanggal lahir/tanggal kalender tidak boleh bergeser akibat konversi zona waktu.
 - Singkatan internal, ID teknis, dan status API diterjemahkan menjadi istilah yang dimengerti pengguna.
 
-Untuk absensi pegawai mendatang, foto + GPS hanya berlaku untuk masuk/pulang sesuai konfirmasi kebutuhan saat ini. UI harus memiliki keadaan izin kamera/lokasi, pengambilan foto, pratinjau/ambil ulang, pengiriman, dan hasil. Jangan menampilkan sukses sebelum konfirmasi server. Kompresi foto mengikuti kontrak backend dan tidak memerlukan parameter teknis di alur pengguna. Ketentuan ini tidak otomatis diterapkan ke absensi siswa.
+### 10.1 Daftar, filter dan status domain
 
-Modul siswa, BK, keuangan/honor, serta dokumen menggunakan shell, pola form, dan notifikasi yang sama, dengan akses dan privasi mengikuti SRS masing-masing. Hak pengelolaan akun tidak otomatis membuka data sensitif modul lain.
+- AcademicList dipakai lintas akademik, pola/riwayat/status pegawai serta realisasi: tabel mulai `md`, ringkasan baris/kartu pada mobile, aksi refresh, DataLoading/DataFailure dan Pager. Jangan menganggap seluruh tabel sistem otomatis menjadi kartu; roster harian dan rekap siswa memakai tabel dengan gulir lokal agar kolom status tetap berhubungan dengan siswa/tanggalnya.
+- Daftar/filter memakai FilterSelect/DateFilter dan kontrol 44 px; filter membungkus pada mobile. useAsyncData mempertahankan data terakhir dan menolak respons generasi lama; AcademicList mengabaikan loader yang sudah tidak aktif. Saat filter berubah, respons lama tidak boleh menimpa konteks baru.
+- Jumlah hasil saat loading ditampilkan sebagai “Memuat…” atau placeholder, bukan angka nol. Saat memuat ulang policy yang sudah terlihat, tampilkan status pembaruan; nonaktifkan aksi yang bergantung versi terbaru.
+- Istilah status sesuai domain, bukan palet baru: akademik `Direncanakan/Terbuka/Ditutup`; realisasi `Terlaksana/Tidak terlaksana` terpisah dari `Draf/Menunggu verifikasi/Disetujui/Ditolak`; absensi siswa `Hadir/Sakit/Izin/Alpa/Belum dicatat`. Badge sekunder/outline dan turunan primary dipakai bersama label. `StatusBadge` akademik hanya memetakan planned/open/closed, bukan penerjemah universal semua status API.
+- Angka JP adalah hasil API; label total harus mengikuti filter dan status yang dihitung. Belum ada kalkulasi/halaman honor final; total JP realisasi bukan slip honor.
+
+### 10.2 Absensi pegawai dan editor geofence
+
+**Masuk/pulang:** AttendanceClock memakai dua panel, satu kolom di mobile dan `lg:grid-cols-2`: kamera/lokasi/aksi dan ringkasan hari ini. Video pratinjau `aspect-[4/3]`, kamera dinyalakan/dimatikan secara eksplisit, stream dihentikan saat komponen dilepas. Foto diambil ketika aksi dikirim; belum ada langkah dialog terpisah untuk pratinjau foto statis/ambil ulang sebelum submit. Jangan mendokumentasikan langkah tersebut sebagai fitur yang sudah tersedia.
+
+Tampilkan kondisi kamera belum aktif/ditolak, GPS sedang diambil/gagal, akurasi lokasi dan muat ulang GPS, hari bukan kerja/libur, masuk/pulang berikutnya serta selesai. Aksi clock utama setinggi 48 px. Informasi lokasi memakai aria-live; di dalam radius memakai output, sedangkan luar radius, posisi belum pasti dan akurasi tidak cukup memakai Alert shadcn. Submit diblokir bila posisi belum memenuhi ketentuan, GPS dibaca ulang sebelum pengiriman dan API tetap memutuskan hasil akhir. Sukses hanya setelah respons sah; jika gagal, berikan petunjuk kamera/GPS atau hubungi petugas untuk fallback administratif. Tidak ada pelacakan latar belakang atau bukti foto/GPS sintetis.
+
+**Kebijakan:** `/absensi/pola-kerja` memiliki tiga tab: Pola kerja, Penetapan & hari kerja, Kebijakan foto/GPS. Policy berlaku ditampilkan terpisah dari versi terjadwal; ringkasan memuat tanggal efektif, kewajiban foto/GPS, batas akurasi/kebaruan, kompresi, koreksi dan konfigurasi titik/radius. Tombol Versi kebijakan baru mengikuti `can_manage` dari API, bukan dugaan role di browser. Simpan membuat versi prospektif, bukan mengedit isi historis. UI mengirim expected_policy_id; konflik meminta muat ulang tanpa menimpa perubahan lain.
+
+Editor AttendancePolicyDialog memakai AcademicFormDialog dengan field geofence melalui `extra(busy)`. Interaksi yang sudah tersedia:
+
+1. Aktif/nonaktif batas radius, nama lokasi, latitude/longitude, radius 25–5.000 m dan tanggal efektif. Koordinat dapat diisi manual; tidak ada titik madrasah default yang ditebak.
+2. Leaflet/OpenStreetMap diinisialisasi lewat import dalam effect browser. Tampilan awal Indonesia hanya pusat pandang peta; pin baru muncul setelah koordinat dipilih/diisi. Klik peta/geser pin memperbarui koordinat dan lingkaran radius; pilihan lokasi perangkat dilakukan eksplisit.
+3. Tinggi peta `min(18rem, 40dvh)`, lebar penuh, panel `relative isolate` dan lapisan `z-0` agar kontrol peta tidak menutup header/footer dialog. Zoom native 44 × 44 px; atribusi minimum 12 px tetap terlihat. Pin dan lingkaran memakai token primary/card melalui globals.css. Pin kecil mempunyai alternatif input koordinat; jangan menganggap semua target peta otomatis berukuran 44 px.
+4. Skeleton tampil sebelum peta siap. Gagal inisialisasi memakai DataFailure; gagal tile menampilkan pesan inline. Keduanya tidak menutup akses input manual. Jangan menjadikan keberhasilan latar peta syarat validasi koordinat server.
+5. Saat busy, field/editor terkunci; wrapper map memakai inert. Footer tetap terjangkau di layar pendek dan pemicu dialog tetap terpasang ketika policy dimuat ulang, agar fokus kembali ke tombol yang benar.
+
+**Status petugas/riwayat/koreksi:** pakai daftar/filter/dialog bersama. Bukti foto ditampilkan lewat rute privat kepada pihak yang berizin; jangan menyalin foto/koordinat ke toast atau log. Koreksi mempertahankan bukti asli dan menyatakan nilai sebelum/sesudah, alasan serta keputusan. Tab Koreksi pegawai/Koreksi siswa menjaga konteks jenis data; hak keputusan dan scope tetap berasal dari backend.
+
+### 10.3 Realisasi mengajar
+
+MyMeetings, MyRealizations dan Verifications memakai AcademicHeading dengan category Realisasi mengajar, AcademicList, filter periode/status serta AcademicFormDialog/ConfirmAction. Pertemuan menunjukkan pelaksana terjadwal/pengganti, status pelaksanaan dan status verifikasi secara terpisah. Alur pengguna: buat revisi → ajukan → keputusan oleh verifikator; jangan tampilkan isi yang sudah diajukan sebagai form bebas edit. Tampilkan alasan penolakan/konflik dari respons aman dan sediakan aksi sesuai state yang sah. Tombol/halaman verifikasi mengikuti navigation `teaching.verify`; role kepala/Super Admin bukan penanda bahwa pengguna otomatis berhak menyetujui.
+
+### 10.4 Absensi siswa dan kelas perwalian
+
+DailyAttendance memuat kelas penugasan dan tanggal, jumlah terisi/anggota, tenggat serta informasi koreksi. Setiap siswa tanpa catatan diberi label Belum dicatat; pilihan status atau tombol Hadir menjadi perubahan yang perlu dikirim, bukan hasil yang sudah tersimpan. Tombol `Simpan N siswa` mengikuti jumlah pilihan belum dicatat; data tersimpan memakai Ajukan koreksi. Filter kelas/tanggal diblokir saat penyimpanan agar target tidak berganti. Kamera/GPS pegawai tidak diterapkan pada siswa.
+
+StudentRecap menampilkan rekap per tanggal dan per siswa dengan kolom Belum dicatat. Tidak ada kelas/tidak ada anggota/error adalah keadaan berbeda. `/akademik/perwalian` memakai HomeroomClass dan kelas wali aktif, bukan kelas mengajar pertama. Koreksi siswa masuk tab Koreksi siswa pada halaman koreksi pegawai/petugas yang sama, dengan pemisahan data dan pemeriksaan izin backend.
+
+### 10.5 Pola untuk modul berikutnya
+
+Honor, bank soal, BK, TU, portal wali, website, laporan/ekspor, pengaturan sistem, privasi dan notifikasi menggunakan shell/token/form/dialog/notifikasi aksi yang sama saat dikerjakan. UI bisnisnya belum tersedia; jangan membuat status selesai atau contoh angka operasional hanya karena tabel atau menu placeholder ada. Hak pengelolaan akun tetap tidak otomatis membuka data sensitif modul lain.
 
 ## 11. Aksesibilitas dan perilaku browser
 
@@ -400,18 +490,33 @@ Referensi: [Next.js — hydration error](https://nextjs.org/docs/messages/react-
 - [ ] Tidak ada error hydration/prerender pada browser bersih, termasuk halaman dengan query error/notice.
 - [ ] Tidak ada data sensitif di URL, log, toast, atau screenshot.
 - [ ] Lint lolos; jalankan build bila kode aplikasi berubah dan tes interaksi yang relevan.
-- [ ] Perubahan pola/token bersama telah diperbarui dalam dokumen ini dan diperiksa pada autentikasi, dashboard, serta pengelolaan akun.
+- [ ] Perubahan pola/token bersama telah diperbarui dalam dokumen ini dan diperiksa pada pemanggil yang terdampak: autentikasi/akun/master serta akademik/absensi/realisasi/siswa bila memakai komponen yang diubah.
+- [ ] Bila menyentuh policy/map: manual input tetap berfungsi ketika tile gagal, can_manage dihormati, busy mengunci map, footer/fokus/tab tidak bergeser dan alert radius tidak hanya mengandalkan warna.
 
 Perintah dari folder `frontend`:
 
 ```bash
 pnpm lint
 pnpm build
-pnpm exec playwright test
+pnpm exec playwright test # setelah pnpm build; default server memakai next start
 NEXT_TEST_DEV=1 pnpm exec playwright test tests/e2e/hydration.spec.ts
 ```
 
 Tes Playwright memakai API fixture terisolasi; tidak membuktikan integrasi OAuth Google nyata. Uji integrasi backend/OAuth dilakukan terpisah tanpa membagikan kredensial. Jika Chromium belum terpasang, siapkan browser Playwright atau arahkan `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` ke executable yang tersedia.
+
+### 13.1 Bukti yang tersedia dan batas pemeriksaan
+
+Tes UI berada di `frontend/tests/e2e`: auth/accounts/navbar/sidebar/master-data/academic/academic-schedule/attendance/teaching/student-attendance/geofence/responsive/hydration. Tes responsif mencakup 320, 390, 768, 1024 dan 1440 px serta layar pendek. Tes geofence menguji map/manual input, kebijakan terjadwal, can_manage, fokus/footer/tab dan penolakan lokasi di UI. Hydration dijalankan juga dalam mode development pada profil terkontrol.
+
+Bukti sesi implementasi 27 Oktober di [log.txt](log.txt): E2E penuh 94/94, hydration development 6/6, regresi layout geofence 9/9, Biome 150 file bersih dan build 38/38 halaman. Angka tersebut bukan hasil eksekusi baru untuk revisi dokumentasi 1.11. Kamera/GPS/API/tile memakai fixture terkontrol; ini tidak membuktikan perangkat lapangan, jaringan/OS/browser nyata, seluruh kontras, pembaca layar atau UAT.
+
+Batas implementasi yang perlu tetap terlihat:
+
+- Primitive registry Button/Input/Select/Tabs masih memiliki ukuran compact; kelas 44 px berasal dari pemanggil/pola bersama. Jangan menyatakan ukuran primitive default sudah memenuhi target sentuh aplikasi.
+- Metadata/actions beberapa fitur memakai 12 px; teks isi utama 14–16 px tetap target pedoman. Kelengkapan error aria-describedby/aria-invalid, fokus field dan kontras setiap state harus diperiksa pada form terkait, bukan dianggap otomatis dari shadcn.
+- Beberapa daftar kosong memakai pesan inline/berbatas, bukan komponen Empty; tabel siswa memakai gulir lokal. Ini pola source aktual, bukan alasan membuat primitive feedback baru.
+- Katalog API role lebih luas daripada pilihan UI saat ini. AccountWorkspace memfilter dengan permissions profil; sebagian izin absensi/verifikasi dan administrasi mandat belum tersedia di editor. Daftar/tombol UI tidak menjadi sumber otorisasi.
+- Dark mode, pusat notifikasi in-app, dashboard grafik/laporan lintas modul, pratinjau foto statis sebelum clock dan UI bisnis FR-08–FR-17 belum merupakan fitur tersedia.
 
 ## 14. Perubahan dan pemeliharaan
 
@@ -431,3 +536,5 @@ Perubahan token/layout tidak dilakukan pada satu halaman saja. Perbarui sumber b
 | 1.7 | 25 Oktober 2026 | Pola bar tab dibakukan: pill kompak rata kiri pada desktop dan pembagian lebar penuh pada mobile (`h-14!`/`h-11!`/token `bg-secondary`), menggantikan pola `grid-cols-2` yang merentang tab; tab terkontrol untuk konten bergantung state; modul Jadwal pelajaran & Guru pengganti memakai pola ini. |
 | 1.8 | 26 Oktober 2026 | Audit FR-01–FR-07: token teks sekunder diperkuat menjadi #58645d, metadata aplikasi minimal 12 px, deskripsi minimal 14 px; DataLoading/DataFailure diekstrak untuk lintas fitur, alias master tetap kompatibel; kategori heading domain, label filter, proteksi respons usang, dan loading/error seragam. Menu mutasi memerlukan academic.enrollments.manage; perwalian hanya memakai kelas perwalian aktif; kontrak API menggunakan Resource dengan relasi camelCase. |
 | 1.9 | 26 Oktober 2026 | Tab horizontal tidak lagi melebar di desktop akibat stretch parent flex; label panjang membungkus pada mobile agar tidak bertumpuk. Perbaikan pada TabsList/TabsTrigger bersama. Kebijakan absensi memakai loading/error/retry bersama dan menjelaskan akurasi GPS serta baseline tanpa titik/radius. Konteks navbar modul mengikuti katalog sidebar. Regresi hydration diperluas ke RootLayout/sidebar, dashboard, kebijakan absensi dan akun pada mobile/desktop. |
+| 1.10 | 27 Oktober 2026 | Editor geofence melalui peta Leaflet/OpenStreetMap, pin/koordinat terhubung, radius dan input manual; ukuran kontrol map 44 px, stacking map terisolasi di dialog, atribusi terlihat. AcademicFormDialog.extra dapat berupa render function dengan busy agar peta/field tambahan tidak aktif saat menyimpan. Kebijakan berlaku/terjadwal terpisah, pemicu dialog dipertahankan saat refresh agar fokus tidak mengaktifkan tab lain. Alert radius/ketidakpastian GPS memakai Alert shadcn dan keputusan final tetap di API. |
+| 1.11 | 27 Oktober 2026 | Penyelarasan dengan UI aktual FR-01–FR-07: cakupan halaman dan sumber komponen lintas domain; token sidebar/radius lengkap; pola daftar, feedback, dialog/fokus/konflik, kamera/GPS/geofence, realisasi dan siswa/perwalian; membedakan implementasi, target aksesibilitas dan backlog. Revisi dokumentasi tanpa perubahan kode UI. |
