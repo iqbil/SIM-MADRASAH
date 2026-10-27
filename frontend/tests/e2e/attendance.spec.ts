@@ -46,6 +46,129 @@ test.beforeEach(async ({ request, page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
 });
 
+test("GPS policy explains accuracy and keeps tabs compact on desktop", async ({
+  page,
+}) => {
+  await login(page, "operator");
+  await page.goto("/absensi/pola-kerja");
+  await page.getByRole("tab", { name: "Kebijakan foto/GPS" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Kebijakan berlaku (versi 1)" }),
+  ).toBeVisible();
+  await expect(page.getByText("Tanpa titik pusat atau radius")).toBeVisible();
+  await expect(
+    page.getByText(/Akurasi GPS adalah perkiraan ketelitian posisi perangkat/),
+  ).toBeVisible();
+  const tabs = page.getByRole("tablist");
+  await expect(
+    page
+      .getByRole("navigation", { name: "Navigasi portal" })
+      .getByText("Pola kerja & kebijakan", { exact: true }),
+  ).toBeVisible();
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const desktop = await tabs.boundingBox();
+  const main = await page.getByRole("main").boundingBox();
+  expect(desktop?.width).toBeLessThan((main?.width ?? 0) * 0.8);
+  await page.screenshot({
+    path: "test-results/screenshots/attendance-policy-desktop.png",
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 320, height: 568 });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  for (const tab of await tabs.getByRole("tab").all()) {
+    await expect
+      .poll(() =>
+        tab.evaluate((element) => {
+          const bounds = element.getBoundingClientRect();
+          const range = document.createRange();
+          range.selectNodeContents(element);
+          return [...range.getClientRects()].every(
+            (rect) =>
+              rect.left >= bounds.left - 1 &&
+              rect.right <= bounds.right + 1 &&
+              rect.top >= bounds.top - 1 &&
+              rect.bottom <= bounds.bottom + 1,
+          );
+        }),
+      )
+      .toBe(true);
+  }
+  await page.screenshot({
+    path: "test-results/screenshots/attendance-policy-mobile.png",
+    fullPage: true,
+  });
+  await page.getByRole("button", { name: "Versi kebijakan baru" }).click();
+  await expect(
+    page.getByRole("dialog").getByText(/Batas ketelitian posisi perangkat/),
+  ).toBeVisible();
+});
+
+test("policy loading and failure can be retried without leaving a blank tab", async ({
+  page,
+}) => {
+  await login(page, "operator");
+  let release: () => void = () => {};
+  const pending = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let attempts = 0;
+  await page.route("**/api/attendance/policy", async (route) => {
+    if (++attempts > 1) return route.continue();
+    await pending;
+    await route.fulfill({
+      status: 503,
+      json: { message: "Kebijakan sementara tidak tersedia." },
+    });
+  });
+  await page.goto("/absensi/pola-kerja");
+  await page.getByRole("tab", { name: "Kebijakan foto/GPS" }).click();
+  const panel = page.getByRole("tabpanel");
+  await expect(panel.getByLabel("Memuat data")).toBeVisible();
+  await expect(
+    panel.getByRole("button", { name: "Versi kebijakan baru" }),
+  ).toHaveCount(0);
+  release();
+  await expect(panel.getByRole("alert")).toContainText(
+    "Kebijakan sementara tidak tersedia.",
+  );
+  await panel.getByRole("button", { name: "Coba kembali" }).click();
+  await expect(
+    panel.getByRole("heading", { name: "Kebijakan berlaku (versi 1)" }),
+  ).toBeVisible();
+  await expect(panel.getByRole("alert")).toHaveCount(0);
+});
+
+test("employee lookup failure is visible and blocks assignment until retry succeeds", async ({
+  page,
+}) => {
+  await login(page, "operator");
+  let attempts = 0;
+  await page.route("**/api/master/employees?*", async (route) => {
+    if (++attempts > 1) return route.continue();
+    await route.fulfill({
+      status: 503,
+      json: { message: "Layanan pegawai sedang tidak tersedia." },
+    });
+  });
+  await page.goto("/absensi/pola-kerja");
+  const main = page.getByRole("main");
+  await expect(main.getByRole("alert")).toContainText(
+    "Daftar pegawai: Layanan pegawai sedang tidak tersedia.",
+  );
+  await expect(
+    main.getByRole("button", { name: "Tetapkan", exact: true }),
+  ).toBeDisabled();
+  await main.getByRole("button", { name: "Coba kembali" }).click();
+  await expect(main.getByRole("alert")).toHaveCount(0);
+  await main.getByRole("button", { name: "Tetapkan", exact: true }).click();
+  await page.getByRole("dialog").getByLabel("Pegawai", { exact: true }).click();
+  await expect(page.getByRole("option", { name: "Guru Ahmad" })).toBeVisible();
+});
+
 test("employee clocks in and out with camera photo and GPS", async ({
   page,
 }) => {
@@ -107,6 +230,12 @@ test("operator records leave and requests a correction", async ({ page }) => {
     .fill("Pencatatan izin acara keluarga melalui petugas");
   await dialog.getByRole("button", { name: "Simpan", exact: true }).click();
   await expect(page.getByText("Perubahan berhasil disimpan.")).toBeVisible();
+  await page
+    .locator("[data-sonner-toast]")
+    .filter({ hasText: "Perubahan berhasil disimpan." })
+    .getByRole("button", { name: "Tutup notifikasi" })
+    .click();
+  await expect(page.getByText("Perubahan berhasil disimpan.")).toHaveCount(0);
 
   // Koreksi status melalui dialog ajukan koreksi.
   const sitiRow = page.getByRole("row", { name: /Guru Siti/ }).first();
@@ -120,6 +249,9 @@ test("operator records leave and requests a correction", async ({ page }) => {
   await expect(page.getByText("Perubahan berhasil disimpan.")).toBeVisible();
 
   await page.goto("/absensi/koreksi");
+  await expect(
+    page.getByRole("row", { name: /Guru Siti/ }).first(),
+  ).toBeVisible();
   await expect(page.getByText("Menunggu").first()).toBeVisible();
   await expect(page.getByText("Dinas luar").first()).toBeVisible();
   // Operator tanpa mandat tidak melihat tombol keputusan.

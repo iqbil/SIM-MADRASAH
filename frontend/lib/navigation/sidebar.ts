@@ -113,7 +113,7 @@ export const SIDEBAR_SECTIONS: SidebarSection[] = [
         id: "transitions",
         href: "/akademik/mutasi",
         label: "Kenaikan & mutasi siswa",
-        access: "academic.enrollments.view",
+        access: "academic.enrollments.manage",
       },
       {
         id: "calendar",
@@ -454,6 +454,7 @@ export function sidebarSections(user: AuthUser): SidebarSection[] {
       access.add("academic.read");
     }
   }
+  if (access.has("academic.manage")) access.add("academic.enrollments.manage");
   if (access.has("attendance.manage") || access.has("attendance.reports"))
     access.add("attendance.read");
   return SIDEBAR_SECTIONS.map((section) => ({

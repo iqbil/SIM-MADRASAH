@@ -124,6 +124,7 @@ function ensureWorkDay(employeeId, date) {
       employeeId === 1 ? "guru" : "tenaga_kependidikan",
     ),
   };
+  day.employee = day.workDay.employee;
   workDays.set(key, day);
   if (attendances.has(key)) day.attendance = attendances.get(key);
 
@@ -506,7 +507,19 @@ export function handleAttendance({
       const record = {
         id: 800 + corrections.length,
         employee_attendance_id: Number(body.employee_attendance_id),
-        employeeAttendance: attendance ?? null,
+        employeeAttendance: attendance
+          ? {
+              ...attendance,
+              attendanceStatus: {
+                code: attendance.status_code,
+                name: attendance.status_name,
+              },
+              workDay:
+                [...workDays.values()].find(
+                  (day) => day.id === attendance.work_day_id,
+                ) ?? null,
+            }
+          : null,
         before_values: { status_code: attendance?.status_code ?? null },
         after_values: body.after_values ?? {},
         reason: body.reason,

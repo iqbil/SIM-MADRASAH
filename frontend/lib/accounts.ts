@@ -6,6 +6,8 @@ export interface AccountRole {
   name: string;
   description?: string | null;
   is_active?: boolean;
+  is_system?: boolean;
+  can_assign?: boolean;
   permission_codes?: string[];
 }
 export interface ManagedUser {

@@ -25,6 +25,7 @@ import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { initials } from "@/lib/auth/roles";
 import type { AuthRole, AuthUser } from "@/lib/auth/types";
 import { MASTER_SECTIONS, type MasterSection } from "@/lib/master-data";
+import { SIDEBAR_SECTIONS } from "@/lib/navigation/sidebar";
 
 export function AppHeader({
   user,
@@ -38,13 +39,16 @@ export function AppHeader({
   const masterSection = pathname.startsWith("/data-master/")
     ? pathname.split("/")[2]
     : "";
+  const moduleTitle = SIDEBAR_SECTIONS.flatMap((section) => section.items).find(
+    (item) => item.href === pathname,
+  )?.label;
   const title = Object.hasOwn(MASTER_SECTIONS, masterSection)
     ? MASTER_SECTIONS[masterSection as MasterSection].title
     : pathname === "/pengguna"
       ? "Pengelolaan akun"
       : pathname === "/akun"
         ? "Akun saya"
-        : "Beranda";
+        : (moduleTitle ?? "Beranda");
   return (
     <header className="sticky top-0 z-20 shrink-0 border-b border-border/80 bg-card/95 backdrop-blur-md">
       <nav

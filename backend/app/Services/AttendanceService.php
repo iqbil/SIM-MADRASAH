@@ -195,6 +195,8 @@ class AttendanceService
         $now = now('UTC');
         $photoTakenAt = CarbonImmutable::parse($values['photo_taken_at']);
         $locationAt = CarbonImmutable::parse($values['location_captured_at']);
+        abort_if($photoTakenAt->greaterThan($now) || $locationAt->greaterThan($now), 422,
+            'Waktu foto/lokasi tidak boleh dari masa depan. Periksa jam perangkat dan ambil ulang bukti.');
         abort_unless($now->diffInSeconds($photoTakenAt, true) <= $policy->gps_max_age_seconds, 422,
             'Foto lebih tua dari '.$policy->gps_max_age_seconds.' detik; ambil ulang foto saat akan mencatat.');
         abort_unless($now->diffInSeconds($locationAt, true) <= $policy->gps_max_age_seconds, 422,
@@ -335,6 +337,7 @@ class AttendanceService
             $record = new EmployeeAttendance([
                 'work_day_id' => $workDay->id, 'attendance_status_id' => $status->id,
                 'check_in_at' => $values['check_in_at'] ?? null, 'check_out_at' => $values['check_out_at'] ?? null,
+                'late_minutes' => $this->lateMinutes($values['check_in_at'] ?? null, $workDay),
                 'entry_mode' => 'officer', 'notes' => $values['notes'] ?? null,
             ]);
             $record->forceFill(['recorded_by' => $actor->id, 'recorded_at' => now('UTC')])->save();
@@ -366,9 +369,10 @@ class AttendanceService
             ])->validate();
             $attendance = EmployeeAttendance::query()->lockForUpdate()->findOrFail($values['employee_attendance_id']);
             abort_unless($attendance->lock_version === $values['expected_lock_version'], 409, 'Data kehadiran telah berubah; muat ulang lalu ajukan ulang.');
-            $policy = $this->effectivePolicy();
+            $policy = $attendance->workDay->policy;
             $deadline = CarbonImmutable::parse($attendance->workDay->work_date->toDateString(), 'Asia/Jakarta')->addDays($policy->correction_deadline_days)->endOfDay();
-            abort_unless(now('Asia/Jakarta') <= $deadline || $policy->allow_late_correction_with_mandate, 422,
+            abort_unless(now('Asia/Jakarta') <= $deadline || ($policy->allow_late_correction_with_mandate
+                && AttendanceDataAccess::correctMandate($actor, employeeId: $attendance->workDay->employee_id) !== null), 422,
                 'Batas koreksi '.$policy->correction_deadline_days.' hari kalender telah terlewat.');
 
             $before = $attendance->only(['check_in_at', 'check_out_at', 'late_minutes', 'notes', 'attendance_status_id']);
@@ -397,6 +401,8 @@ class AttendanceService
                 'reason' => ['required', 'string', 'min:10', 'max:1000'],
             ])->validate();
             $correction = AttendanceCorrection::query()->lockForUpdate()->findOrFail($correctionId);
+            abort_unless($correction->employee_attendance_id !== null, 422, 'Ini bukan koreksi absensi pegawai.');
+            AttendanceDataAccess::authorizeCorrect($actor, employeeId: $correction->employeeAttendance->workDay->employee_id);
             abort_unless($correction->status === 'pending', 422, 'Koreksi ini sudah diputuskan.');
             abort_if($correction->requested_by === $actor->id, 422, 'Pemohon dan penyetuju tidak boleh orang sama.');
 
@@ -422,11 +428,7 @@ class AttendanceService
                     $attendance->{$field} = $after[$field];
                 }
             }
-            if ($attendance->check_in_at !== null && $attendance->workDay->scheduled_start_at !== null) {
-                $deadline = CarbonImmutable::parse($attendance->workDay->scheduled_start_at)->addMinutes($attendance->workDay->tolerance_minutes_snapshot);
-                $attendance->late_minutes = CarbonImmutable::parse($attendance->check_in_at)->greaterThan($deadline)
-                    ? (int) ceil(CarbonImmutable::parse($attendance->check_in_at)->diffInSeconds($deadline, true) / 60) : 0;
-            }
+            $attendance->late_minutes = $this->lateMinutes($attendance->check_in_at, $attendance->workDay);
             $attendance->lock_version += 1;
             $attendance->save();
             $correction->forceFill(['status' => 'applied', 'approved_at' => now('UTC'), 'applied_at' => now('UTC'), 'approved_by' => $actor->id])->save();
@@ -438,6 +440,17 @@ class AttendanceService
     }
 
     private const CORRECTION_LOAD = ['employeeAttendance.workDay.employee.person', 'employeeAttendance.attendanceStatus', 'requester.person', 'approver.person'];
+
+    private function lateMinutes(string|\DateTimeInterface|null $checkIn, EmployeeWorkDay $workDay): ?int
+    {
+        if ($checkIn === null || $workDay->scheduled_start_at === null) {
+            return null;
+        }
+        $deadline = CarbonImmutable::parse($workDay->scheduled_start_at)->addMinutes($workDay->tolerance_minutes_snapshot);
+        $time = CarbonImmutable::parse($checkIn, 'UTC');
+
+        return $time->greaterThan($deadline) ? (int) ceil($time->diffInSeconds($deadline, true) / 60) : 0;
+    }
 
     // ------------------------------------------------------------------
     // Pola kerja, penetapan, generator hari kerja, policy

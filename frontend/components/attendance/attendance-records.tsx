@@ -29,9 +29,7 @@ type RecordRow = AcademicRecord & {
   scheduled_end_at: string | null;
   is_work_required: boolean;
   employee_id?: number;
-  workDay?: {
-    employee?: { person?: { full_name?: string } | null } | null;
-  } | null;
+  employee?: { person?: { full_name?: string } | null } | null;
   attendance?: {
     id: number;
     check_in_at: string | null;
@@ -84,6 +82,7 @@ export function AttendanceRecords({ canManage }: { canManage: boolean }) {
   return (
     <div className="animate-enter space-y-6">
       <AcademicHeading
+        category="Absensi pegawai"
         title="Absensi & izin pegawai"
         description="Petugas mencatat izin, sakit, cuti, dan dinas luar tanpa bukti foto; pencatatan ini juga menjadi fallback administratif bila kamera/GPS pegawai gagal (FR-05-07)."
       />
@@ -132,8 +131,8 @@ export function AttendanceRecords({ canManage }: { canManage: boolean }) {
           {
             label: "Pegawai",
             cell: (row) => (
-              <span className="text-[13px] font-medium">
-                {row.workDay?.employee?.person?.full_name ?? "—"}
+              <span className="text-sm font-medium">
+                {row.employee?.person?.full_name ?? "—"}
               </span>
             ),
           },
@@ -155,19 +154,19 @@ export function AttendanceRecords({ canManage }: { canManage: boolean }) {
             label: "Status",
             cell: (row) =>
               !row.is_work_required ? (
-                <Badge variant="outline" className="text-[10px]">
+                <Badge variant="outline" className="text-xs">
                   Libur
                 </Badge>
               ) : row.attendance?.attendanceStatus ? (
                 <Badge
                   variant="secondary"
-                  className="bg-primary/8 text-[10px] text-primary"
+                  className="bg-primary/8 text-xs text-primary"
                 >
                   {statusLabels[row.attendance.attendanceStatus.code] ??
                     row.attendance.attendanceStatus.name}
                 </Badge>
               ) : (
-                <Badge variant="outline" className="text-[10px]">
+                <Badge variant="outline" className="text-xs">
                   Belum dicatat
                 </Badge>
               ),
@@ -200,8 +199,7 @@ export function AttendanceRecords({ canManage }: { canManage: boolean }) {
           },
         ]}
         rowTitle={(row) =>
-          row.workDay?.employee?.person?.full_name ??
-          `Pegawai #${row.employee_id ?? ""}`
+          row.employee?.person?.full_name ?? `Pegawai #${row.employee_id ?? ""}`
         }
         rowMeta={(row) =>
           `${dateOnly(row.work_date)} · ${

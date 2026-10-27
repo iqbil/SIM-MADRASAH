@@ -231,3 +231,68 @@ test("pending forms stay open and shadcn notifications survive page navigation",
   await notification.getByRole("button", { name: "Tutup notifikasi" }).click();
   await expect(notification).not.toBeVisible();
 });
+
+test("attendance and teaching modules fit all design-system widths and short screens", async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+  const scenarios = [
+    {
+      user: "operator",
+      paths: [
+        "/absensi/pegawai",
+        "/absensi/pola-kerja",
+        "/absensi/koreksi",
+        "/absensi/rekap",
+      ],
+    },
+    { user: "guru", paths: ["/realisasi/pertemuan", "/realisasi/riwayat"] },
+    {
+      user: "wali_kelas",
+      paths: [
+        "/absensi-siswa/harian",
+        "/absensi-siswa/rekap",
+        "/akademik/perwalian",
+      ],
+    },
+  ];
+  for (const scenario of scenarios) {
+    await page.context().clearCookies();
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await signIn(page, scenario.user);
+    for (const path of scenario.paths) {
+      await page.goto(path);
+      await expect(page.locator("main h1")).toBeVisible();
+      for (const viewport of [
+        { width: 320, height: 568 },
+        { width: 390, height: 844 },
+        { width: 768, height: 900 },
+        { width: 1024, height: 768 },
+        { width: 1440, height: 900 },
+        { width: 740, height: 360 },
+      ]) {
+        await page.setViewportSize(viewport);
+        await fitsViewport(page);
+      }
+      await page.setViewportSize({ width: 320, height: 568 });
+      if (path === "/absensi/pegawai" || path === "/realisasi/pertemuan") {
+        const action =
+          path === "/absensi/pegawai"
+            ? "Catat status pegawai"
+            : "Catat realisasi";
+        await page
+          .getByRole("button", { name: action, exact: true })
+          .first()
+          .click();
+        const dialog = page.getByRole("dialog");
+        await fitsViewport(page, dialog);
+        await expect(
+          dialog.getByRole("button", { name: "Simpan", exact: true }),
+        ).toBeInViewport();
+        await dialog
+          .getByRole("button", { name: "Batal", exact: true })
+          .click();
+      }
+    }
+  }
+});

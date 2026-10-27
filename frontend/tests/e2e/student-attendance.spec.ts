@@ -105,3 +105,84 @@ test("access guard rejects roles without duty", async ({ page }) => {
     page.getByRole("heading", { name: "Ruang kerja tidak tersedia" }),
   ).toBeVisible();
 });
+
+test("daily attendance keeps the latest filter when an earlier request finishes late", async ({
+  page,
+}) => {
+  await login(page, "wali_kelas");
+  const initialResponse = page.waitForResponse(
+    (response) =>
+      response.url().includes("/api/student-attendance/roster?") &&
+      response.status() === 200,
+  );
+  await page.goto("/absensi-siswa/harian");
+  const initial = await (await initialResponse).json();
+  await expect(page.getByText("Siswa Mutasi Satu").first()).toBeVisible();
+  let release: () => void = () => {};
+  let started: () => void = () => {};
+  const delayed = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const requested = new Promise<void>((resolve) => {
+    started = resolve;
+  });
+  await page.route("**/api/student-attendance/roster?**", async (route) => {
+    const date = new URL(route.request().url()).searchParams.get("date");
+    const body = structuredClone(initial);
+    body.data.date = date;
+    body.data.rows[0].student.person.full_name =
+      date === "2026-10-24" ? "Roster lama" : "Roster terbaru";
+    if (date === "2026-10-24") {
+      started();
+      await delayed;
+    }
+    await route.fulfill({ json: body });
+  });
+  await page.getByLabel("Tanggal", { exact: true }).fill("2026-10-24");
+  await requested;
+  await page.getByLabel("Tanggal", { exact: true }).fill("2026-10-25");
+  await expect(page.getByText("Roster terbaru", { exact: true })).toBeVisible();
+  const oldResponse = page.waitForResponse((response) =>
+    response.url().includes("date=2026-10-24"),
+  );
+  release();
+  await (await oldResponse).finished();
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      ),
+  );
+  await expect(page.getByText("Roster terbaru", { exact: true })).toBeVisible();
+  await expect(page.getByText("Roster lama", { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel("Tanggal", { exact: true })).toHaveValue(
+    "2026-10-25",
+  );
+});
+
+test("class loading and errors do not claim that the teacher has no classes", async ({
+  page,
+}) => {
+  await login(page, "wali_kelas");
+  let release: () => void = () => {};
+  const pending = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route("**/api/student-attendance/classes", async (route) => {
+    await pending;
+    await route.fulfill({
+      status: 503,
+      json: { message: "Daftar kelas sementara tidak tersedia." },
+    });
+  });
+  await page.goto("/absensi-siswa/harian");
+  await expect(
+    page.getByLabel("Memuat data", { exact: true }).first(),
+  ).toBeVisible();
+  await expect(page.getByText(/Belum ada kelas penugasan Anda/)).toHaveCount(0);
+  release();
+  await expect(page.getByRole("main").getByRole("alert")).toContainText(
+    "Daftar kelas sementara tidak tersedia.",
+  );
+  await expect(page.getByText(/Belum ada kelas penugasan Anda/)).toHaveCount(0);
+});

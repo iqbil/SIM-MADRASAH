@@ -196,7 +196,7 @@ export function AcademicAssignments({ access }: { access: string[] }) {
               {
                 label: "Guru",
                 cell: (row) => (
-                  <span className="text-[13px] font-medium">
+                  <span className="text-sm font-medium">
                     {employeeLabel(row)}
                   </span>
                 ),
@@ -231,14 +231,14 @@ export function AcademicAssignments({ access }: { access: string[] }) {
                   row.is_active === false ? (
                     <Badge
                       variant="outline"
-                      className="text-[10px] text-muted-foreground"
+                      className="text-xs text-muted-foreground"
                     >
                       Nonaktif
                     </Badge>
                   ) : (
                     <Badge
                       variant="secondary"
-                      className="bg-primary/8 text-[10px] text-primary"
+                      className="bg-primary/8 text-xs text-primary"
                     >
                       Aktif
                     </Badge>
@@ -298,7 +298,7 @@ export function AcademicAssignments({ access }: { access: string[] }) {
               {
                 label: "Wali kelas",
                 cell: (row) => (
-                  <span className="text-[13px] font-medium">
+                  <span className="text-sm font-medium">
                     {employeeLabel(row)}
                   </span>
                 ),

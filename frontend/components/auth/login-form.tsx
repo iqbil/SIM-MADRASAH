@@ -81,13 +81,13 @@ export function LoginForm({
 
   return (
     <div className="animate-enter">
-      <p className="mb-2 text-center text-[10px] font-semibold tracking-[0.16em] text-primary uppercase">
+      <p className="mb-2 text-center text-xs font-semibold tracking-[0.16em] text-primary uppercase">
         Portal MTs Al Karimiyyah
       </p>
       <h1 className="text-center text-[28px] leading-tight font-semibold tracking-[-0.045em] sm:text-[34px]">
         Login
       </h1>
-      <p className="mt-2 text-center text-[13px] leading-6 text-muted-foreground">
+      <p className="mt-2 text-center text-sm leading-6 text-muted-foreground">
         Akun diberikan oleh madrasah melalui tata usaha. Silakan masuk untuk
         melanjutkan.
       </p>
@@ -105,7 +105,7 @@ export function LoginForm({
           </Alert>
         )}
         <div className="space-y-2.5">
-          <Label htmlFor="login" className="text-[13px]">
+          <Label htmlFor="login" className="text-sm">
             Username atau email
           </Label>
           <div className="relative">
@@ -133,7 +133,7 @@ export function LoginForm({
           )}
         </div>
         <div className="space-y-2.5">
-          <Label htmlFor="password" className="text-[13px]">
+          <Label htmlFor="password" className="text-sm">
             Password
           </Label>
           <PasswordInput
@@ -231,12 +231,12 @@ export function LoginForm({
         Akun Google
       </Button>
       {optionsLoaded && !google && (
-        <p className="mt-2 text-center text-[11px] text-muted-foreground">
+        <p className="mt-2 text-center text-xs text-muted-foreground">
           Login Google belum tersedia untuk madrasah ini.
         </p>
       )}
       <div className="mt-5 border-t border-border/70 pt-4 text-center">
-        <p className="mt-2 text-[11px] leading-5 text-muted-foreground/80">
+        <p className="mt-2 text-xs leading-5 text-muted-foreground/80">
           Belum memiliki akun?
           <br />
           Hubungi tata usaha atau operator madrasah.

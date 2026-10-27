@@ -119,8 +119,8 @@ export function AcademicCalendar({ access }: { access: string[] }) {
             label: "Kejadian",
             cell: (row) => (
               <div>
-                <p className="text-[13px] font-medium">{row.title}</p>
-                <p className="mt-1 text-[11px] text-muted-foreground">
+                <p className="text-sm font-medium">{row.title}</p>
+                <p className="mt-1 text-xs text-muted-foreground">
                   {eventTypeLabel(row.event_type)}
                 </p>
               </div>
@@ -139,12 +139,12 @@ export function AcademicCalendar({ access }: { access: string[] }) {
             cell: (row) => (
               <div className="flex flex-wrap gap-1">
                 {row.blocks_teaching && (
-                  <Badge variant="secondary" className="text-[10px]">
+                  <Badge variant="secondary" className="text-xs">
                     Mengajar
                   </Badge>
                 )}
                 {row.blocks_employee_work && (
-                  <Badge variant="secondary" className="text-[10px]">
+                  <Badge variant="secondary" className="text-xs">
                     Hari kerja
                   </Badge>
                 )}

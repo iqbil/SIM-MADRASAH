@@ -130,13 +130,13 @@ export function AcademicPeriods({ access }: { access: string[] }) {
       <Card className="rounded-2xl border border-border/70 py-0 ring-0">
         <CardContent className="flex flex-wrap items-center gap-x-8 gap-y-3 p-4 sm:p-5">
           <div>
-            <p className="text-[11px] text-muted-foreground">Periode aktif</p>
+            <p className="text-xs text-muted-foreground">Periode aktif</p>
             <p className="mt-1 text-sm font-semibold">
               {context?.year ? context.year.name : "Belum diatur"}
             </p>
           </div>
           <div>
-            <p className="text-[11px] text-muted-foreground">Semester aktif</p>
+            <p className="text-xs text-muted-foreground">Semester aktif</p>
             <p className="mt-1 text-sm font-semibold">
               {context?.semester ? context.semester.name : "—"}
             </p>
@@ -159,10 +159,8 @@ export function AcademicPeriods({ access }: { access: string[] }) {
             label: "Tahun ajaran",
             cell: (row) => (
               <div>
-                <p className="text-[13px] font-medium">{row.name}</p>
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  {row.code}
-                </p>
+                <p className="text-sm font-medium">{row.name}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{row.code}</p>
               </div>
             ),
           },
@@ -241,7 +239,7 @@ export function AcademicPeriods({ access }: { access: string[] }) {
               {
                 label: "Semester",
                 cell: (row) => (
-                  <span className="text-[13px] font-medium">{row.name}</span>
+                  <span className="text-sm font-medium">{row.name}</span>
                 ),
               },
               {

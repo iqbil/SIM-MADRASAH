@@ -9,6 +9,33 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class AccountAccess
 {
+    public const SYSTEM_ROLES = ['super_admin', 'operator', 'kepala_madrasah', 'guru', 'wali_kelas',
+        'guru_bk', 'tenaga_kependidikan', 'bendahara', 'petugas_tu', 'orang_tua_wali'];
+
+    /** Izin eksplisit role; mandat domain tidak dapat didelegasikan melalui role. @return array<int, string> */
+    public static function rolePermissions(User $user): array
+    {
+        return self::activeGrants($user)->whereHas('role', fn (Builder $query): Builder => $query->where('is_active', true))
+            ->with('role.permissionAssignments.permission')->get()
+            ->flatMap(fn (UserRole $grant) => $grant->role->permissionAssignments->pluck('permission.code'))
+            ->unique()->values()->all();
+    }
+
+    public static function mayAssignInstitutionRole(User $actor, string $code): bool
+    {
+        if (self::isSuper($actor)) {
+            return true;
+        }
+        $roles = MasterDataAccess::roles($actor);
+
+        return match ($code) {
+            'super_admin' => false,
+            'operator' => in_array('operator', $roles, true),
+            'kepala_madrasah' => array_intersect($roles, ['operator', 'kepala_madrasah']) !== [],
+            default => true,
+        };
+    }
+
     public const PERMISSIONS = [
         'accounts.view' => 'Melihat akun dan role',
         'accounts.create' => 'Membuat akun pengguna',

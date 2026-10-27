@@ -91,7 +91,7 @@ export function AcademicSubstitutes({ access }: { access: string[] }) {
     {
       label: "Tanggal",
       cell: (row: Meeting) => (
-        <span className="text-[13px] font-medium">
+        <span className="text-sm font-medium">
           {row.meeting_date.slice(0, 10)}
         </span>
       ),
@@ -128,18 +128,18 @@ export function AcademicSubstitutes({ access }: { access: string[] }) {
       label: "Status",
       cell: (row: Meeting) =>
         row.is_cancelled ? (
-          <Badge variant="outline" className="text-[10px]">
+          <Badge variant="outline" className="text-xs">
             Dibatalkan
           </Badge>
         ) : row.activeSubstitute ? (
           <Badge
             variant="secondary"
-            className="bg-primary/8 text-[10px] text-primary"
+            className="bg-primary/8 text-xs text-primary"
           >
             Digantikan
           </Badge>
         ) : (
-          <Badge variant="outline" className="text-[10px]">
+          <Badge variant="outline" className="text-xs">
             Menunggu
           </Badge>
         ),
@@ -242,7 +242,7 @@ export function AcademicSubstitutes({ access }: { access: string[] }) {
               {
                 label: "Pengganti",
                 cell: (row) => (
-                  <span className="text-[13px] font-medium">
+                  <span className="text-sm font-medium">
                     {row.substituteEmployee?.person?.full_name ??
                       `#${row.substitute_employee_id}`}
                   </span>
@@ -274,13 +274,13 @@ export function AcademicSubstitutes({ access }: { access: string[] }) {
                 label: "Status",
                 cell: (row) =>
                   row.revoked_at ? (
-                    <Badge variant="outline" className="text-[10px]">
+                    <Badge variant="outline" className="text-xs">
                       Dicabut {row.revoked_at.slice(0, 10)}
                     </Badge>
                   ) : (
                     <Badge
                       variant="secondary"
-                      className="bg-primary/8 text-[10px] text-primary"
+                      className="bg-primary/8 text-xs text-primary"
                     >
                       Aktif
                     </Badge>

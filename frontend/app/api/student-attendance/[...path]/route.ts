@@ -53,6 +53,7 @@ async function proxy(
     const params = new URLSearchParams();
     for (const name of [
       "class_period_id",
+      "homeroom_only",
       "date",
       "date_from",
       "date_to",

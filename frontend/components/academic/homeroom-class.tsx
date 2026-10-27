@@ -1,7 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { AcademicHeading } from "@/components/academic/academic-shared";
+import { useCallback, useEffect, useState } from "react";
+import {
+  AcademicHeading,
+  FilterSelect,
+} from "@/components/academic/academic-shared";
+import { DataFailure, DataLoading } from "@/components/layout/data-feedback";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -12,49 +16,43 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useAsyncData } from "@/hooks/use-async-data";
 import { dateOnly, todayWib } from "@/lib/attendance";
 import {
   type RosterPayload,
-  studentAttendanceError,
   studentAttendanceRequest,
 } from "@/lib/student-attendance";
 
 /** Ringkasan kelas perwalian wali kelas: daftar siswa + status hari ini. */
 export function HomeroomClass() {
-  const [roster, setRoster] = useState<RosterPayload | null>(null);
-  const [failure, setFailure] = useState("");
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let active = true;
-    (async () => {
-      try {
-        const classes = await studentAttendanceRequest<{
+  const [classId, setClassId] = useState("");
+  const classesQuery = useAsyncData(
+    useCallback(
+      () =>
+        studentAttendanceRequest<{
           data: { id: number; display_name: string }[];
-        }>("classes");
-        if (!active) return;
-        const homeroom = classes.data[0];
-        if (!homeroom) {
-          setRoster(null);
-          setLoading(false);
-
-          return;
-        }
-        const result = await studentAttendanceRequest<{ data: RosterPayload }>(
-          `roster?class_period_id=${homeroom.id}&date=${todayWib()}`,
-        );
-        if (active) setRoster(result.data);
-      } catch (error) {
-        if (active) setFailure(studentAttendanceError(error));
-      } finally {
-        if (active) setLoading(false);
-      }
-    })();
-
-    return () => {
-      active = false;
-    };
-  }, []);
+        }>("classes?homeroom_only=1"),
+      [],
+    ),
+  );
+  const classes = classesQuery.data?.data ?? [];
+  useEffect(() => {
+    const first = classesQuery.data?.data[0];
+    if (first) setClassId((current) => current || String(first.id));
+  }, [classesQuery.data]);
+  const rosterQuery = useAsyncData(
+    useCallback(async () => {
+      if (!classId) return null;
+      return studentAttendanceRequest<{ data: RosterPayload }>(
+        `roster?class_period_id=${classId}&date=${todayWib()}`,
+      );
+    }, [classId]),
+  );
+  const loading = classesQuery.loading || rosterQuery.loading;
+  const payload = rosterQuery.data?.data;
+  const roster =
+    !loading && String(payload?.class_period.id) === classId ? payload : null;
+  const failure = classesQuery.error || rosterQuery.error;
 
   const recorded = (roster?.rows ?? []).filter(
     (row) => row.attendance !== null,
@@ -67,19 +65,30 @@ export function HomeroomClass() {
         title="Kelas perwalian saya"
         description="Daftar siswa kelas perwalian beserta status kehadiran hari ini; pengisian absensi dilakukan pada menu Absensi harian siswa."
       />
-      {failure && <p className="text-sm text-destructive">{failure}</p>}
+      {failure && <DataFailure message={failure} />}
+      {classes.length > 1 && (
+        <FilterSelect
+          label="Kelas perwalian"
+          value={classId}
+          onChange={setClassId}
+          options={classes.map((item) => ({
+            value: String(item.id),
+            label: item.display_name,
+          }))}
+        />
+      )}
       {loading ? (
-        <p className="text-sm text-muted-foreground">Memuat…</p>
-      ) : !roster ? (
+        <DataLoading />
+      ) : !roster && !failure ? (
         <p className="rounded-xl border border-dashed p-5 text-sm leading-6 text-muted-foreground">
           Anda belum ditunjuk sebagai wali kelas pada periode berjalan.
         </p>
-      ) : (
+      ) : roster ? (
         <>
           <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             <Badge
               variant="secondary"
-              className="bg-primary/8 text-[10px] text-primary"
+              className="bg-primary/8 text-xs text-primary"
             >
               {roster.class_period.display_name}
             </Badge>
@@ -111,14 +120,14 @@ export function HomeroomClass() {
                               variant="secondary"
                               className={
                                 row.attendance.status.code === "hadir"
-                                  ? "bg-primary/8 text-[10px] text-primary"
-                                  : "text-[10px]"
+                                  ? "bg-primary/8 text-xs text-primary"
+                                  : "text-xs"
                               }
                             >
                               {row.attendance.status.name}
                             </Badge>
                           ) : (
-                            <Badge variant="outline" className="text-[10px]">
+                            <Badge variant="outline" className="text-xs">
                               Belum dicatat
                             </Badge>
                           )}
@@ -131,7 +140,7 @@ export function HomeroomClass() {
             </CardContent>
           </Card>
         </>
-      )}
+      ) : null}
     </div>
   );
 }

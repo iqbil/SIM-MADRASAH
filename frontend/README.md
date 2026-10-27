@@ -38,7 +38,9 @@ Incognito dapat dipakai jika ekstensi tidak diizinkan berjalan di sana.
 Jika browser bersih masih error, lanjutkan pemeriksaan SSR/client pada
 [panduan diagnosis design system](../design-system.md#12-ssr-hydration-dan-diagnosis-error).
 
-Pengujian login normal, callback Google gagal, dan pemberitahuan password:
+Pengujian login normal, callback Google gagal, pemberitahuan password, serta
+RootLayout/sidebar pada dashboard, halaman kebijakan absensi, dan akun (mobile
+dan desktop):
 
 ```bash
 NEXT_TEST_DEV=1 pnpm exec playwright test tests/e2e/hydration.spec.ts
@@ -49,6 +51,25 @@ ekstensi pada browser pribadi Anda. Penyebab eksternal perlu ditangani pada
 browser tersebut. Peringatan tidak disembunyikan dengan suppression global.
 
 Referensi: [Next.js — hydration error](https://nextjs.org/docs/messages/react-hydration-error).
+
+## Pengaturan GPS dan titik absensi
+
+Operator atau Super Admin yang memiliki akses pengelolaan absensi membuka
+**Absensi pegawai → Pola kerja & kebijakan → Kebijakan foto/GPS**
+(`/absensi/pola-kerja`). Pilih **Versi kebijakan baru**, tentukan tanggal mulai
+(besok atau setelahnya), sesuaikan akurasi GPS/umur bukti/batas koreksi, isi alasan,
+lalu simpan. Kebijakan baru berlaku prospektif; bukti lama tidak diubah.
+
+Baseline [SRS FR-05-04 dan BR-24](../SRS_SIM_Madrasah_MTs_Al_Karimiyyah.txt)
+memakai **GPS tanpa geofence**. Belum ada titik pusat madrasah, koordinat kantor,
+atau radius lokasi yang dapat diatur. Nilai akurasi 100 m adalah batas perkiraan
+ketelitian koordinat perangkat, bukan jarak pegawai dari madrasah. Pegawai
+mengizinkan lokasi dan kamera pada menu Masuk/pulang, lalu aplikasi menyimpan
+koordinat sebagai bukti; akurasi/umur bukti tetap diverifikasi backend.
+
+Pembatasan jarak dari titik madrasah membutuhkan fitur geofence serta perubahan
+aturan SRS, skema dan validasi backend; mengubah angka akurasi saja tidak
+mengaktifkan pembatasan tersebut.
 
 ## Menjalankan proyek
 

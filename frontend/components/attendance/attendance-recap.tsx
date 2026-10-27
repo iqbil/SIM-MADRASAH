@@ -5,6 +5,7 @@ import {
   AcademicHeading,
   DateFilter,
 } from "@/components/academic/academic-shared";
+import { DataFailure } from "@/components/layout/data-feedback";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
@@ -79,10 +80,11 @@ export function AttendanceRecap() {
   return (
     <div className="animate-enter space-y-6">
       <AcademicHeading
+        category="Absensi pegawai"
         title="Rekap kehadiran pegawai"
         description="Hadir, terlambat, izin, sakit, cuti, dinas luar, dan tanpa catatan per pegawai. Hari libur tidak dihitung sebagai alpa."
       />
-      {failure && <p className="text-sm text-destructive">{failure}</p>}
+      {failure && <DataFailure message={failure} />}
       <div className="flex flex-wrap items-end gap-3">
         <DateFilter label="Dari tanggal" value={from} onChange={setFrom} />
         <DateFilter label="Sampai" value={to} onChange={setTo} />

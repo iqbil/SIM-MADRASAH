@@ -6,6 +6,8 @@ use App\Models\Person;
 use App\Models\Student;
 use App\Models\User;
 use App\Models\UserRole;
+use App\Services\AcademicDataAccess;
+use Carbon\CarbonImmutable;
 use Database\Seeders\AccountAccessSeeder;
 use Database\Seeders\ReferenceDataSeeder;
 use Illuminate\Support\Facades\DB;
@@ -234,5 +236,83 @@ class MysqlStudentAttendanceApiTest extends MysqlAuthTestCase
         // Wali (pemegang mandat) melihat daftar; status terisi benar.
         $list = $this->getJson('/api/v1/student-attendance/corrections?status=applied', $freshWali)->assertOk()->json('data');
         $this->assertGreaterThanOrEqual(2, count($list['rows']['data']));
+    }
+
+    public function test_multi_role_homeroom_filter_and_semester_expiry(): void
+    {
+        [$op] = $this->operator();
+        [$period] = $this->seedClass($op);
+        [$headers, , [$userId]] = $this->homeroomTeacher($op, $period['id']);
+        $user = User::query()->findOrFail($userId);
+        $this->grant($user, 'operator');
+        $otherClass = $this->postJson('/api/v1/academic/classes', ['code' => '7B', 'name' => 'Kelas 7B', 'grade' => 7, 'reason' => 'Kelas pembanding perwalian'], $op)->assertCreated()->json('data');
+        $this->postJson('/api/v1/academic/class-periods', ['class_id' => $otherClass['id'], 'academic_year_id' => $period['academic_year_id'], 'display_name' => 'VII-B', 'reason' => 'Periode pembanding perwalian'], $op)->assertCreated();
+        $this->getJson('/api/v1/student-attendance/classes', $headers)->assertOk()->assertJsonCount(2, 'data');
+        $this->getJson('/api/v1/student-attendance/classes?homeroom_only=1', $headers)->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $period['id']);
+        $this->getJson('/api/v1/student-attendance/roster?class_period_id='.$period['id'].'&date='.today('Asia/Jakarta')->toDateString(), $headers)->assertOk();
+        $this->travelTo(CarbonImmutable::parse('2027-07-01 09:00:00', 'Asia/Jakarta'));
+        $this->assertSame([], AcademicDataAccess::classPeriodScope($user->fresh(), true));
+        $this->travelBack();
+    }
+
+    public function test_correction_contract_domains_counts_and_inactive_history(): void
+    {
+        [$op] = $this->operator();
+        [$period, $students] = $this->seedClass($op);
+        [$headers] = $this->homeroomTeacher($op, $period['id']);
+        $date = today('Asia/Jakarta')->toDateString();
+        $this->postJson('/api/v1/student-attendance/record', ['class_period_id' => $period['id'], 'date' => $date, 'entries' => [['student_id' => $students[0], 'status_code' => 'hadir']], 'reason' => 'Pengisian absensi untuk uji kontrak dan histori'], $headers)->assertOk();
+        $this->getJson('/api/v1/student-attendance/classes', $headers)->assertOk()->assertJsonPath('data.0.recorded', 1);
+        $rowId = DB::table('student_daily_attendances')->where('student_id', $students[0])->value('id');
+        $correction = $this->postJson('/api/v1/student-attendance/corrections', ['student_daily_attendance_id' => $rowId, 'after_values' => ['status_code' => 'izin'], 'reason' => 'Koreksi untuk pemeriksaan kontrak respons', 'expected_lock_version' => 0], $headers)->assertCreated()->json('data');
+        $this->getJson('/api/v1/student-attendance/corrections', $headers)->assertOk()
+            ->assertJsonPath('data.rows.data.0.studentDailyAttendance.student.person.full_name', 'Siswa Satu')
+            ->assertJsonPath('data.rows.data.0.studentDailyAttendance.classPeriod.display_name', $period['display_name']);
+        $this->getJson('/api/v1/attendance/corrections', $op)->assertOk()->assertJsonCount(0, 'data');
+        $this->getJson('/api/v1/attendance/corrections?employee_id=1', $op)->assertOk()->assertJsonCount(0, 'data');
+        DB::table('attendance_statuses')->where('domain', 'student')->where('code', 'hadir')->update(['is_active' => false]);
+        $this->getJson('/api/v1/student-attendance/roster?class_period_id='.$period['id'].'&date='.$date, $headers)->assertOk()->assertJsonPath('data.rows.0.attendance.status.code', 'hadir');
+    }
+
+    public function test_preview_and_guardian_relations_reject_unrelated_permissions(): void
+    {
+        [$op, $opId] = $this->operator();
+        [$period, $students] = $this->seedClass($op);
+        $actor = User::factory()->create();
+        $this->grant($actor, 'guru');
+        $headers = ['Authorization' => 'Bearer '.$this->loginUser($actor)['access_token']];
+        $this->postJson('/api/v1/academic/transitions/preview', ['type' => 'withdrawal', 'student_ids' => [$students[0]], 'effective_date' => today('Asia/Jakarta')->toDateString()], $headers)->assertForbidden();
+        $roleId = DB::table('roles')->insertGetId(['code' => 'subject_editor', 'name' => 'Pengelola mapel', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()]);
+        DB::table('role_permissions')->insert(['role_id' => $roleId, 'permission_id' => DB::table('permissions')->where('code', 'master.subjects.manage')->value('id'), 'created_by' => $opId, 'created_at' => now(), 'updated_at' => now()]);
+        UserRole::query()->forceCreate(['user_id' => $actor->id, 'role_id' => $roleId, 'effective_from' => now('UTC')->subSecond(), 'granted_by' => $opId]);
+        $this->getJson('/api/v1/master/students/'.$students[0].'/guardian-links', $headers)->assertForbidden();
+        $this->postJson('/api/v1/master/students/'.$students[0].'/guardian-links/1/verify', [], $headers)->assertForbidden();
+    }
+
+    public function test_correction_mandate_cannot_read_or_approve_another_class(): void
+    {
+        [$op, $opId] = $this->operator();
+        [$period, $students] = $this->seedClass($op);
+        [$headers] = $this->homeroomTeacher($op, $period['id']);
+        $this->postJson('/api/v1/student-attendance/record', ['class_period_id' => $period['id'], 'date' => today('Asia/Jakarta')->toDateString(), 'entries' => [['student_id' => $students[0], 'status_code' => 'hadir']], 'reason' => 'Pengisian absensi untuk uji cakupan koreksi'], $headers)->assertOk();
+        $attendanceId = DB::table('student_daily_attendances')->where('student_id', $students[0])->value('id');
+        $correction = $this->postJson('/api/v1/student-attendance/corrections', ['student_daily_attendance_id' => $attendanceId, 'after_values' => ['status_code' => 'izin'], 'reason' => 'Pengajuan koreksi untuk uji cakupan mandat', 'expected_lock_version' => 0], $headers)->assertCreated()->json('data');
+        $class = $this->postJson('/api/v1/academic/classes', ['code' => '7B', 'name' => 'Kelas 7B', 'grade' => 7, 'reason' => 'Kelas pembanding untuk koreksi siswa'], $op)->assertCreated()->json('data');
+        $other = $this->postJson('/api/v1/academic/class-periods', ['class_id' => $class['id'], 'academic_year_id' => $period['academic_year_id'], 'display_name' => 'VII-B', 'reason' => 'Periode pembanding untuk koreksi siswa'], $op)->assertCreated()->json('data');
+        $officer = User::factory()->create();
+        $officerHeaders = ['Authorization' => 'Bearer '.$this->loginUser($officer)['access_token']];
+        $mandateId = DB::table('authorization_mandates')->insertGetId(['user_id' => $officer->id, 'permission_id' => DB::table('permissions')->where('code', 'attendance.correct')->value('id'), 'scope_type' => 'class', 'class_period_id' => $other['id'], 'effective_from' => now('UTC')->subSecond(), 'granted_by' => $opId, 'reason' => 'Mandat koreksi hanya kelas pembanding', 'created_at' => now(), 'updated_at' => now()]);
+        $this->getJson('/api/v1/student-attendance/corrections', $officerHeaders)->assertOk()->assertJsonCount(0, 'data.rows.data');
+        $this->postJson('/api/v1/student-attendance/corrections/'.$correction['id'].'/decision', ['decision' => 'approve', 'reason' => 'Percobaan koreksi di luar cakupan mandat'], $officerHeaders)->assertForbidden();
+        DB::table('authorization_mandates')->where('id', $mandateId)->update(['class_period_id' => $period['id']]);
+        $this->getJson('/api/v1/student-attendance/corrections', $officerHeaders)->assertOk()->assertJsonCount(1, 'data.rows.data');
+        $semester = DB::table('semesters')->where('academic_year_id', $period['academic_year_id'])->first();
+        DB::table('authorization_mandates')->where('id', $mandateId)->update(['scope_type' => 'semester', 'semester_id' => $semester->id, 'class_period_id' => null]);
+        $this->getJson('/api/v1/student-attendance/corrections', $officerHeaders)->assertOk()->assertJsonCount(1, 'data.rows.data');
+        DB::table('semesters')->where('id', $semester->id)->update(['end_date' => today('Asia/Jakarta')->toDateString()]);
+        $this->getJson('/api/v1/student-attendance/corrections', $officerHeaders)->assertOk()->assertJsonCount(0, 'data.rows.data');
+        $this->postJson('/api/v1/student-attendance/corrections/'.$correction['id'].'/decision', ['decision' => 'approve', 'reason' => 'Tanggal di luar rentang semester mandat'], $officerHeaders)->assertForbidden();
+        DB::table('semesters')->where('id', $semester->id)->update(['end_date' => $semester->end_date]);
+        $this->postJson('/api/v1/student-attendance/corrections/'.$correction['id'].'/decision', ['decision' => 'approve', 'reason' => 'Koreksi sesuai kelas yang dimandatkan'], $officerHeaders)->assertOk();
     }
 }

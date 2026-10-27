@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Http\Resources\AttendanceDataResource;
 use App\Models\AttendanceCorrection;
 use App\Models\AttendancePolicy;
 use App\Models\AttendanceStatus;
@@ -39,7 +40,7 @@ class StudentAttendanceService
     }
 
     /** Kelas yang boleh dicatat pengguna: cakupan penugasan mengajar/wali kelas. @return array<int, int>|null */
-    private function dutyScope(User $user): array
+    private function dutyScope(User $user): ?array
     {
         return AcademicDataAccess::classPeriodScope($user);
     }
@@ -92,10 +93,11 @@ class StudentAttendanceService
     }
 
     /** Daftar kelas boleh-catat + ringkas status pengisian hari ini. @return array<int, array<string, mixed>> */
-    public function classes(User $actor): array
+    public function classes(User $actor, array $params = []): array
     {
         $this->authorizeRecorder($actor);
-        $scope = $this->dutyScope($actor);
+        $data = Validator::make($params, ['homeroom_only' => ['nullable', 'boolean']])->validate();
+        $scope = ! empty($data['homeroom_only']) ? AcademicDataAccess::classPeriodScope($actor, true) : $this->dutyScope($actor);
         $today = today('Asia/Jakarta')->toDateString();
         $query = ClassPeriod::query()->with('schoolClass');
         if ($scope !== null) {
@@ -107,7 +109,7 @@ class StudentAttendanceService
             $rows[] = [...$period->only(['id', 'class_id', 'display_name', 'status']),
                 'class_name' => $period->schoolClass?->name,
                 'roster' => $roster->count(),
-                'recorded' => $roster->where('attendance', '!==', null)->count()];
+                'recorded' => $roster->whereNotNull('attendance_id')->count()];
         }
 
         return $rows;
@@ -140,9 +142,10 @@ class StudentAttendanceService
         ])->validate();
         $period = ClassPeriod::query()->findOrFail($data['class_period_id']);
         $policy = $this->authorizeClass($actor, $period, $data['date']);
-        $statuses = AttendanceStatus::query()->where('domain', 'student')->where('is_active', true)
+        $allStatuses = AttendanceStatus::query()->where('domain', 'student')
             ->orderBy('id')->get(['id', 'code', 'name']);
-        $statusById = $statuses->keyBy('id');
+        $statuses = AttendanceStatus::query()->where('domain', 'student')->where('is_active', true)->orderBy('id')->get(['id', 'code', 'name']);
+        $statusById = $allStatuses->keyBy('id');
         $rows = $this->rosterQuery($period->id, $data['date'])->get()->map(function (StudentEnrollment $enrollment) use ($statusById) {
             return [
                 'enrollment_id' => $enrollment->id,
@@ -150,7 +153,7 @@ class StudentAttendanceService
                 'student' => ['id' => $enrollment->student_id, 'person' => $enrollment->student?->person?->only(['id', 'full_name'])],
                 'attendance' => $enrollment->attendance_id === null ? null : [
                     'id' => $enrollment->attendance_id,
-                    'status' => $statusById[$enrollment->attendance_status_id]?->only(['code', 'name']),
+                    'status' => $statusById->get($enrollment->attendance_status_id)?->only(['code', 'name']),
                     'lock_version' => $enrollment->attendance_lock_version,
                     'notes' => $enrollment->attendance_notes,
                 ],
@@ -317,7 +320,7 @@ class StudentAttendanceService
             $policy = $this->effectivePolicy($actor, $row->classPeriod, $row->attendance_date->toDateString());
             $deadline = CarbonImmutable::parse($row->attendance_date->toDateString(), 'Asia/Jakarta')
                 ->addDays($policy->correction_deadline_days)->endOfDay();
-            $mandated = AttendanceDataAccess::correctMandate($actor) !== null;
+            $mandated = AttendanceDataAccess::correctMandate($actor, $row->classPeriod, $row->attendance_date->toDateString()) !== null;
             abort_unless(now('Asia/Jakarta') <= $deadline || $mandated, 422,
                 'Batas koreksi '.$policy->correction_deadline_days.' hari kalender telah terlewat; hanya petugas bermandat khusus yang dapat mengajukan.');
 
@@ -346,6 +349,8 @@ class StudentAttendanceService
             ])->validate();
             $correction = AttendanceCorrection::query()->lockForUpdate()->findOrFail($correctionId);
             abort_unless($correction->student_daily_attendance_id !== null, 422, 'Ini bukan koreksi absensi siswa.');
+            $target = $correction->studentDailyAttendance;
+            AttendanceDataAccess::authorizeCorrect($actor, $target->classPeriod, $target->attendance_date->toDateString());
             abort_unless($correction->status === 'pending', 422, 'Koreksi ini sudah diputuskan.');
             abort_if($correction->requested_by === $actor->id, 422, 'Pemohon dan penyetuju tidak boleh orang sama.');
 
@@ -384,7 +389,8 @@ class StudentAttendanceService
             'status' => ['nullable', 'in:pending,applied,rejected'],
             'page' => ['nullable', 'integer', 'min:1'], 'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ])->validate();
-        $mandated = AttendanceDataAccess::correctMandate($actor) !== null;
+        $mandated = AttendanceDataAccess::correctMandate($actor) !== null
+            || in_array('attendance.correct', AccountAccess::rolePermissions($actor), true);
         abort_unless($mandated || in_array('students.attendance', NavigationAccess::forUser($actor), true), 403);
         $query = AttendanceCorrection::query()
             ->whereNotNull('student_daily_attendance_id')
@@ -394,12 +400,17 @@ class StudentAttendanceService
             $query->where('status', $data['status']);
         }
         if (! $mandated) {
-            $scope = $this->dutyScope($actor) ?? [];
-            $query->whereHas('studentDailyAttendance.classPeriod', fn (Builder $q): Builder => $q->whereKey($scope === [] ? [-1] : $scope));
+            $scope = $this->dutyScope($actor);
+            if ($scope !== null) {
+                $query->whereHas('studentDailyAttendance.classPeriod', fn (Builder $q): Builder => $q->whereKey($scope === [] ? [-1] : $scope));
+            }
+        } else {
+            AttendanceDataAccess::scopeCorrections($query, $actor, true);
         }
         $page = $query->paginate($data['per_page'] ?? 25)->withQueryString();
 
         $rows = $page->toArray();
+        $rows['data'] = AttendanceDataResource::collection($page->getCollection())->resolve();
         $rows['meta'] = [
             'current_page' => $page->currentPage(),
             'last_page' => $page->lastPage(),

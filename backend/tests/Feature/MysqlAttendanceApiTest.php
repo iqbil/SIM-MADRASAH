@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Person;
 use App\Models\User;
 use App\Models\UserRole;
+use Carbon\CarbonImmutable;
 use Database\Seeders\AccountAccessSeeder;
 use Database\Seeders\ReferenceDataSeeder;
 use Illuminate\Http\UploadedFile;
@@ -121,6 +122,7 @@ class MysqlAttendanceApiTest extends MysqlAuthTestCase
         $this->post('/api/v1/attendance/clock', $this->clockPayload(['accuracy_meters' => 500]), $employeeHeaders)->assertStatus(422);
         $this->post('/api/v1/attendance/clock', $this->clockPayload(['latitude' => 200]), $employeeHeaders)->assertStatus(422);
 
+        $this->post('/api/v1/attendance/clock', $this->clockPayload(['photo_taken_at' => now('UTC')->addSeconds(30)->toIso8601String()]), $employeeHeaders)->assertStatus(422);
         $first = $this->clockPayload();
         $firstKey = $first['operation_key'];
         $checkedIn = $this->post('/api/v1/attendance/clock', $first, $employeeHeaders)->assertOk()->json('data');
@@ -144,6 +146,7 @@ class MysqlAttendanceApiTest extends MysqlAuthTestCase
         // Bukti hanya untuk pemilik/petugas (FR-05-06).
         $this->getJson('/api/v1/attendance/captures/'.$capture->id, $employeeHeaders)->assertOk();
         $this->getJson('/api/v1/attendance/captures/'.$capture->id, $operatorHeaders)->assertOk();
+        $this->get('/api/v1/attendance/captures/'.$capture->id.'/photo', $employeeHeaders)->assertOk()->assertHeader('Content-Type', 'image/webp');
         $this->getJson('/api/v1/attendance/captures/'.$capture->id, $this->guestHeaders())->assertUnauthorized();
 
         $checkedOut = $this->post('/api/v1/attendance/clock', $this->clockPayload(['action' => 'check_out']), $employeeHeaders)->assertOk()->json('data');
@@ -268,5 +271,26 @@ class MysqlAttendanceApiTest extends MysqlAuthTestCase
     private function guestHeaders(): array
     {
         return [];
+    }
+
+    public function test_optional_join_date_navigation_lateness_and_correction_contract(): void
+    {
+        [, $op] = $this->operator();
+        [$headers, $employeeId, $user] = $this->employeeUser($op);
+        $this->getJson('/api/v1/auth/me', $headers)->assertOk()->assertJsonFragment(['attendance.own']);
+        $record = $this->postJson('/api/v1/attendance/records', [
+            'employee_id' => $employeeId, 'work_date' => today('Asia/Jakarta')->toDateString(), 'status_code' => 'hadir',
+            'check_in_at' => today('Asia/Jakarta')->setTime(10, 0)->utc()->format('Y-m-d H:i:s'),
+            'reason' => 'Fallback hadir administratif pukul sepuluh pagi',
+        ], $op)->assertCreated()->assertJsonPath('data.late_minutes', 170)->json('data');
+        $this->getJson('/api/v1/attendance/records?employee_id='.$employeeId, $op)->assertOk()
+            ->assertJsonPath('data.0.employee.person.full_name', $user->person->full_name)
+            ->assertJsonPath('data.0.attendance.id', $record['id'])
+            ->assertJsonPath('data.0.attendance.attendanceStatus.code', 'hadir');
+        $this->postJson('/api/v1/attendance/corrections', ['employee_attendance_id' => $record['id'], 'after_values' => ['notes' => 'Catatan koreksi'], 'expected_lock_version' => 0, 'reason' => 'Pengajuan koreksi untuk uji kontrak respons'], $op)->assertCreated();
+        $this->getJson('/api/v1/attendance/corrections?employee_id='.$employeeId, $op)->assertOk()
+            ->assertJsonPath('data.0.employeeAttendance.workDay.employee.person.full_name', $user->person->full_name)
+            ->assertJsonPath('data.0.employeeAttendance.workDay.work_date', CarbonImmutable::parse(today('Asia/Jakarta')->toDateString(), 'UTC')->toJSON());
+        $this->getJson('/api/v1/attendance/recap?employee_id='.$employeeId, $op)->assertOk()->assertJsonPath('data.summary.0.terlambat', 1);
     }
 }

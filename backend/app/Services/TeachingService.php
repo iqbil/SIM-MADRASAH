@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Http\Resources\TeachingDataResource;
 use App\Models\Meeting;
 use App\Models\RealizationRevision;
 use App\Models\RealizationVerification;
@@ -13,6 +14,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Realisasi mengajar (SRS v1.3 FR-06). Satu realisasi per pertemuan (UK);
@@ -34,7 +36,7 @@ class TeachingService
             TeachingDataAccess::authorizeOwn($actor);
             $meeting = Meeting::query()->lockForUpdate()->findOrFail($meetingId);
             TeachingDataAccess::assertMeetingDuty($meeting, $actor);
-            abort_if($meeting->is_cancelled, 422, 'Pertemuan yang dibatalkan tidak dapat direalisasikan.');
+            $this->assertEligibleMeeting($meeting);
 
             $employeeId = AcademicDataAccess::employeeId($actor);
             $substitute = SubstituteAssignment::query()->where('meeting_id', $meeting->id)->whereNull('revoked_at')
@@ -43,7 +45,7 @@ class TeachingService
             $values = Validator::make($data, [
                 'execution_status' => ['required', 'in:held,not_held'],
                 'material' => ['required_if:execution_status,held', 'nullable', 'string', 'max:5000'],
-                'actual_jp' => ['required', 'numeric', 'min:0', 'max:99'],
+                'actual_jp' => ['required', 'numeric', 'decimal:0,3', 'min:0', 'max:99'],
                 'actual_minutes' => ['nullable', 'integer', 'min:0', 'max:1440'],
                 'actual_started_at' => ['nullable', 'date_format:Y-m-d H:i:s'],
                 'actual_ended_at' => ['nullable', 'date_format:Y-m-d H:i:s', 'after:actual_started_at'],
@@ -57,6 +59,7 @@ class TeachingService
             } else {
                 $values['nonexecution_reason'] = null;
                 $values['actual_minutes'] ??= $meeting->planned_minutes_snapshot;
+                $this->validateQuantity($meeting, $values['actual_jp'], $values['actual_minutes']);
             }
 
             if ($creating) {
@@ -100,8 +103,12 @@ class TeachingService
         return DB::transaction(function () use ($actor, $revisionId, $data, $request): RealizationRevision {
             TeachingDataAccess::authorizeOwn($actor);
             $values = Validator::make($data, ['reason' => ['required', 'string', 'min:10', 'max:1000']])->validate();
-            $revision = RealizationRevision::query()->lockForUpdate()->findOrFail($revisionId);
+            $revision = $this->lockCurrentRevision($revisionId);
             $this->assertOwnedRevision($revision, $actor);
+            $this->assertEligibleMeeting($revision->realization->meeting);
+            if ($revision->execution_status === 'held') {
+                $this->validateQuantity($revision->realization->meeting, $revision->actual_jp, $revision->actual_minutes);
+            }
             abort_unless($revision->verification_status === 'not_submitted', 422,
                 'Revisi ini sudah diajukan atau sudah diputuskan.');
             $revision->forceFill(['verification_status' => 'pending', 'submitted_at' => now('UTC'), 'submitted_by' => $actor->id])->save();
@@ -116,14 +123,22 @@ class TeachingService
     public function decideRevision(User $actor, int $revisionId, array $data, Request $request): RealizationRevision
     {
         return DB::transaction(function () use ($actor, $revisionId, $data, $request): RealizationRevision {
-            $mandate = TeachingDataAccess::authorizeVerify($actor);
+            TeachingDataAccess::authorizeVerify($actor);
             $values = Validator::make($data, [
                 'action' => ['required', 'in:approve,reject'],
                 'reason' => ['required_if:action,reject', 'nullable', 'string', 'min:10', 'max:1000'],
             ])->validate();
-            $revision = RealizationRevision::query()->lockForUpdate()->findOrFail($revisionId);
+            $revision = $this->lockCurrentRevision($revisionId);
+            $meeting = $revision->realization->meeting;
+            $mandate = TeachingDataAccess::authorizeVerify($actor, $meeting, $revision->actual_employee_id);
             abort_unless($revision->verification_status === 'pending', 422, 'Revisi ini tidak menunggu keputusan.');
             abort_if($revision->submitted_by === $actor->id, 422, 'Verifikator tidak boleh sama dengan pengaju.');
+            if ($values['action'] === 'approve') {
+                $this->assertEligibleMeeting($meeting);
+                if ($revision->execution_status === 'held') {
+                    $this->validateQuantity($meeting, $revision->actual_jp, $revision->actual_minutes);
+                }
+            }
 
             $verification = new RealizationVerification([
                 'realization_revision_id' => $revision->id, 'action' => $values['action'],
@@ -141,12 +156,12 @@ class TeachingService
     }
 
     /** Riwayat realisasi milik guru pelaksana beserta total JP disetujui. @param array<string, mixed> $params @return array<string, mixed> */
-    public function ownHistory(User $actor, array $params): array
+    public function ownHistory(User $actor, array $params, Request $request): array
     {
         TeachingDataAccess::authorizeOwn($actor);
         $employeeId = AcademicDataAccess::employeeId($actor) ?? -1;
         $data = Validator::make($params, [
-            'date_from' => ['nullable', 'date_format:Y-m-d'], 'date_to' => ['nullable', 'date_format:Y-m-d'],
+            'date_from' => ['nullable', 'date_format:Y-m-d'], 'date_to' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:date_from'],
             'verification_status' => ['nullable', 'in:not_submitted,pending,approved,rejected'],
             'page' => ['nullable', 'integer', 'min:1'], 'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ])->validate();
@@ -162,13 +177,16 @@ class TeachingService
         if (isset($data['verification_status'])) {
             $query->where('verification_status', $data['verification_status']);
         }
-        $page = $query->orderByDesc('id')->paginate($data['per_page'] ?? 25)->withQueryString();
-        $totals = RealizationRevision::query()->where('actual_employee_id', $employeeId)
-            ->whereIn('id', $latestIds)->where('verification_status', 'approved')
+        $totals = (clone $query)->where('verification_status', 'approved')
             ->where('execution_status', 'held')
+            ->whereRaw('actual_jp <= FLOOR(actual_minutes * 1000 / 40) / 1000')
+            ->whereHas('meeting', fn (Builder $m): Builder => TeachingDataAccess::scopeEligibleMeetings($m)
+                ->whereColumn('realization_revisions.actual_jp', '<=', 'meetings.planned_jp_snapshot'))
             ->selectRaw('COALESCE(SUM(actual_jp),0) as jp, COUNT(*) as meetings')->first();
+        $page = $query->orderByDesc('id')->paginate($data['per_page'] ?? 25)->withQueryString();
 
         $rows = $page->toArray();
+        $rows['data'] = TeachingDataResource::collection($page->getCollection())->resolve($request);
         $rows['meta'] = [
             'current_page' => $page->currentPage(),
             'last_page' => $page->lastPage(),
@@ -177,6 +195,37 @@ class TeachingService
         ];
 
         return ['rows' => $rows, 'totals' => ['approved_jp' => (float) $totals->jp, 'approved_meetings' => (int) $totals->meetings]];
+    }
+
+    /** Urutan penguncian sama dengan penyimpanan: pertemuan → realisasi → revisi. */
+    private function lockCurrentRevision(int $revisionId): RealizationRevision
+    {
+        $reference = RealizationRevision::query()->findOrFail($revisionId);
+        $realizationId = $reference->realization_id;
+        $meetingId = TeachingRealization::query()->findOrFail($realizationId)->meeting_id;
+        $meeting = Meeting::query()->lockForUpdate()->findOrFail($meetingId);
+        $realization = TeachingRealization::query()->lockForUpdate()->findOrFail($realizationId);
+        $revision = RealizationRevision::query()->lockForUpdate()->findOrFail($revisionId);
+        abort_unless($realization->current_revision_id === $revision->id, 409, 'Revisi ini sudah digantikan. Muat ulang dan gunakan revisi terkini.');
+        $realization->setRelation('meeting', $meeting);
+        $revision->setRelation('realization', $realization);
+
+        return $revision;
+    }
+
+    private function assertEligibleMeeting(Meeting $meeting): void
+    {
+        abort_unless(TeachingDataAccess::scopeEligibleMeetings(Meeting::query()->whereKey($meeting->id))->exists(), 422,
+            'Pertemuan dibatalkan atau terhalang kalender akademik; realisasi tidak dapat diajukan/disetujui.');
+    }
+
+    private function validateQuantity(Meeting $meeting, string|int|float $jp, ?int $minutes): void
+    {
+        $units = (int) round((float) $jp * 1000);
+        $maximum = min((int) round((float) $meeting->planned_jp_snapshot * 1000), intdiv(($minutes ?? 0) * 1000, 40));
+        if ($units <= 0 || $units > $maximum) {
+            throw ValidationException::withMessages(['actual_jp' => 'JP aktual harus lebih dari nol dan tidak melebihi JP rencana atau durasi aktual (1 JP = 40 menit).']);
+        }
     }
 
     /** Revisi hanya dapat dikirim pelaksana yang mencatatnya dan yang masih bertugas pada pertemuan itu. */

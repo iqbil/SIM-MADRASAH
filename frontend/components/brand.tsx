@@ -62,7 +62,7 @@ export function Brand({
         </p>
         <p
           className={cn(
-            "mt-0.5 text-[11px] tracking-wide text-muted-foreground",
+            "mt-0.5 text-xs tracking-wide text-muted-foreground",
             light && "text-emerald-100/65",
           )}
         >

@@ -7,6 +7,7 @@ import {
   DateFilter,
   FilterSelect,
 } from "@/components/academic/academic-shared";
+import { DataFailure, DataLoading } from "@/components/layout/data-feedback";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -25,6 +26,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useAsyncData } from "@/hooks/use-async-data";
 import {
   type ClassSummary,
   dateOnly,
@@ -39,60 +41,63 @@ import {
 const DEFAULT_CODE = "hadir";
 
 export function DailyAttendance() {
-  const [classes, setClasses] = useState<ClassSummary[]>([]);
   const [classId, setClassId] = useState("");
   const [date, setDate] = useState(() => todayWib());
-  const [roster, setRoster] = useState<RosterPayload | null>(null);
   const [choices, setChoices] = useState<Record<number, string>>({});
-  const [failure, setFailure] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [mutationFailure, setFailure] = useState("");
   const [saving, setSaving] = useState(false);
   const [correcting, setCorrecting] = useState<RosterRow | null>(null);
-
+  const classesQuery = useAsyncData(
+    useCallback(
+      () => studentAttendanceRequest<{ data: ClassSummary[] }>("classes"),
+      [],
+    ),
+  );
+  const classes = classesQuery.data?.data ?? [];
   useEffect(() => {
-    let active = true;
-    studentAttendanceRequest<{ data: ClassSummary[] }>("classes")
-      .then((result) => {
-        if (!active) return;
-        setClasses(result.data);
-        if (result.data.length > 0) {
-          setClassId((current) => current || String(result.data[0].id));
-        }
-      })
-      .catch((error) => active && setFailure(studentAttendanceError(error)));
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  const loadRoster = useCallback(async () => {
-    if (!classId || !date) return;
-    setLoading(true);
-    try {
-      const result = await studentAttendanceRequest<{ data: RosterPayload }>(
+    const first = classesQuery.data?.data[0];
+    if (first) setClassId((current) => current || String(first.id));
+  }, [classesQuery.data]);
+  const rosterQuery = useAsyncData(
+    useCallback(async () => {
+      if (!classId || !date) return null;
+      return studentAttendanceRequest<{ data: RosterPayload }>(
         `roster?class_period_id=${classId}&date=${date}`,
       );
-      setRoster(result.data);
-      setChoices({});
-      setFailure("");
-    } catch (error) {
-      setRoster(null);
-      setFailure(studentAttendanceError(error));
-    } finally {
-      setLoading(false);
-    }
-  }, [classId, date]);
-
-  useEffect(() => {
-    void loadRoster();
-  }, [loadRoster]);
+    }, [classId, date]),
+  );
+  const loading = classesQuery.loading || rosterQuery.loading;
+  const payload = rosterQuery.data?.data;
+  const roster =
+    !loading &&
+    String(payload?.class_period.id) === classId &&
+    payload?.date === date
+      ? payload
+      : null;
+  const failure = mutationFailure || classesQuery.error || rosterQuery.error;
+  async function loadRoster() {
+    setChoices({});
+    await rosterQuery.reload();
+  }
+  function changeClass(value: string) {
+    setClassId(value);
+    setChoices({});
+    setCorrecting(null);
+    setFailure("");
+  }
+  function changeDate(value: string) {
+    setDate(value);
+    setChoices({});
+    setCorrecting(null);
+    setFailure("");
+  }
 
   const pending = (roster?.rows ?? []).filter(
     (row) => row.attendance === null && choices[row.student_id],
   );
 
   async function save() {
-    if (!roster || pending.length === 0 || saving) return;
+    if (!roster || loading || pending.length === 0 || saving) return;
     setSaving(true);
     setFailure("");
     try {
@@ -120,13 +125,14 @@ export function DailyAttendance() {
         title="Absensi harian siswa"
         description="Guru/wali kelas mengisi hadir, sakit, izin, atau alpa untuk kelas penugasannya sebelum 23.59 WIB; tanpa catatan berarti belum dicatat, bukan alpa."
       />
-      {failure && <p className="text-sm text-destructive">{failure}</p>}
+      {failure && <DataFailure message={failure} />}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="flex flex-wrap items-end gap-3">
           <FilterSelect
             label="Kelas"
             value={classId}
-            onChange={setClassId}
+            onChange={changeClass}
+            disabled={saving}
             options={classes.map((row) => ({
               value: String(row.id),
               label: row.display_name,
@@ -134,7 +140,12 @@ export function DailyAttendance() {
             placeholder="Pilih kelas"
             className="w-full sm:w-72"
           />
-          <DateFilter label="Tanggal" value={date} onChange={setDate} />
+          <DateFilter
+            label="Tanggal"
+            value={date}
+            onChange={changeDate}
+            disabled={saving}
+          />
         </div>
         {roster && pending.length > 0 && (
           <Button
@@ -147,7 +158,8 @@ export function DailyAttendance() {
         )}
       </div>
 
-      {classes.length === 0 && !failure && (
+      {loading && <DataLoading />}
+      {!loading && classes.length === 0 && !failure && (
         <p className="rounded-xl border border-dashed p-5 text-sm leading-6 text-muted-foreground">
           Belum ada kelas penugasan Anda. Penugasan mengajar/wali kelas
           ditetapkan petugas pada modul Akademik.
@@ -159,12 +171,13 @@ export function DailyAttendance() {
           <p className="text-xs text-muted-foreground">
             {roster.class_period.display_name} ·{" "}
             {roster.rows.filter((row) => row.attendance !== null).length}/
-            {roster.rows.length} terisi hari ini
+            {roster.rows.length} terisi{" "}
+            {date === todayWib() ? "hari ini" : dateOnly(date)}
           </p>
           <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             <Badge
               variant="secondary"
-              className="bg-primary/8 text-[10px] text-primary"
+              className="bg-primary/8 text-xs text-primary"
             >
               Tenggat {roster.policy.input_deadline_time.slice(0, 5)} WIB
             </Badge>
@@ -208,17 +221,14 @@ export function DailyAttendance() {
                                 }
                                 className={
                                   row.attendance.status.code === "hadir"
-                                    ? "bg-primary/8 text-[10px] text-primary"
-                                    : "text-[10px]"
+                                    ? "bg-primary/8 text-xs text-primary"
+                                    : "text-xs"
                                 }
                               >
                                 {row.attendance.status.name}
                               </Badge>
                             ) : choices[row.student_id] ? (
-                              <Badge
-                                variant="secondary"
-                                className="text-[10px]"
-                              >
+                              <Badge variant="secondary" className="text-xs">
                                 {
                                   roster.statuses.find(
                                     (s) => s.code === choices[row.student_id],
@@ -226,7 +236,7 @@ export function DailyAttendance() {
                                 }
                               </Badge>
                             ) : (
-                              <Badge variant="outline" className="text-[10px]">
+                              <Badge variant="outline" className="text-xs">
                                 Belum dicatat
                               </Badge>
                             )}

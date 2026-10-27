@@ -1,14 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import {
   AcademicHeading,
   AcademicList,
   DateFilter,
   FilterSelect,
 } from "@/components/academic/academic-shared";
+import { DataFailure, DataLoading } from "@/components/layout/data-feedback";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { useAsyncData } from "@/hooks/use-async-data";
 import type { AcademicPage, AcademicRecord } from "@/lib/academic";
 import {
   dateOnly,
@@ -45,28 +47,25 @@ type RealizationRow = AcademicRecord & {
 const badge = (status: string) => {
   if (status === "approved")
     return (
-      <Badge
-        variant="secondary"
-        className="bg-primary/8 text-[10px] text-primary"
-      >
+      <Badge variant="secondary" className="bg-primary/8 text-xs text-primary">
         {verificationLabels.approved}
       </Badge>
     );
   if (status === "pending")
     return (
-      <Badge variant="secondary" className="text-[10px]">
+      <Badge variant="secondary" className="text-xs">
         {verificationLabels.pending}
       </Badge>
     );
   if (status === "rejected")
     return (
-      <Badge variant="outline" className="text-[10px] text-destructive">
+      <Badge variant="outline" className="text-xs text-destructive">
         {verificationLabels.rejected}
       </Badge>
     );
 
   return (
-    <Badge variant="secondary" className="text-[10px]">
+    <Badge variant="secondary" className="text-xs">
       {verificationLabels.not_submitted}
     </Badge>
   );
@@ -81,6 +80,7 @@ export function MyRealizations() {
   return (
     <div className="animate-enter space-y-6">
       <AcademicHeading
+        category="Realisasi mengajar"
         title="Realisasi & riwayat JP saya"
         description="Revisi terkini per pertemuan beserta status verifikasi; hanya realisasi terlaksana dan disetujui yang masuk perhitungan JP."
       />
@@ -101,7 +101,7 @@ export function MyRealizations() {
           className="w-full sm:w-56"
         />
       </div>
-      <RealizationTotals reloadKey={`${from}-${to}`} />
+      <RealizationTotals from={from} to={to} status={status} />
       <AcademicList<RealizationRow>
         reloadKey={`rows-${from}-${to}-${status}`}
         load={async (page) => {
@@ -124,7 +124,7 @@ export function MyRealizations() {
           {
             label: "Tanggal",
             cell: (row) => (
-              <span className="text-[13px] font-medium">
+              <span className="text-sm font-medium">
                 {dateOnly(row.meeting?.meeting_date)}
               </span>
             ),
@@ -175,34 +175,30 @@ export function MyRealizations() {
   );
 }
 
-function RealizationTotals({ reloadKey }: { reloadKey: string }) {
-  const [totals, setTotals] = useState<{
-    approved_jp: number;
-    approved_meetings: number;
-  } | null>(null);
-  const [loading, setLoading] = useState(true);
-  // biome-ignore lint/correctness/useExhaustiveDependencies: reloadKey memicu pemuatan ulang total
-  useEffect(() => {
-    let active = true;
-    setLoading(true);
-    teachingRequest<{
-      data: { totals: { approved_jp: number; approved_meetings: number } };
-    }>("realizations?per_page=1")
-      .then((result) => {
-        if (active) setTotals(result.data.totals);
-      })
-      .catch(() => {
-        if (active) setTotals(null);
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [reloadKey]);
-  if (loading || totals === null) return null;
+function RealizationTotals({
+  from,
+  to,
+  status,
+}: {
+  from: string;
+  to: string;
+  status: string;
+}) {
+  const query = useAsyncData(
+    useCallback(
+      () =>
+        teachingRequest<{
+          data: { totals: { approved_jp: number; approved_meetings: number } };
+        }>(
+          `realizations?per_page=1&date_from=${from}&date_to=${to}${status ? `&verification_status=${status}` : ""}`,
+        ),
+      [from, to, status],
+    ),
+  );
+  if (query.loading) return <DataLoading />;
+  if (query.error) return <DataFailure message={query.error} />;
+  const totals = query.data?.data.totals;
+  if (!totals) return null;
 
   return (
     <Card className="rounded-2xl border border-border/70 py-0 ring-0">

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\AuthorizationMandate;
 use App\Models\Meeting;
 use App\Models\SubstituteAssignment;
 use App\Models\User;
@@ -37,32 +38,66 @@ class TeachingDataAccess
     }
 
     /**
-     * Mandat verifikasi aktif milik pengguna (scope apa pun pada baseline);
+     * Mandat verifikasi aktif milik pengguna pada cakupan pertemuan;
      * null bila tidak memegang mandat realizations.verify.
      *
      * @return array{id: int}|null
      */
-    public static function verifyMandate(User $user): ?array
+    public static function verifyMandate(User $user, ?Meeting $meeting = null, ?int $actualEmployeeId = null): ?array
     {
         abort_unless($user->canSignIn() && ! $user->must_change_password, 403);
-        $at = now('UTC')->format('Y-m-d H:i:s.u');
-        $mandate = $user->authorizationMandates()
-            ->whereNull('revoked_at')->whereNull('revoked_by')
-            ->where('effective_from', '<=', $at)
-            ->where(fn (Builder $query): Builder => $query->whereNull('effective_to')->orWhere('effective_to', '>', $at))
-            ->whereHas('permission', fn (Builder $query): Builder => $query->where('code', 'realizations.verify'))
-            ->first(['id']);
+        $query = AuthorizationMandate::activeFor($user, 'realizations.verify');
+        if ($meeting !== null) {
+            AuthorizationMandate::covering($query, $meeting->semester_id, $meeting->class_period_id, $actualEmployeeId ?? $meeting->scheduled_employee_id);
+        }
+        $mandate = $query->first(['id']);
 
         return $mandate ? ['id' => $mandate->id] : null;
     }
 
     /** @return array{id: int} */
-    public static function authorizeVerify(User $user): array
+    public static function authorizeVerify(User $user, ?Meeting $meeting = null, ?int $actualEmployeeId = null): array
     {
-        $mandate = self::verifyMandate($user);
+        $mandate = self::verifyMandate($user, $meeting, $actualEmployeeId);
         abort_unless($mandate !== null, 403, 'Verifikasi realisasi memerlukan mandat verifikator.');
 
         return $mandate;
+    }
+
+    /** Daftar antrean juga mengikuti mandat, termasuk mandat pegawai pelaksana pengganti. */
+    public static function scopeVerifications(Builder $query, User $user): Builder
+    {
+        $mandates = AuthorizationMandate::activeFor($user, 'realizations.verify')->get();
+        if ($mandates->contains('scope_type', 'institution')) {
+            return $query;
+        }
+
+        return $query->where(function (Builder $q) use ($mandates): void {
+            $q->whereRaw('1 = 0');
+            foreach ($mandates as $mandate) {
+                if ($mandate->scope_type === 'employee') {
+                    $q->orWhere('actual_employee_id', $mandate->employee_id);
+                } elseif (in_array($mandate->scope_type, ['semester', 'class'], true)) {
+                    $column = $mandate->scope_type === 'semester' ? 'semester_id' : 'class_period_id';
+                    $q->orWhereHas('meeting', fn (Builder $m): Builder => $m->where($column, $mandate->{$column}));
+                }
+            }
+        });
+    }
+
+    /** Pertemuan batal atau terhalang kalender tidak menjadi sumber JP (DEC-04). */
+    public static function scopeEligibleMeetings(Builder $query): Builder
+    {
+        return $query->where('meetings.is_cancelled', false)->whereNotExists(function (\Illuminate\Database\Query\Builder $events): void {
+            $events->selectRaw('1')->from('academic_calendar_events as teaching_blocks')
+                ->join('class_periods as blocked_period', 'blocked_period.academic_year_id', '=', 'teaching_blocks.academic_year_id')
+                ->whereColumn('blocked_period.id', 'meetings.class_period_id')
+                ->where('teaching_blocks.blocks_teaching', true)
+                ->whereColumn('teaching_blocks.start_date', '<=', 'meetings.meeting_date')
+                ->whereColumn('teaching_blocks.end_date', '>=', 'meetings.meeting_date')
+                ->where(fn ($q) => $q->whereNull('teaching_blocks.semester_id')->orWhereColumn('teaching_blocks.semester_id', 'meetings.semester_id'))
+                ->where(fn ($q) => $q->whereNull('teaching_blocks.class_period_id')->orWhereColumn('teaching_blocks.class_period_id', 'meetings.class_period_id'));
+        });
     }
 
     /**

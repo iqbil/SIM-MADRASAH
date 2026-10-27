@@ -1,8 +1,7 @@
 "use client";
 
-import { AlertCircle, Database, RefreshCw } from "lucide-react";
+import { Database } from "lucide-react";
 import type { ReactNode } from "react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
   Empty,
@@ -11,7 +10,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { Skeleton } from "@/components/ui/skeleton";
 
 export function MasterHeading({
   title,
@@ -43,37 +41,10 @@ export function MasterHeading({
     </div>
   );
 }
-export function MasterFailure({
-  message,
-  retry,
-}: {
-  message: string;
-  retry?: () => void;
-}) {
-  return (
-    <Alert variant="destructive">
-      <AlertCircle aria-hidden="true" />
-      <AlertDescription className="space-y-3">
-        <p>{message}</p>
-        {retry && (
-          <Button variant="outline" className="h-11" onClick={retry}>
-            <RefreshCw className="size-4" aria-hidden="true" />
-            Coba kembali
-          </Button>
-        )}
-      </AlertDescription>
-    </Alert>
-  );
-}
-export function MasterLoading() {
-  return (
-    <output className="block space-y-3" aria-label="Memuat data">
-      {[1, 2, 3].map((key) => (
-        <Skeleton key={key} className="h-24 w-full rounded-xl" />
-      ))}
-    </output>
-  );
-}
+export {
+  DataFailure as MasterFailure,
+  DataLoading as MasterLoading,
+} from "@/components/layout/data-feedback";
 export function MasterEmpty({
   search,
   reset,

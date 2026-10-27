@@ -224,4 +224,31 @@ class MysqlAccountManagementTest extends MysqlAuthTestCase
         $admin = $this->admin();
         $this->postJson('/api/v1/accounts/roles', ['code' => 'petugas_kegiatan', 'name' => 'Petugas kegiatan', 'is_active' => true, 'permission_codes' => [], 'reason' => 'Membuat role tanpa izin administrasi akun'], $this->headersFor($admin))->assertCreated();
     }
+
+    public function test_delegated_assignment_cannot_grant_implicit_institution_access(): void
+    {
+        $admin = $this->admin();
+        $actor = User::factory()->create();
+        $limitedRole = Role::query()->create(['code' => 'account_assigner', 'name' => 'Petugas akun terbatas']);
+        foreach (['accounts.update', 'accounts.assign', 'accounts.roles'] as $code) {
+            RolePermission::query()->forceCreate(['role_id' => $limitedRole->id, 'permission_id' => Permission::query()->where('code', $code)->value('id'), 'created_by' => $admin->id]);
+        }
+        UserRole::query()->forceCreate(['user_id' => $actor->id, 'role_id' => $limitedRole->id, 'effective_from' => now('UTC')->subSecond(), 'granted_by' => $admin->id]);
+        $headers = $this->headersFor($actor);
+        $this->getJson('/api/v1/academic/class-periods', $headers)->assertForbidden();
+        foreach (['operator', 'kepala_madrasah'] as $code) {
+            $this->putJson('/api/v1/accounts/users/'.$actor->id, [
+                'name' => $actor->name, 'username' => $actor->username, 'email' => $actor->email,
+                'role_ids' => [$limitedRole->id, Role::query()->where('code', $code)->value('id')],
+                'lock_version' => 0, 'reason' => 'Percobaan menaikkan cakupan institusi sendiri',
+            ], $headers)->assertForbidden();
+        }
+        $this->assertSame(0, $actor->fresh()->lock_version);
+        $this->getJson('/api/v1/academic/class-periods', $headers)->assertForbidden();
+        $head = Role::query()->where('code', 'kepala_madrasah')->firstOrFail();
+        $this->putJson('/api/v1/accounts/roles/'.$head->id, [
+            'code' => 'kepala_baru', 'name' => 'Kepala', 'is_active' => true, 'permission_codes' => [],
+            'reason' => 'Kode role bawaan tidak boleh diubah untuk eskalasi',
+        ], $headers)->assertUnprocessable();
+    }
 }

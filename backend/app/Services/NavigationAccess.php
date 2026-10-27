@@ -77,7 +77,7 @@ class NavigationAccess
         }
 
         $today = now('Asia/Jakarta')->toDateString();
-        if ($user->person->employee()->where('is_active', true)->where('joined_on', '<=', $today)
+        if ($user->person->employee()->where('is_active', true)->where(fn (Builder $query): Builder => $query->whereNull('joined_on')->orWhere('joined_on', '<=', $today))
             ->where(fn (Builder $query): Builder => $query->whereNull('left_on')->orWhere('left_on', '>', $today))->exists()) {
             $menus = [...$menus, 'attendance.own', 'payroll.own'];
         }

@@ -138,7 +138,7 @@ export function AcademicEnrollments({ access }: { access: string[] }) {
           {
             label: "Siswa",
             cell: (row) => (
-              <span className="text-[13px] font-medium">
+              <span className="text-sm font-medium">
                 {row.student?.person?.full_name ?? `#${row.student_id}`}
               </span>
             ),

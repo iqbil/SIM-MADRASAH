@@ -91,7 +91,7 @@ export function AppShell({
         >
           {children}
         </main>
-        <footer className="flex flex-wrap justify-between gap-2 border-t px-5 py-4 text-[10px] text-muted-foreground sm:px-7 lg:px-9">
+        <footer className="flex flex-wrap justify-between gap-2 border-t px-5 py-4 text-xs text-muted-foreground sm:px-7 lg:px-9">
           <span>© MTs Al Karimiyyah</span>
           <span>Sistem Informasi Madrasah</span>
         </footer>
@@ -116,7 +116,7 @@ function RoleSwitcher({ user, role }: { user: AuthUser; role?: AuthRole }) {
             <Layers3 className="size-[18px]" />
           </span>
           <span className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
-            <span className="block text-[10px] text-muted-foreground">
+            <span className="block text-xs text-muted-foreground">
               Ruang kerja aktif
             </span>
             <span className="mt-0.5 block truncate text-xs font-semibold">
@@ -194,7 +194,7 @@ function AppSidebar({
         <div className="mx-4 mt-auto mb-5 rounded-xl border border-primary/10 bg-primary/4 p-4 group-data-[collapsible=icon]:hidden">
           <ShieldCheck className="mb-2 size-5 text-primary" />
           <p className="text-xs font-medium">Akun pribadi, akses terjaga</p>
-          <p className="mt-2 text-[11px] leading-5 text-muted-foreground">
+          <p className="mt-2 text-xs leading-5 text-muted-foreground">
             Jaga kerahasiaan password dan keluar setelah menggunakan perangkat
             bersama.
           </p>
@@ -214,7 +214,7 @@ function AppSidebar({
           </Avatar>
           <div className="min-w-0 group-data-[collapsible=icon]:hidden">
             <p className="truncate text-xs font-medium">{user.name}</p>
-            <p className="mt-1 truncate text-[10px] text-muted-foreground">
+            <p className="mt-1 truncate text-xs text-muted-foreground">
               {user.email ?? user.username}
             </p>
           </div>

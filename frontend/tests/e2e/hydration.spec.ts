@@ -88,3 +88,81 @@ for (const scenario of scenarios) {
     expect(errors).toEqual([]);
   });
 }
+
+for (const width of [390, 1440]) {
+  test(`portal shell and attendance policy hydrate without injected attributes at ${width}px`, async ({
+    page,
+    request,
+  }) => {
+    await request.post("http://127.0.0.1:43990/__test/reset");
+    await page.setViewportSize({ width, height: 900 });
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    page.on("console", (message) => {
+      if (
+        message.type() === "error" &&
+        /hydration|hydrated|server.rendered HTML|Minified React error #(418|425)/i.test(
+          message.text(),
+        )
+      )
+        errors.push(message.text());
+    });
+    await page.goto("/login");
+    await page.getByLabel("Username atau email").fill("operator");
+    await page.getByLabel("Password", { exact: true }).fill("Password12345");
+    await page.getByRole("button", { name: "Masuk ke portal" }).click();
+    await expect(page).toHaveURL(/\/dashboard\/operator$/);
+
+    for (const path of [
+      "/dashboard/operator",
+      "/absensi/pola-kerja",
+      "/akun",
+    ]) {
+      const response = await page.goto(path);
+      expect(response?.ok()).toBe(true);
+      expect(await response?.text()).not.toMatch(
+        /bis_skin_checked|bis_register|__processed_/,
+      );
+      const toggle = page.getByRole("button", {
+        name: "Buka atau tutup menu",
+        exact: true,
+      });
+      await expect(toggle).toBeEnabled();
+      await toggle.click();
+      if (width < 1024) {
+        const drawer = page.getByRole("dialog", { name: "Menu navigasi" });
+        await expect(drawer).toBeVisible();
+        await drawer
+          .getByRole("button", { name: "Tutup menu", exact: true })
+          .click();
+      } else {
+        await expect(toggle).toHaveAttribute("aria-expanded", "false");
+        await toggle.click();
+      }
+      if (path === "/absensi/pola-kerja") {
+        await expect(
+          page
+            .getByRole("navigation", { name: "Navigasi portal" })
+            .getByText("Pola kerja & kebijakan", { exact: true }),
+        ).toBeVisible();
+        await page.getByRole("tab", { name: "Kebijakan foto/GPS" }).click();
+        await expect(
+          page.getByText("Tanpa titik pusat atau radius"),
+        ).toBeVisible();
+      }
+      expect(
+        await page.evaluate(() =>
+          [...document.querySelectorAll("*")].some((element) =>
+            element
+              .getAttributeNames()
+              .some(
+                (name) =>
+                  name.startsWith("bis_") || name.startsWith("__processed_"),
+              ),
+          ),
+        ),
+      ).toBe(false);
+    }
+    expect(errors).toEqual([]);
+  });
+}

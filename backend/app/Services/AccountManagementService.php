@@ -104,6 +104,9 @@ class AccountManagementService
                 $role = Role::query()->lockForUpdate()->findOrFail($role->id);
             }
             abort_if($role?->code === 'super_admin' || $data['code'] === 'super_admin', 422, 'Role Super Admin dilindungi dan dibuat melalui seeder awal.');
+            abort_if(($role === null || $role->code !== $data['code'])
+                && (in_array($role?->code, AccountAccess::SYSTEM_ROLES, true) || in_array($data['code'], AccountAccess::SYSTEM_ROLES, true)),
+                422, 'Kode role bawaan tidak dapat diganti atau dibuat ulang karena memiliki kewenangan sistem.');
             abort_if(in_array($data['code'], ['siswa', 'student'], true), 422, 'Role login siswa belum diaktifkan.');
             $allowed = AccountAccess::grantablePermissions($actor);
             abort_if(array_diff($data['permission_codes'], $allowed) !== [], 403, 'Anda tidak dapat memberikan izin yang tidak Anda miliki.');
@@ -183,8 +186,12 @@ class AccountManagementService
             }
         }
         if (! AccountAccess::isSuper($actor)) {
+            foreach (Role::query()->whereIn('id', array_diff($ids, $current))->get() as $role) {
+                abort_unless(AccountAccess::mayAssignInstitutionRole($actor, $role->code), 403,
+                    'Anda tidak dapat memberikan role dengan cakupan institusi yang tidak Anda miliki.');
+            }
             $grantedPermissions = RolePermission::query()->whereIn('role_id', array_diff($ids, $current))->with('permission')->get()->pluck('permission.code')->all();
-            abort_if(array_diff($grantedPermissions, AccountAccess::permissions($actor)) !== [], 403, 'Anda tidak dapat memberikan role dengan izin yang tidak Anda miliki.');
+            abort_if(array_diff($grantedPermissions, AccountAccess::grantablePermissions($actor)) !== [], 403, 'Anda tidak dapat memberikan role dengan izin yang tidak Anda miliki.');
         }
         foreach (array_diff($ids, $current) as $id) {
             abort_if($target->roleAssignments()->where('role_id', $id)->whereNull('revoked_by')->where(fn (Builder $q): Builder => $q->whereNull('effective_to')->orWhere('effective_to', '>', $at))->exists(), 422, 'Ada penugasan role yang bertumpang tindih.');

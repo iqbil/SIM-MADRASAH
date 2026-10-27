@@ -1,6 +1,6 @@
 # Design System — SIM Madrasah MTs Al Karimiyyah
 
-Versi 1.7 · 25 Oktober 2026 · Berlaku untuk seluruh `frontend/`.
+Versi 1.9 · 26 Oktober 2026 · Berlaku untuk seluruh `frontend/`.
 
 Dokumen ini menjadi pedoman implementasi UI/UX dari autentikasi hingga seluruh modul madrasah. Perubahan berikutnya wajib mengacu ke pedoman ini. Ketentuan bisnis, otorisasi, dan data mengikuti SRS serta kontrak API; design system mengatur cara pengguna berinteraksi dengan ketentuan tersebut.
 
@@ -33,6 +33,7 @@ Pedoman berlaku langsung untuk halaman baru dan komponen yang diubah. Bagian lam
 | Layout login/pemulihan/password | `frontend/components/auth/auth-frame.tsx` |
 | State kosong dashboard | `frontend/components/dashboard/empty-dashboard.tsx` |
 | Loading halaman | `frontend/components/layout/page-skeleton.tsx` |
+| Loading/error data lintas fitur | `frontend/components/layout/data-feedback.tsx` (`DataLoading`, `DataFailure`); alias master dipertahankan |
 | Breakpoint sidebar | `frontend/hooks/use-mobile.ts` |
 | Referensi form akun, role, konfirmasi | `frontend/components/accounts/account-workspace.tsx` |
 | Dialog form lintas fitur | `frontend/components/layout/form-dialog.tsx` |
@@ -97,7 +98,7 @@ Gunakan kelas semantik seperti `bg-background`, `bg-card`, `text-foreground`, `t
 | `--secondary` | `#eaf0e7` | Badge dan permukaan sekunder |
 | `--secondary-foreground` | `#224d3c` | Teks pada permukaan sekunder |
 | `--muted` | `#eef1eb` | Area bantu dan input lembut |
-| `--muted-foreground` | `#6c7871` | Deskripsi dan metadata; periksa kontras pada latar yang dipakai |
+| `--muted-foreground` | `#58645d` | Deskripsi dan metadata; kontras minimal 4,5:1 pada latar proyek |
 | `--accent` | `#edf3eb` | Hover dan pilihan ringan |
 | `--accent-foreground` | `#1b5945` | Teks pada accent |
 | `--border` | `#e2e7df` | Pemisah dan batas kartu |
@@ -258,7 +259,9 @@ Komponen fitur baru ditempatkan menurut domain (`components/attendance`, `compon
 Satu bar tab per halaman hanya untuk sub-cakupan dalam izin yang sama (mis. "Penugasan mengajar | Wali kelas", "Jabatan | Kategori pegawai", "Versi jadwal | Entri mingguan | Pertemuan").
 
 - `TabsList` WAJIB `h-14! w-full justify-start gap-1 rounded-xl bg-secondary p-1 sm:w-auto` — token `bg-secondary`, bukan hex.
-- `TabsTrigger` WAJIB `h-11! min-w-0 flex-1 px-3 text-xs sm:flex-none`; bila tab memuat ikon tambahkan `gap-1 px-2 text-[11px]` dan `sm:gap-2 sm:px-3 sm:text-xs`.
+- `TabsList` bersama mengatur `align-self: flex-start` mulai `sm` untuk orientasi horizontal, agar `sm:w-auto` tidak melebar mengikuti parent flex. Lebar mobile tetap penuh dan tab vertikal tetap mengikuti layout-nya.
+- `TabsTrigger` WAJIB `h-11! min-w-0 flex-1 px-3 text-xs sm:flex-none`; bila tab memuat ikon tambahkan `gap-1 px-2 text-xs` dan `sm:gap-2 sm:px-3 sm:text-xs`.
+- Label panjang boleh membungkus pada mobile melalui `TabsTrigger` bersama (`whitespace-normal`, mulai `sm` menjadi `whitespace-nowrap`). Teks wajib tetap berada di dalam tombol masing-masing; uji batas teks, bukan hanya overflow halaman.
 - Perilaku: mobile — tab membagi lebar penuh dalam satu baris; desktop — pill kompak rata kiri menghugging label. Dilarang `grid grid-cols-N` atau lebar tetap yang merentangkan tab setengah bar.
 - Bila isi tab bergantung state lain (mis. versi jadwal terpilih), pakai `Tabs` terkontrol (`value`/`onValueChange`) agar seleksi tidak loncat saat dialog menutup.
 - Referensi: `components/accounts/account-workspace.tsx`, `components/master/master-workspace.tsx`, `components/academic/academic-assignments.tsx`, `components/academic/academic-schedules.tsx`, `components/academic/academic-substitutes.tsx`.
@@ -426,3 +429,5 @@ Perubahan token/layout tidak dilakukan pada satu halaman saja. Perbarui sumber b
 | 1.5 | 24 Oktober 2026 | Tipografi panel auth desktop diganti konten institusional faktual (menggantikan tagline pemasaran/pill kaca/hero clamp); latar foto ilustrasi + overlay dipertahankan; tautan "Lupa password?" dirapatkan; © dipindah ke dasar panel kiri. |
 | 1.6 | 24 Oktober 2026 | Modul Akademik & Kelas aktif: menu sidebar granular `academic.*.view` dengan href `/akademik/[section]`; komponen `components/academic/` memakai `AcademicList`/`AcademicFormDialog` bersama (tabel desktop + kartu mobile + Pager + ReasonField + konflik versi); BFF `/api/academic` meniru allowlist master; `FilterSelect` shadcn untuk filter; pratinjau-konfirmasi mutasi memakai `ConfirmationDialog`. |
 | 1.7 | 25 Oktober 2026 | Pola bar tab dibakukan: pill kompak rata kiri pada desktop dan pembagian lebar penuh pada mobile (`h-14!`/`h-11!`/token `bg-secondary`), menggantikan pola `grid-cols-2` yang merentang tab; tab terkontrol untuk konten bergantung state; modul Jadwal pelajaran & Guru pengganti memakai pola ini. |
+| 1.8 | 26 Oktober 2026 | Audit FR-01–FR-07: token teks sekunder diperkuat menjadi #58645d, metadata aplikasi minimal 12 px, deskripsi minimal 14 px; DataLoading/DataFailure diekstrak untuk lintas fitur, alias master tetap kompatibel; kategori heading domain, label filter, proteksi respons usang, dan loading/error seragam. Menu mutasi memerlukan academic.enrollments.manage; perwalian hanya memakai kelas perwalian aktif; kontrak API menggunakan Resource dengan relasi camelCase. |
+| 1.9 | 26 Oktober 2026 | Tab horizontal tidak lagi melebar di desktop akibat stretch parent flex; label panjang membungkus pada mobile agar tidak bertumpuk. Perbaikan pada TabsList/TabsTrigger bersama. Kebijakan absensi memakai loading/error/retry bersama dan menjelaskan akurasi GPS serta baseline tanpa titik/radius. Konteks navbar modul mengikuti katalog sidebar. Regresi hydration diperluas ke RootLayout/sidebar, dashboard, kebijakan absensi dan akun pada mobile/desktop. |

@@ -6,7 +6,7 @@ sidebar (`frontend/lib/navigation/sidebar.ts`) dan modul SRS v1.3
 Dipelihara sebagai acuan kerja lintas sesi: setiap selesai satu modul, perbarui
 status di file ini dan tambahkan catatan sesi di `log.txt`.
 
-Terakhir diperbarui: **26 Oktober 2026** (modul Absensi Siswa tuntas penuh).
+Terakhir diperbarui: **26 Oktober 2026** (audit dan perbaikan modul selesai FR-01–FR-07).
 
 ---
 
@@ -15,7 +15,7 @@ Terakhir diperbarui: **26 Oktober 2026** (modul Absensi Siswa tuntas penuh).
 | # | Modul (sidebar) | SRS | Status | Catatan |
 |---|---|---|---|---|
 | 1 | Autentikasi & pengguna (Beranda, Akun saya, Pengelolaan akun) | FR-01 | ✅ SELESAI | Login password/Google, JWT+BFF cookie HttpOnly, manajemen user/role/izin/audit |
-| 2 | Data master (8 item) | FR-02 | ✅ SELESAI | Termasuk impor CSV + tab perbaikan (design-system v1.7) |
+| 2 | Data master (8 item) | FR-02 | ✅ SELESAI | Termasuk impor CSV + tab perbaikan (design-system v1.9) |
 | 3 | Akademik & kelas (9 item aktif) | FR-03, FR-04 | ✅ SELESAI | Tahun ajaran s.d. jadwal pelajaran, guru pengganti, dan Kelas perwalian saya |
 | 4 | Absensi pegawai | FR-05 | ✅ SELESAI | Foto+GPS mandiri, izin/sakit/cuti/dinas, pola kerja, koreksi, rekap |
 | 5 | Realisasi mengajar | FR-06 | ✅ SELESAI | Guru pelaksana (terjadwal/pengganti) mengajukan revisi realisasi; verifikasi mandat, pemohon ≠ penyetuju |
@@ -47,14 +47,14 @@ Berdasarkan SRS Bab IX dan §9.1 ("MVP tahap 1–2 dan laporan dasar; selesaikan
 satu alur guru → jadwal → pertemuan → realisasi → verifikasi → honor locked"),
 urutan pengerjaan modul sisa agar situs dapat dipakai nyata secepat mungkin:
 
-**6 → 7 → 13 → 12 → 15\* → 11 → 16 → 8 → 9 → 10 → 14† → 15\*\***
+**7 → 13 → 11 → 15\* → 12 → 16 → 8 → 9 → 10 → 14† → 15\*\***
 
-- **#6 Absensi Siswa** — melengkapi kehadiran (fase 2); tanpa ini kesiswaan harian masih manual.
+- **#6 Absensi Siswa** telah selesai dan masuk cakupan regresi; pekerjaan sisa dimulai pada #7.
 - **#7 Honor** — menutup irisan alur lengkap 9.1; setelah ini siklus operasional inti (guru→jadwal→realisasi→verifikasi→honor locked) berjalan end-to-end.
 - **#13 Laporan & Ekspor** — "laporan dasar" MVP; rekap data #6+#7.
-- **#12 Portal Wali** — butuh data #6; nilai adopsi tinggi.
-- **#15\* PDP** — cukup bagian persetujuan publikasi foto siswa (prasyarat galeri website #11).
-- **#11 Website → #16 Notifikasi** — publikasi + pemberitahuan kejadian yang sudah hidup.
+- **#11 Portal Wali** — butuh data #6; nilai adopsi tinggi.
+- **#15\* PDP** — cukup bagian persetujuan publikasi foto siswa (prasyarat galeri website #12).
+- **#12 Website → #16 Notifikasi** — publikasi + pemberitahuan kejadian yang sudah hidup.
 - **#8/#9/#10** — fase 4 SRS, mandiri; kerjakan urut nomor.
 - **#14† Sistem** — UI audit/backup sebagai pengerasan pra-pilot (tahap 6 UAT); sisanya #15 (alur DSR) bertahap.
 
@@ -73,12 +73,13 @@ urutan pengerjaan modul sisa agar situs dapat dipakai nyata secepat mungkin:
    pembatalan), **guru pengganti** (satu aktif per pertemuan, penunjukan baru
    menutup yang lama). Cakupan guru/wali dibatasi penugasan aktif (Bab II).
 
-4. **FR-05 Absensi pegawai** — foto+GPS mandiri, izin/sakit/cuti/dinas, pola kerja, koreksi, rekap.
+4. **FR-05 Absensi pegawai** — foto+GPS mandiri tanpa geofence, izin/sakit/cuti/dinas, pola kerja, koreksi, rekap.
 5. **FR-06 Realisasi mengajar** — guru pelaksana (terjadwal/pengganti aktif)
    mencatat realisasi draf lalu mengajukan; isi immutable, revisi baru hanya
    sebelum diajukan/setelah ditolak; verifikasi oleh pemegang mandat
    realizations.verify yang berbeda dari pengaju, satu keputusan final per
-   revisi; hanya held+approved yang masuk total JP. 8 rute /api/v1/teaching;
+   revisi; hanya held+approved yang valid dan tidak batal/terhalang kalender
+   masuk total JP sesuai filter; JP dibatasi rencana dan durasi aktual (40 menit/JP). 8 rute /api/v1/teaching;
    halaman /realisasi/{pertemuan,riwayat,verifikasi}.
 6. **FR-07 Absensi siswa** — mode harian per guru/wali kelas penugasan sebelum
    23.59 lokal (DEC-07, BR-08/09, AC-10); ketiadaan catatan ditampilkan sebagai
@@ -87,9 +88,15 @@ urutan pengerjaan modul sisa agar situs dapat dipakai nyata secepat mungkin:
    mengaktifkan item "Kelas perwalian saya" (`/akademik/perwalian`) dan tab
    "Koreksi siswa" pada persetujuan koreksi absensi (`/absensi/koreksi`).
 
-Bukti: suite MySQL backend 154 test hijau (6953 asersi); frontend lint bersih + build bersih +
-Playwright 82 test hijau; audit silang SRS/design-system/backend tercatat di
-`log.txt`.
+Bukti setelah perbaikan audit 26 Oktober 2026: suite MySQL backend 165 test hijau
+(7176 asersi), regresi tambahan mandat 1 test/28 asersi; frontend Biome 146 file
+bersih + build 38/38 halaman + Playwright 90 test hijau; hydration development
+6 test hijau. Perbaikan akses institusi,
+cakupan mandat/penugasan, kontrak API, validasi JP/foto, dan konsistensi UI
+design-system v1.9 beserta batas bukti pengujian tercatat di `log.txt`.
+Baseline GPS tetap tanpa geofence; akurasi bukan radius. Perbaikan frontend
+lanjutan mencakup kebijakan dengan loading/retry, tab mobile/desktop, dan konteks
+navbar; diagnosis injeksi atribut ekstensi ada di `frontend/README.md`.
 
 ---
 
@@ -109,7 +116,7 @@ Playwright 82 test hijau; audit silang SRS/design-system/backend tercatat di
 - **Item sidebar**: Honor final saya; Tarif & komponen; Tugas tambahan &
   potongan; Periode & perhitungan; Pemeriksaan; Pengesahan & penguncian;
   Penyesuaian.
-- **SRS**: FR-08-01…, BR-10…15, DEC-01…06/08; tiga akun berbeda
+- **SRS**: FR-08-01…, BR-11…18, DEC-01…06/08; tiga akun berbeda
   pembuat/pemeriksa/pengesah; setelah `locked` hanya adjustment; snapshot
   berisi versi kebijakan.
 - **Tabel**: `honor_rates`, `honor_periods`, `honor_policy_versions`,
@@ -167,7 +174,7 @@ Playwright 82 test hijau; audit silang SRS/design-system/backend tercatat di
 ## D. Alur kerja per modul (pola yang sudah terbukti)
 
 1. **Baca acuan**: seksi SRS modul + Bab II (hak akses) + `backend/database/
-   database.MD` (tabel & aturan) + `design-system.md` (terkini v1.7) + sesi
+   database.MD` (tabel & aturan) + `design-system.md` (terkini v1.9) + sesi
    terakhir `log.txt`.
 2. **Backend dulu**: `*DataAccess` (katalog izin + scope) → `*Service`
    (`DB::transaction` retry 3, `lockForUpdate` parent, validasi `Validator`,

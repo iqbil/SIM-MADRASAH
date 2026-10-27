@@ -314,8 +314,8 @@ export function AcademicTransitions({ access }: { access: string[] }) {
                 variant={plan.ready ? "secondary" : "outline"}
                 className={
                   plan.ready
-                    ? "bg-primary/8 text-[10px] text-primary"
-                    : "text-[10px] text-muted-foreground"
+                    ? "bg-primary/8 text-xs text-primary"
+                    : "text-xs text-muted-foreground"
                 }
               >
                 {plan.ready ? "Siap dikonfirmasi" : "Ada masalah"}
@@ -335,7 +335,7 @@ export function AcademicTransitions({ access }: { access: string[] }) {
                 <TableBody>
                   {plan.students.map((row) => (
                     <TableRow key={row.student_id}>
-                      <TableCell className="py-3 text-[13px] font-medium">
+                      <TableCell className="py-3 text-sm font-medium">
                         {row.student_name ?? `#${row.student_id}`}
                       </TableCell>
                       <TableCell className="text-xs">

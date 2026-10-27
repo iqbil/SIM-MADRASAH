@@ -46,22 +46,19 @@ type RevisionRow = AcademicRecord & {
 const badge = (status: string) => {
   if (status === "approved")
     return (
-      <Badge
-        variant="secondary"
-        className="bg-primary/8 text-[10px] text-primary"
-      >
+      <Badge variant="secondary" className="bg-primary/8 text-xs text-primary">
         {verificationLabels.approved}
       </Badge>
     );
   if (status === "rejected")
     return (
-      <Badge variant="outline" className="text-[10px] text-destructive">
+      <Badge variant="outline" className="text-xs text-destructive">
         {verificationLabels.rejected}
       </Badge>
     );
 
   return (
-    <Badge variant="secondary" className="text-[10px]">
+    <Badge variant="secondary" className="text-xs">
       {verificationLabels.pending}
     </Badge>
   );
@@ -82,6 +79,7 @@ export function Verifications() {
   return (
     <div className="animate-enter space-y-6">
       <AcademicHeading
+        category="Realisasi mengajar"
         title="Verifikasi realisasi"
         description="Keputusan verifikasi diberikan oleh verifikator bermandat yang berbeda dari pengaju; satu keputusan final per revisi dan penolakan memerlukan alasan."
       />
@@ -112,7 +110,7 @@ export function Verifications() {
           {
             label: "Tanggal",
             cell: (row) => (
-              <span className="text-[13px] font-medium">
+              <span className="text-sm font-medium">
                 {dateOnly(row.meeting?.meeting_date)}
               </span>
             ),

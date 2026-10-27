@@ -1353,3 +1353,161 @@ Hasil Pengujian:
 - Next.js Production Build: Sukses (38/38 routes).
 - Playwright E2E: 4/4 attendance tests passed.
 - Backend PHPUnit: 4/4 MySQL attendance tests passed (103 assertions).
+
+================================================================================
+[PENUTUP AUDIT & PERBAIKAN] MODUL SELESAI FR-01 S.D. FR-07
+Tanggal/Waktu: 2026-10-26 17:59:58 +07:00
+================================================================================
+Cakupan:
+- Menindaklanjuti temuan audit SRS v1.3, roadmap modul yang dicentang, implementasi
+  backend/frontend, pembatasan role/mandat/penugasan, dan design system.
+- FR-08 s.d. FR-17 tetap merupakan backlog roadmap, bukan dinyatakan selesai
+  oleh sesi perbaikan ini. Tidak ada perubahan kredensial/config DB operasional.
+
+1. Keamanan akun, hak akses, dan cakupan data:
+- Menutup eskalasi akun dengan accounts.assign ke role institusi (operator/kepala)
+  yang memberikan akses implisit lebih luas daripada izin pemegang delegasi.
+- Melindungi kode role bawaan dari rename/pembuatan ulang; respons role menyertakan
+  is_system/can_assign dan form hanya menawarkan role yang dapat diberikan.
+- Menghapus fallback izin pengelola master yang tidak berkaitan pada relasi wali
+  dan klasifikasi pegawai. Pengelola mapel tidak dapat memverifikasi hubungan wali.
+- Pratinjau mutasi siswa dan menu mutasi mensyaratkan academic.enrollments.manage.
+- Cakupan penugasan guru/wali berakhir mengikuti tahun ajaran/semester serta masa
+  aktif pegawai, termasuk penugasan tanpa tanggal akhir eksplisit.
+- Mandat verifikasi/koreksi dibatasi objek institusi/semester/kelas/pegawai pada
+  antrean, detail, dan keputusan; pemegang mandat kelas lain ditolak. Rentang
+  semester untuk mandat koreksi memakai batas akhir eksklusif.
+- Akun multi-role wali kelas + operator tidak lagi memicu TypeError akibat
+  scope institusi bernilai null. Perwalian memakai filter homeroom_only dan
+  pemilih kelas jika terdapat lebih dari satu penugasan perwalian.
+
+2. Absensi pegawai dan siswa:
+- Endpoint foto mengembalikan tipe respons biner yang benar (menghilangkan 500).
+- Foto di masa depan ditolak 422 sebelum insert DB; tipe gambar diverifikasi dari
+  isi file (JPEG/PNG/WebP), maksimal 20 megapiksel sebelum decoding; GIF tersamar,
+  file rusak/kosong dan hasil encoding kosong ditolak.
+- Pencatatan hadir administratif menghitung late_minutes memakai snapshot jadwal
+  dan toleransi hari kerja; koreksi menghitung ulang nilai keterlambatan.
+- joined_on kosong pada profil pegawai tidak lagi menyembunyikan menu presensi
+  mandiri yang sebenarnya diizinkan API.
+- Antrean koreksi pegawai terpisah dari siswa; filter employee_id memakai relasi
+  employeeAttendance.workDay yang benar dan tidak lagi memicu 500.
+- Resource koreksi menampilkan employeeAttendance/workDay serta
+  studentDailyAttendance/student/person/classPeriod sesuai kontrak frontend.
+- Catatan pegawai menampilkan identitas employee pada root resource serta
+  attendance terkait, bukan membaca relasi dari bentuk fixture yang keliru.
+- Ringkasan kelas menghitung recorded dari attendance_id. Roster historis tetap
+  dapat dibaca ketika status lama sudah dinonaktifkan (opsi baru tetap aktif saja).
+
+3. Realisasi mengajar:
+- JP aktual maksimal tiga desimal, positif untuk status held, tidak melebihi JP
+  rencana maupun durasi aktual (1 JP = 40 menit). Validasi dilakukan saat simpan,
+  ajukan, dan setujui; JP pecahan yang sah tetap diterima.
+- Revisi yang sudah digantikan tidak dapat diajukan atau diputuskan (409);
+  penguncian transaksi konsisten pertemuan -> realisasi -> revisi.
+- Pertemuan batal/terhalang kalender tidak dapat diajukan/disetujui atau dihitung
+  sebagai sumber JP; data lama tidak valid juga dikecualikan dari total.
+- Riwayat memakai TeachingDataResource agar relasi camelCase konsisten; total JP
+  dan jumlah pertemuan mengikuti filter tanggal/status yang sama dengan daftar.
+
+4. Frontend dan design system:
+- Proteksi respons usang pada absensi harian, rekap siswa, perwalian dan total JP;
+  perubahan filter tidak menampilkan kembali data dari permintaan sebelumnya.
+- Loading/error dibedakan dari kondisi kosong. DataLoading/DataFailure bersama
+  memakai komponen shadcn; alasan error bisnis tetap ditampilkan kepada pengguna.
+- Heading memakai kategori domain, filter mempunyai label, input JP menerima
+  langkah 0.001, dan tab koreksi siswa hanya tampil bagi pemilik izin koreksi.
+- Tipografi aplikasi diselaraskan: metadata minimal 12 px, deskripsi 14 px;
+  token muted-foreground diperkuat menjadi #58645d untuk kontras teks sekunder.
+- design-system.md diperbarui ke v1.8 beserta sumber komponen/token; roadmap
+  membetulkan nomor Portal Wali (#11), Website (#12), dan urutan MVP setelah #6.
+
+5. Verifikasi akhir:
+- Laravel Pint: passed; git diff --check: clean.
+- PHPUnit lengkap (phpunit.mysql.xml): 165/165 passed, 7176 assertions (345.7 detik).
+- Regresi tambahan batas semester mandat koreksi: 1/1 passed, 28 assertions.
+- Frontend Biome: 146 file, bersih tanpa error/warning.
+- Next.js production build: sukses, TypeScript lulus, 38/38 halaman dihasilkan.
+- Playwright lengkap: 85/85 passed (2.5 menit), naik dari 82; mencakup race respons,
+  loading/error, kontrak identitas/riwayat/total, serta modul absensi/realisasi pada
+  lebar 320/390/768/1024/1440 px dan layar pendek 740x360, termasuk dialog 320 px.
+- Backend naik dari 154 menjadi 165 test, termasuk regresi eskalasi role, mandat,
+  data historis, multi-role, masa penugasan, revisi/JP/kalender, dan validasi foto.
+
+Batas bukti pengujian:
+- PHPUnit memakai sim_madrasah_test pada MySQL lokal 9.7.4; kompatibilitas langsung
+  pada server target MySQL 8.4 belum diuji dalam sesi ini.
+- Build memakai paket terpasang Next.js 16.4.3 (deklarasi/lockfile 16.4.0).
+  Dependensi tidak dinaikkan atau diganti dalam sesi perbaikan ini.
+- E2E browser memakai fixture API; backend diuji terpisah dengan MySQL nyata.
+  OAuth Google nyata, UAT pengguna, load test, dan latihan restore bukan hasil
+  yang diklaim oleh suite otomatis ini.
+
+STATUS: Seluruh temuan kode pada audit modul selesai telah ditangani dan
+regresi terkait lulus. Pengembangan berikutnya tetap modul #7 Honor & Keuangan.
+
+================================================================================
+[PERBAIKAN FRONTEND & KLARIFIKASI] GPS ABSENSI, TAB, DAN HYDRATION PORTAL
+Tanggal/Waktu: 2026-10-26 19:41:38 +07:00
+================================================================================
+Permintaan:
+- Menjelaskan cara mengatur titik absensi dan menangani screenshot hydration
+  pada body RootLayout/sidebar serta halaman kebijakan foto/GPS.
+
+1. Aturan titik absensi yang berlaku:
+- SRS FR-05-04 dan BR-24 secara eksplisit menetapkan GPS TANPA geofence.
+  Belum ada titik pusat atau radius lokasi yang dapat diatur. Akurasi maksimal
+  100 m berarti ketelitian posisi perangkat, bukan radius dari madrasah.
+- Pengaturan yang tersedia: Absensi pegawai -> Pola kerja & kebijakan ->
+  Kebijakan foto/GPS -> Versi kebijakan baru (efektif mulai besok/setelahnya).
+  Pengelola mengatur akurasi, umur bukti, batas koreksi dan alasan perubahan.
+- UI ringkasan kebijakan, hint form akurasi, dan halaman masuk/pulang sekarang
+  menjelaskan baseline tanpa pembatasan titik/radius. README frontend memuat
+  petunjuk pengaturan; tidak menambahkan geofence atau mengubah aturan backend.
+
+2. Perbaikan halaman kebijakan dan komponen tab:
+- Menggunakan useAsyncData bersama untuk kebijakan dan daftar pegawai, sehingga
+  respons usang dan hasil setelah komponen dilepas diabaikan.
+- Tab kebijakan menampilkan skeleton saat loading, pesan gagal serta retry;
+  tidak lagi kosong tanpa penjelasan. Error lama hilang ketika retry berhasil.
+- Kegagalan memuat pegawai ditampilkan beserta retry, tidak ditelan diam-diam;
+  tombol penetapan dinonaktifkan selama data belum tersedia/gagal.
+- TabsList horizontal bersama memakai align-self: flex-start mulai sm agar
+  sm:w-auto tidak meregang selebar parent pada desktop.
+- TabsTrigger bersama mengizinkan label membungkus pada mobile agar tiga tab
+  absensi tidak saling bertumpuk pada 320 px; desktop tetap satu baris.
+- Navbar modul kini mengambil konteks dari katalog sidebar; halaman absensi,
+  akademik dan realisasi tidak lagi selalu berjudul Beranda.
+- Pemeriksaan responsif menilai batas teks di dalam tiap tombol, bukan hanya
+  lebar dokumen. Screenshot desktop/mobile diperiksa secara visual.
+
+3. Diagnosis hydration pada screenshot:
+- Atribut bis_skin_checked dan __processed_* tidak dihasilkan frontend.
+  Ini merupakan perubahan DOM sebelum hydration oleh ekstensi browser; sumber
+  Urban VPN yang sebelumnya diverifikasi tercatat pada frontend/README.md dan
+  design-system.md. Atribut asing tidak ditemukan pada respons SSR maupun DOM
+  browser Chromium bersih pada pengujian portal.
+- Tes hydration diperluas ke dashboard operator, kebijakan absensi dan akun,
+  termasuk body/sidebar serta interaksi navigasi pada mobile dan desktop.
+- Penanganan pada browser pengguna: nonaktifkan/batasi akses ekstensi penyisip
+  DOM untuk localhost/127.0.0.1, lalu muat ulang penuh Ctrl+Shift+R. Incognito
+  membantu hanya jika ekstensi tidak diizinkan di sana. Instruksi ada di README.
+- Tidak menambahkan suppressHydrationWarning global, pembersih DOM, mematikan
+  SSR, atau menonaktifkan ekstensi browser pengguna dari sesi coding ini.
+
+4. Verifikasi akhir:
+- Biome: 146 file bersih; git diff --check bersih.
+- Next.js production build: sukses, TypeScript lulus, 38/38 halaman.
+- Playwright produksi lengkap: 90/90 passed (2.7m).
+- Playwright hydration mode development: 6/6 passed (21.1s).
+- Lima tes baru: penjelasan GPS/lebar tab/batas teks, loading/retry kebijakan,
+  kegagalan/retry pegawai, serta dua skenario hydration portal (390/1440 px).
+- Tes koreksi menutup toast sukses pencatatan sebelum memeriksa toast koreksi,
+  sehingga dua notifikasi sah tidak menyebabkan strict selector ambigu.
+- Backend/database tidak berubah dalam sesi ini. E2E memakai API fixture;
+  hasil ini tidak mengklaim perbaikan konfigurasi browser pribadi pengguna.
+
+Dokumentasi: frontend/README.md diperluas, design-system.md menjadi v1.9,
+roadmap-agents.md memperbarui bukti regresi dan keterangan GPS tanpa geofence.
+STATUS: Perbaikan aplikasi selesai dan lulus regresi. Overlay dari injeksi
+atribut ekstensi perlu ditangani pada profil browser yang mengaktifkannya.

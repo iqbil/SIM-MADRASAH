@@ -43,33 +43,30 @@ type MeetingRow = AcademicRecord & {
 const statusBadge = (status: string | undefined) => {
   if (!status)
     return (
-      <Badge variant="outline" className="text-[10px]">
+      <Badge variant="outline" className="text-xs">
         Belum dicatat
       </Badge>
     );
   if (status === "approved")
     return (
-      <Badge
-        variant="secondary"
-        className="bg-primary/8 text-[10px] text-primary"
-      >
+      <Badge variant="secondary" className="bg-primary/8 text-xs text-primary">
         {verificationLabels.approved}
       </Badge>
     );
   if (status === "pending")
     return (
-      <Badge variant="secondary" className="text-[10px]">
+      <Badge variant="secondary" className="text-xs">
         {verificationLabels.pending}
       </Badge>
     );
   if (status === "rejected")
     return (
-      <Badge variant="outline" className="text-[10px] text-destructive">
+      <Badge variant="outline" className="text-xs text-destructive">
         {verificationLabels.rejected}
       </Badge>
     );
   return (
-    <Badge variant="secondary" className="text-[10px]">
+    <Badge variant="secondary" className="text-xs">
       {verificationLabels.not_submitted}
     </Badge>
   );
@@ -98,6 +95,7 @@ export function MyMeetings() {
   return (
     <div className="animate-enter space-y-6">
       <AcademicHeading
+        category="Realisasi mengajar"
         title="Pertemuan mengajar saya"
         description="Pertemuan yang menjadi tugas Anda — terjadwal maupun mengganti. Catat realisasi sebagai draf, lalu kirim untuk diverifikasi; isi yang sudah diajukan hanya berubah lewat revisi baru."
       />
@@ -116,7 +114,7 @@ export function MyMeetings() {
           {
             label: "Tanggal",
             cell: (row) => (
-              <span className="text-[13px] font-medium">
+              <span className="text-sm font-medium">
                 {dateOnly(row.meeting_date)}
               </span>
             ),
@@ -196,6 +194,7 @@ export function MyMeetings() {
             {
               name: "actual_jp",
               label: "JP aktual",
+              step: 0.001,
               required: true,
               type: "number",
               max: 4,

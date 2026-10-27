@@ -165,7 +165,7 @@ export async function EmptyDashboard({
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block text-xs font-medium">{title}</span>
-                      <span className="mt-1 block text-[11px] leading-5 font-normal text-muted-foreground">
+                      <span className="mt-1 block text-xs leading-5 font-normal text-muted-foreground">
                         {description}
                       </span>
                     </span>

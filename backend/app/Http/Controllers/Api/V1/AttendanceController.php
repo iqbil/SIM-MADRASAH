@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Storage;
 
 /**
@@ -143,14 +144,16 @@ class AttendanceController extends Controller
         $data = $request->validate(['status' => ['nullable', 'in:pending,applied,rejected'], 'employee_id' => ['nullable', 'integer'],
             'page' => ['nullable', 'integer', 'min:1'], 'per_page' => ['nullable', 'integer', 'min:1', 'max:100']]);
         $query = AttendanceCorrection::query()
+            ->whereNotNull('employee_attendance_id')
             ->with(['employeeAttendance.workDay.employee.person', 'employeeAttendance.attendanceStatus', 'requester.person', 'approver.person'])
             ->orderByDesc('requested_at');
         if (isset($data['status'])) {
             $query->where('status', $data['status']);
         }
         if (isset($data['employee_id'])) {
-            $query->whereHas('attendance.workDay', fn (Builder $q): Builder => $q->where('employee_id', $data['employee_id']));
+            $query->whereHas('employeeAttendance.workDay', fn (Builder $q): Builder => $q->where('employee_id', $data['employee_id']));
         }
+        AttendanceDataAccess::scopeCorrections($query, $user, false);
 
         return AttendanceDataResource::collection($query->paginate($data['per_page'] ?? 25)->withQueryString());
     }
@@ -214,7 +217,7 @@ class AttendanceController extends Controller
         return new AttendanceDataResource($service->capture($request->user(), $capture));
     }
 
-    public function capturePhoto(Request $request, int $capture, AttendanceService $service): JsonResponse
+    public function capturePhoto(Request $request, int $capture, AttendanceService $service): Response
     {
         $file = $service->capturePhoto($request->user(), $capture);
         $bytes = Storage::disk($file->storage_disk)->get($file->storage_path);

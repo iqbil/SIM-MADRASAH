@@ -85,5 +85,6 @@ export async function apiRequest<T>(
 export function requestError(error: unknown): string {
   if (error instanceof AuthRequestError)
     return Object.values(error.payload.errors ?? {}).flat()[0] ?? error.message;
+  if (error instanceof Error && error.message) return error.message;
   return "Permintaan belum berhasil. Silakan coba kembali.";
 }

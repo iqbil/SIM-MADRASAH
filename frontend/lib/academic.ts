@@ -27,7 +27,7 @@ export const ACADEMIC_SECTIONS: Record<
   },
   mutasi: {
     title: "Kenaikan & mutasi siswa",
-    permission: "academic.enrollments.view",
+    permission: "academic.enrollments.manage",
   },
   kalender: {
     title: "Kalender akademik",

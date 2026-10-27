@@ -100,29 +100,32 @@ export function AttendanceCorrectionRequests({
   return (
     <div className="animate-enter space-y-6">
       <AcademicHeading
+        category="Absensi pegawai"
         title="Persetujuan koreksi absensi"
         description="Koreksi disetujui petugas yang berbeda dari pemohon; setelah diterapkan hanya nilai kehadiran yang berubah — bukti foto/GPS asli tetap utuh."
       />
-      <Tabs
-        value={domain}
-        onValueChange={(val) => setDomain(val as "pegawai" | "siswa")}
-        className="w-full"
-      >
-        <TabsList className="h-14! w-full justify-start gap-1 rounded-xl bg-secondary p-1 sm:w-auto">
-          <TabsTrigger
-            value="pegawai"
-            className="h-11! min-w-0 flex-1 px-3 text-xs sm:flex-none"
-          >
-            Koreksi pegawai
-          </TabsTrigger>
-          <TabsTrigger
-            value="siswa"
-            className="h-11! min-w-0 flex-1 px-3 text-xs sm:flex-none"
-          >
-            Koreksi siswa
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
+      {canCorrect && (
+        <Tabs
+          value={domain}
+          onValueChange={(val) => setDomain(val as "pegawai" | "siswa")}
+          className="w-full"
+        >
+          <TabsList className="h-14! w-full justify-start gap-1 rounded-xl bg-secondary p-1 sm:w-auto">
+            <TabsTrigger
+              value="pegawai"
+              className="h-11! min-w-0 flex-1 px-3 text-xs sm:flex-none"
+            >
+              Koreksi pegawai
+            </TabsTrigger>
+            <TabsTrigger
+              value="siswa"
+              className="h-11! min-w-0 flex-1 px-3 text-xs sm:flex-none"
+            >
+              Koreksi siswa
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+      )}
       <div className="flex flex-wrap items-end gap-3">
         <FilterSelect
           label="Status koreksi"
@@ -149,7 +152,7 @@ export function AttendanceCorrectionRequests({
             {
               label: "Pegawai",
               cell: (row) => (
-                <span className="text-[13px] font-medium">
+                <span className="text-sm font-medium">
                   {row.employeeAttendance?.workDay?.employee?.person
                     ?.full_name ?? "—"}
                 </span>
@@ -182,18 +185,18 @@ export function AttendanceCorrectionRequests({
               label: "Status",
               cell: (row) =>
                 row.status === "pending" ? (
-                  <Badge variant="outline" className="text-[10px]">
+                  <Badge variant="outline" className="text-xs">
                     Menunggu
                   </Badge>
                 ) : row.status === "applied" ? (
                   <Badge
                     variant="secondary"
-                    className="bg-primary/8 text-[10px] text-primary"
+                    className="bg-primary/8 text-xs text-primary"
                   >
                     Diterapkan
                   </Badge>
                 ) : (
-                  <Badge variant="outline" className="text-[10px]">
+                  <Badge variant="outline" className="text-xs">
                     Ditolak
                   </Badge>
                 ),
@@ -253,7 +256,7 @@ export function AttendanceCorrectionRequests({
             {
               label: "Siswa",
               cell: (row) => (
-                <span className="text-[13px] font-medium">
+                <span className="text-sm font-medium">
                   {row.studentDailyAttendance?.student?.person?.full_name ??
                     row.student?.person?.full_name ??
                     "—"}
@@ -290,18 +293,18 @@ export function AttendanceCorrectionRequests({
               label: "Status",
               cell: (row) =>
                 row.status === "pending" ? (
-                  <Badge variant="outline" className="text-[10px]">
+                  <Badge variant="outline" className="text-xs">
                     Menunggu
                   </Badge>
                 ) : row.status === "applied" ? (
                   <Badge
                     variant="secondary"
-                    className="bg-primary/8 text-[10px] text-primary"
+                    className="bg-primary/8 text-xs text-primary"
                   >
                     Diterapkan
                   </Badge>
                 ) : (
-                  <Badge variant="outline" className="text-[10px]">
+                  <Badge variant="outline" className="text-xs">
                     Ditolak
                   </Badge>
                 ),

@@ -377,7 +377,7 @@ class AcademicService
      */
     public function transitionPreview(User $actor, array $data): array
     {
-        AcademicDataAccess::authorize($actor, 'enrollments');
+        AcademicDataAccess::authorize($actor, 'enrollments', true);
         [$toStatus, $activeStatus, $target] = $this->transitionSetup($data);
         $values = Validator::make($data, [
             'student_ids' => ['required', 'array', 'min:1', 'max:200'],

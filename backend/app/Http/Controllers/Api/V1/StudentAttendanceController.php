@@ -16,7 +16,7 @@ class StudentAttendanceController extends Controller
 {
     public function classes(Request $request, StudentAttendanceService $service): JsonResponse
     {
-        return response()->json(['data' => $service->classes($request->user())]);
+        return response()->json(['data' => $service->classes($request->user(), $request->all())]);
     }
 
     public function roster(Request $request, StudentAttendanceService $service): JsonResponse

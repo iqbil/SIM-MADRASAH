@@ -217,6 +217,7 @@ export function AttendanceClock() {
   return (
     <div className="animate-enter space-y-6">
       <AcademicHeading
+        category="Absensi pegawai"
         title="Masuk / pulang"
         description="Aksi mandiri dengan foto langsung dari kamera dan lokasi perangkat; waktu yang dicatat adalah waktu server (WIB)."
       />
@@ -396,7 +397,7 @@ export function AttendanceClock() {
                       <dd>
                         <Badge
                           variant="secondary"
-                          className="bg-primary/8 text-[10px] text-primary"
+                          className="bg-primary/8 text-xs text-primary"
                         >
                           {statusLabels[status.attendance_status?.code ?? ""] ??
                             status.attendance_status?.name ??
@@ -428,7 +429,8 @@ export function AttendanceClock() {
                 {Math.round(Number(status.policy.gps_max_accuracy_meters))} m;
                 foto dan lokasi maksimal {status.policy.gps_max_age_seconds}{" "}
                 detik saat mencatat; batas koreksi{" "}
-                {status.policy.correction_deadline_days} hari melalui petugas.
+                {status.policy.correction_deadline_days} hari melalui petugas.{" "}
+                Lokasi dicatat tanpa pembatasan titik atau radius.
               </div>
             )}
           </CardContent>

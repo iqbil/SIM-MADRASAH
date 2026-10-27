@@ -1,9 +1,16 @@
 "use client";
 
 import { RefreshCw } from "lucide-react";
-import { type FormEvent, type ReactNode, useEffect, useState } from "react";
+import {
+  type FormEvent,
+  type ReactNode,
+  useEffect,
+  useId,
+  useState,
+} from "react";
 import { toast } from "sonner";
 import { ConfirmationDialog } from "@/components/layout/confirmation-dialog";
+import { DataFailure, DataLoading } from "@/components/layout/data-feedback";
 import { FormDialog } from "@/components/layout/form-dialog";
 import { Pager } from "@/components/layout/pager";
 import { ReasonField } from "@/components/layout/reason-field";
@@ -12,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -51,11 +59,11 @@ export function AcademicHeading({
   return (
     <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
       <div>
-        <p className="mb-2 text-[11px] text-muted-foreground">{category}</p>
+        <p className="mb-2 text-xs text-muted-foreground">{category}</p>
         <h1 className="text-[27px] font-semibold tracking-tight sm:text-3xl">
           {title}
         </h1>
-        <p className="mt-2 max-w-2xl text-[13px] leading-6 text-muted-foreground">
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
           {description}
         </p>
       </div>
@@ -74,8 +82,8 @@ export function StatusBadge({ status }: { status: unknown }) {
       variant={value === "open" ? "secondary" : "outline"}
       className={
         value === "open"
-          ? "bg-primary/8 text-[10px] text-primary"
-          : "text-[10px] text-muted-foreground"
+          ? "bg-primary/8 text-xs text-primary"
+          : "text-xs text-muted-foreground"
       }
     >
       {label}
@@ -185,12 +193,10 @@ export function AcademicList<T extends AcademicRecord>({
             </Button>
           </div>
         </div>
-        {failure && (
-          <p className="mb-4 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs leading-5 text-destructive">
-            {failure}
-          </p>
-        )}
-        {busy && !result ? null : !result?.data?.length ? (
+        {failure && <DataFailure message={failure} />}
+        {busy ? (
+          <DataLoading />
+        ) : failure ? null : !result?.data?.length ? (
           <div className="py-12 text-center">
             <p className="text-sm font-medium">{emptyTitle}</p>
             <p className="mt-2 text-xs leading-5 text-muted-foreground">
@@ -239,7 +245,7 @@ export function AcademicList<T extends AcademicRecord>({
                 <div key={row.id} className="space-y-2 py-4 first:pt-0">
                   <div className="text-sm font-medium">{rowTitle(row)}</div>
                   {rowMeta && (
-                    <div className="text-[11px] text-muted-foreground">
+                    <div className="text-xs text-muted-foreground">
                       {rowMeta(row)}
                     </div>
                   )}
@@ -383,6 +389,7 @@ export function FilterSelect({
   options,
   placeholder,
   className,
+  disabled = false,
 }: {
   label: string;
   value: string;
@@ -390,17 +397,27 @@ export function FilterSelect({
   options: PickerOption[];
   placeholder?: string;
   className?: string;
+  disabled?: boolean;
 }) {
+  const id = useId();
   return (
     <div className={className ?? "w-full sm:w-64"}>
-      <span className="mb-1.5 block text-xs text-muted-foreground">
+      <Label
+        htmlFor={id}
+        className="mb-1.5 block text-sm text-muted-foreground"
+      >
         {label}
-      </span>
+      </Label>
       <Select
+        disabled={disabled}
         value={value || undefined}
         onValueChange={(next) => onChange(next === "__all" ? "" : next)}
       >
-        <SelectTrigger aria-label={label} className="h-11! w-full text-sm">
+        <SelectTrigger
+          id={id}
+          aria-label={label}
+          className="h-11! w-full text-base md:text-sm"
+        >
           <SelectValue placeholder={placeholder ?? "Semua"} />
         </SelectTrigger>
         <SelectContent>
@@ -421,18 +438,26 @@ export function DateFilter({
   value,
   onChange,
   className,
+  disabled = false,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   className?: string;
+  disabled?: boolean;
 }) {
+  const id = useId();
   return (
     <div className={className ?? "w-full sm:w-44"}>
-      <span className="mb-1.5 block text-xs text-muted-foreground">
+      <Label
+        htmlFor={id}
+        className="mb-1.5 block text-sm text-muted-foreground"
+      >
         {label}
-      </span>
+      </Label>
       <Input
+        id={id}
+        disabled={disabled}
         type="date"
         aria-label={label}
         value={value}

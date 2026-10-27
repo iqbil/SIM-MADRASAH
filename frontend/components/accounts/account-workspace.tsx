@@ -179,13 +179,13 @@ export function AccountWorkspace({ user }: { user: AuthUser }) {
     <div className="animate-enter space-y-6">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
-          <p className="mb-2 text-[11px] text-muted-foreground">
+          <p className="mb-2 text-xs text-muted-foreground">
             Administrasi / Akun & akses
           </p>
           <h1 className="text-[27px] font-semibold tracking-tight sm:text-3xl">
             Pengelolaan akun
           </h1>
-          <p className="mt-2 text-[13px] leading-6 text-muted-foreground">
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">
             Kelola pengguna, role, dan akses portal madrasah dalam satu tempat.
           </p>
         </div>
@@ -213,7 +213,7 @@ export function AccountWorkspace({ user }: { user: AuthUser }) {
             >
               <CardContent className="px-4">
                 <div className="flex items-center justify-between gap-1">
-                  <p className="text-[11px] text-muted-foreground sm:text-xs">
+                  <p className="text-xs text-muted-foreground sm:text-xs">
                     {String(label)}
                   </p>
                   <StatIcon className="hidden size-4 text-primary/65 sm:block" />
@@ -236,20 +236,20 @@ export function AccountWorkspace({ user }: { user: AuthUser }) {
         <TabsList className="mb-5 h-14! w-full justify-start gap-1 rounded-xl bg-secondary p-1 sm:w-auto">
           <TabsTrigger
             value="users"
-            className="h-11! min-w-0 flex-1 gap-1 px-2 text-[11px] sm:flex-none sm:gap-2 sm:px-3 sm:text-xs"
+            className="h-11! min-w-0 flex-1 gap-1 px-2 text-xs sm:flex-none sm:gap-2 sm:px-3 sm:text-xs"
           >
             <UsersRound className="size-3.5" /> Pengguna
           </TabsTrigger>
           <TabsTrigger
             value="roles"
-            className="h-11! min-w-0 flex-1 gap-1 px-2 text-[11px] sm:flex-none sm:gap-2 sm:px-3 sm:text-xs"
+            className="h-11! min-w-0 flex-1 gap-1 px-2 text-xs sm:flex-none sm:gap-2 sm:px-3 sm:text-xs"
           >
             <ShieldCheck className="size-3.5" /> Role & izin
           </TabsTrigger>
           {can("audit") && (
             <TabsTrigger
               value="audit"
-              className="h-11! min-w-0 flex-1 gap-1 px-2 text-[11px] sm:flex-none sm:gap-2 sm:px-3 sm:text-xs"
+              className="h-11! min-w-0 flex-1 gap-1 px-2 text-xs sm:flex-none sm:gap-2 sm:px-3 sm:text-xs"
             >
               <History className="size-3.5" /> Audit
             </TabsTrigger>
@@ -356,10 +356,8 @@ export function AccountWorkspace({ user }: { user: AuthUser }) {
                         {list.data.map((item) => (
                           <TableRow key={item.id}>
                             <TableCell className="py-4">
-                              <p className="text-[13px] font-medium">
-                                {item.name}
-                              </p>
-                              <p className="mt-1 text-[11px] text-muted-foreground">
+                              <p className="text-sm font-medium">{item.name}</p>
+                              <p className="mt-1 text-xs text-muted-foreground">
                                 {item.email ?? item.username}
                               </p>
                             </TableCell>
@@ -370,7 +368,7 @@ export function AccountWorkspace({ user }: { user: AuthUser }) {
                                     <Badge
                                       variant="secondary"
                                       key={role.id}
-                                      className="h-auto min-h-5 max-w-full break-all whitespace-normal text-[10px]"
+                                      className="h-auto min-h-5 max-w-full break-all whitespace-normal text-xs"
                                     >
                                       {role.name}
                                     </Badge>
@@ -385,7 +383,7 @@ export function AccountWorkspace({ user }: { user: AuthUser }) {
                             <TableCell>
                               <Status user={item} />
                             </TableCell>
-                            <TableCell className="text-[11px] text-muted-foreground">
+                            <TableCell className="text-xs text-muted-foreground">
                               {formatDate(item.last_login_at)}
                             </TableCell>
                             <TableCell className="text-right">
@@ -411,7 +409,7 @@ export function AccountWorkspace({ user }: { user: AuthUser }) {
                             <p className="break-words text-sm font-medium">
                               {item.name}
                             </p>
-                            <p className="mt-1 break-all text-[11px] text-muted-foreground">
+                            <p className="mt-1 break-all text-xs text-muted-foreground">
                               {item.email ?? item.username}
                             </p>
                           </div>
@@ -423,7 +421,7 @@ export function AccountWorkspace({ user }: { user: AuthUser }) {
                               <Badge
                                 variant="secondary"
                                 key={role.id}
-                                className="h-auto min-h-5 max-w-full break-all whitespace-normal text-[10px]"
+                                className="h-auto min-h-5 max-w-full break-all whitespace-normal text-xs"
                               >
                                 {role.name}
                               </Badge>
@@ -475,7 +473,7 @@ export function AccountWorkspace({ user }: { user: AuthUser }) {
                     <ShieldCheck className="size-5 text-primary" />
                     <Badge
                       variant={role.is_active ? "secondary" : "outline"}
-                      className="text-[10px]"
+                      className="text-xs"
                     >
                       {role.is_active ? "Aktif" : "Nonaktif"}
                     </Badge>
@@ -483,7 +481,7 @@ export function AccountWorkspace({ user }: { user: AuthUser }) {
                   <CardTitle className="mt-3 break-words text-sm font-semibold">
                     {role.name}
                   </CardTitle>
-                  <p className="break-words text-[10px] text-muted-foreground">
+                  <p className="break-words text-xs text-muted-foreground">
                     {role.code}
                   </p>
                 </CardHeader>
@@ -493,7 +491,7 @@ export function AccountWorkspace({ user }: { user: AuthUser }) {
                       ? "Pengelola utama akun dan akses madrasah. Role ini dilindungi."
                       : (role.description ?? "Role pengguna portal madrasah.")}
                   </p>
-                  <p className="mt-3 text-[11px] text-muted-foreground">
+                  <p className="mt-3 text-xs text-muted-foreground">
                     {role.permission_codes?.length ?? 0} izin pengelolaan akun
                   </p>
                   {can("roles") && role.code !== "super_admin" && (
@@ -523,11 +521,11 @@ export function AccountWorkspace({ user }: { user: AuthUser }) {
                     <div key={item.id} className="py-4">
                       <div className="flex flex-wrap justify-between gap-2">
                         <p className="text-xs font-medium">{item.event}</p>
-                        <p className="break-words text-[10px] text-muted-foreground">
+                        <p className="break-words text-xs text-muted-foreground">
                           {formatDate(item.occurred_at)}
                         </p>
                       </div>
-                      <p className="mt-2 text-[11px] text-muted-foreground">
+                      <p className="mt-2 text-xs text-muted-foreground">
                         {item.actor} · {item.object_type} #{item.object_id}
                       </p>
                       {item.reason && (
@@ -705,7 +703,7 @@ export function AccountWorkspace({ user }: { user: AuthUser }) {
                               ? "Google"
                               : "password"}
                           </p>
-                          <p className="mt-1 text-[10px] text-muted-foreground">
+                          <p className="mt-1 text-xs text-muted-foreground">
                             Aktivitas terakhir:{" "}
                             {formatDate(session.last_used_at)}
                           </p>
@@ -728,20 +726,20 @@ export function AccountWorkspace({ user }: { user: AuthUser }) {
                         className="border-l-2 border-primary/20 pl-3"
                       >
                         <p className="text-xs font-medium">{grant.role}</p>
-                        <p className="mt-1 text-[10px] leading-5 text-muted-foreground">
+                        <p className="mt-1 text-xs leading-5 text-muted-foreground">
                           {formatDate(grant.effective_from)} →{" "}
                           {grant.effective_to
                             ? formatDate(grant.effective_to)
                             : "Masih berlaku"}
                         </p>
-                        <p className="mt-1 text-[10px] text-muted-foreground">
+                        <p className="mt-1 text-xs text-muted-foreground">
                           Diberikan oleh {grant.granted_by}
                           {grant.revoked_by
                             ? `; dicabut oleh ${grant.revoked_by}`
                             : ""}
                         </p>
                         {grant.reason && (
-                          <p className="mt-1 text-[11px] leading-5">
+                          <p className="mt-1 text-xs leading-5">
                             {grant.reason}
                           </p>
                         )}
@@ -852,8 +850,8 @@ function Status({ user }: { user: ManagedUser }) {
       variant={user.status === "active" ? "secondary" : "outline"}
       className={
         user.status === "active"
-          ? "shrink-0 bg-primary/8 text-[10px] text-primary"
-          : "shrink-0 text-[10px] text-muted-foreground"
+          ? "shrink-0 bg-primary/8 text-xs text-primary"
+          : "shrink-0 text-xs text-muted-foreground"
       }
     >
       {user.status === "active" ? "Aktif" : "Nonaktif"}
@@ -969,7 +967,7 @@ function UserEditor({
             onChange={(event) => setPersonQuery(event.target.value)}
             className="h-11"
           />
-          <p className="text-[10px] leading-5 text-muted-foreground">
+          <p className="text-xs leading-5 text-muted-foreground">
             Pilih identitas yang sudah ada agar profil pegawai/wali tetap
             menggunakan akun yang sama.
           </p>
@@ -1019,12 +1017,13 @@ function UserEditor({
                 .filter(
                   (role) =>
                     role.is_active &&
+                    (role.can_assign !== false || roleIds.includes(role.id)) &&
                     (actorIsSuper || role.code !== "super_admin"),
                 )
                 .map((role) => (
                   <Label
                     key={role.id}
-                    className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg px-2 text-xs hover:bg-muted"
+                    className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg px-2 text-sm hover:bg-muted"
                   >
                     <Checkbox
                       checked={roleIds.includes(role.id)}
@@ -1116,7 +1115,7 @@ function ActionDialog({
         </Alert>
       )}
       {identity && (
-        <Label className="flex min-h-12 items-center gap-3 rounded-xl border bg-muted/30 p-3 text-xs leading-6">
+        <Label className="flex min-h-12 items-center gap-3 rounded-xl border bg-muted/30 p-3 text-sm leading-6">
           <Checkbox
             checked={confirmed}
             onCheckedChange={(value) => setConfirmed(value === true)}
@@ -1210,12 +1209,13 @@ function RoleEditor({
             name={field.name}
             defaultValue={field.value}
             required={field.name !== "description"}
+            readOnly={field.name === "code" && current?.is_system === true}
             maxLength={field.max}
             className="h-11"
           />
         </div>
       ))}
-      <Label className="flex min-h-11 items-center gap-3 text-xs">
+      <Label className="flex min-h-11 items-center gap-3 text-sm">
         <Checkbox
           checked={active}
           onCheckedChange={(value) => setActive(value === true)}
@@ -1233,7 +1233,7 @@ function RoleEditor({
               .map((p) => (
                 <Label
                   key={p.code}
-                  className="flex min-h-11 items-center gap-3 rounded-lg px-2 text-xs leading-5 hover:bg-muted"
+                  className="flex min-h-11 items-center gap-3 rounded-lg px-2 text-sm leading-5 hover:bg-muted"
                 >
                   <Checkbox
                     checked={permissions.includes(p.code)}

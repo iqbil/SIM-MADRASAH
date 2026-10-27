@@ -84,9 +84,9 @@ class AcademicDataAccess
      *
      * @return array<int, int>|null
      */
-    public static function classPeriodScope(User $user): ?array
+    public static function classPeriodScope(User $user, bool $homeroomOnly = false): ?array
     {
-        if (array_intersect(self::roles($user), ['super_admin', 'operator', 'kepala_madrasah']) !== []) {
+        if (! $homeroomOnly && array_intersect(self::roles($user), ['super_admin', 'operator', 'kepala_madrasah']) !== []) {
             return null;
         }
 
@@ -98,9 +98,11 @@ class AcademicDataAccess
         }
         $covers = fn (Builder $query): Builder => $query
             ->where('effective_from', '<=', $today)
-            ->where(fn (Builder $q): Builder => $q->whereNull('effective_to')->orWhere('effective_to', '>', $today));
+            ->where(fn (Builder $q): Builder => $q->whereNull('effective_to')->orWhere('effective_to', '>', $today))
+            ->whereHas('classPeriod.academicYear', fn (Builder $q): Builder => $q->where('start_date', '<=', $today)->where('end_date', '>', $today))
+            ->where(fn (Builder $q): Builder => $q->whereNull('semester_id')->orWhereHas('semester', fn (Builder $s): Builder => $s->where('start_date', '<=', $today)->where('end_date', '>', $today)));
 
-        $taught = $employee->teachingAssignments()->where('is_active', true)->where($covers)->pluck('class_period_id')->all();
+        $taught = $homeroomOnly ? [] : $employee->teachingAssignments()->where('is_active', true)->where($covers)->pluck('class_period_id')->all();
         $homeroom = $employee->homeroomAssignments()->where($covers)->pluck('class_period_id')->all();
 
         return array_values(array_unique([...$taught, ...$homeroom]));
@@ -109,9 +111,7 @@ class AcademicDataAccess
     /** Pegawai yang identitasnya terhubung ke akun; null bila bukan pegawai. */
     public static function employeeId(User $user): ?int
     {
-        $employee = $user->person?->employee;
-
-        return $employee && $employee->is_active ? $employee->id : null;
+        return AttendanceDataAccess::employee($user)?->id;
     }
 
     /** Batasi daftar enrollment ke cakupan kelas pengguna. */

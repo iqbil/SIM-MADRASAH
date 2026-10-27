@@ -90,16 +90,16 @@ class MasterDataAccess
         abort_unless($user->canSignIn() && ! $user->must_change_password, 403, 'Data master ini di luar kewenangan Anda.');
         if ($relation === 'guardian-links') {
             if ($action === 'verify') {
-                abort_unless(self::allows($user, 'guardians', 'verify') || self::allows($user, 'students', 'manage') || self::allows($user, 'guardians', 'manage') || self::manages($user), 403, 'Data master ini di luar kewenangan Anda.');
+                abort_unless(self::allows($user, 'guardians', 'verify') || self::allows($user, 'students', 'manage') || self::allows($user, 'guardians', 'manage'), 403, 'Data master ini di luar kewenangan Anda.');
 
                 return;
             }
             if ($write) {
-                abort_unless(self::allows($user, 'students', 'manage') || self::allows($user, 'guardians', 'manage') || self::manages($user), 403, 'Data master ini di luar kewenangan Anda.');
+                abort_unless(self::allows($user, 'students', 'manage') || self::allows($user, 'guardians', 'manage'), 403, 'Data master ini di luar kewenangan Anda.');
 
                 return;
             }
-            abort_unless(self::allows($user, 'students', 'view') || self::allows($user, 'guardians', 'view') || self::manages($user), 403, 'Data master ini di luar kewenangan Anda.');
+            abort_unless(self::allows($user, 'students', 'view') || self::allows($user, 'guardians', 'view') || self::allows($user, 'students', 'manage') || self::allows($user, 'guardians', 'manage') || self::allows($user, 'guardians', 'verify'), 403, 'Data master ini di luar kewenangan Anda.');
 
             return;
         }
@@ -107,11 +107,11 @@ class MasterDataAccess
         if (in_array($relation, ['categories', 'positions'], true)) {
             $required = $relation === 'categories' ? 'employee-categories' : 'positions';
             if ($write) {
-                abort_unless(self::allows($user, 'employees', 'manage') || self::allows($user, $required, 'manage') || self::manages($user), 403, 'Data master ini di luar kewenangan Anda.');
+                abort_unless(self::allows($user, 'employees', 'manage') || self::allows($user, $required, 'manage'), 403, 'Data master ini di luar kewenangan Anda.');
 
                 return;
             }
-            abort_unless(self::allows($user, 'employees', 'view') || self::allows($user, $required, 'view') || self::manages($user), 403, 'Data master ini di luar kewenangan Anda.');
+            abort_unless(self::allows($user, 'employees', 'view') || self::allows($user, $required, 'view'), 403, 'Data master ini di luar kewenangan Anda.');
 
             return;
         }

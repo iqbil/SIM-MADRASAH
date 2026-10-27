@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Table;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -21,6 +22,29 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 ])]
 class AuthorizationMandate extends DomainModel
 {
+    public static function activeFor(User $user, string $permission): Builder
+    {
+        $at = now('UTC')->format('Y-m-d H:i:s.u');
+
+        return static::query()->where('user_id', $user->id)->whereNull('revoked_at')->whereNull('revoked_by')
+            ->where('effective_from', '<=', $at)
+            ->where(fn (Builder $q): Builder => $q->whereNull('effective_to')->orWhere('effective_to', '>', $at))
+            ->whereHas('permission', fn (Builder $q): Builder => $q->where('code', $permission));
+    }
+
+    /** Batasi mandat ke objek yang sedang dibaca/diubah, bukan hanya keberadaan permission. */
+    public static function covering(Builder $query, ?int $semesterId, ?int $classPeriodId, ?int $employeeId): Builder
+    {
+        return $query->where(function (Builder $q) use ($semesterId, $classPeriodId, $employeeId): void {
+            $q->where('scope_type', 'institution');
+            foreach (['semester' => ['semester_id', $semesterId], 'class' => ['class_period_id', $classPeriodId], 'employee' => ['employee_id', $employeeId]] as $scope => [$column, $value]) {
+                if ($value !== null) {
+                    $q->orWhere(fn (Builder $s): Builder => $s->where('scope_type', $scope)->where($column, $value));
+                }
+            }
+        });
+    }
+
     /** @return array<string, string> */
     protected function casts(): array
     {

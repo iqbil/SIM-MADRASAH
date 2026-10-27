@@ -21,6 +21,11 @@ class AttendancePhotoPipeline
     {
         $input = $upload->getContent();
         abort_unless($input !== '' && strlen($input) <= 10485760, 422, 'Berkas foto kosong atau melebihi 10 MiB.');
+        $imageInfo = @getimagesizefromstring($input);
+        abort_unless($imageInfo !== false && in_array($imageInfo[2], [IMAGETYPE_JPEG, IMAGETYPE_PNG, IMAGETYPE_WEBP], true),
+            422, 'Foto harus berupa PNG, JPEG, atau WebP yang valid.');
+        abort_unless($imageInfo[0] > 0 && $imageInfo[1] > 0 && $imageInfo[0] * $imageInfo[1] <= 20000000,
+            422, 'Resolusi foto maksimal 20 megapiksel.');
 
         if (function_exists('imagewebp') && function_exists('imagecreatefromstring')) {
             return $this->processWithGd($input, $maxDimension, $startQuality, $maxBytes);
@@ -50,7 +55,7 @@ class AttendancePhotoPipeline
             ob_start();
             imagewebp($image, null, $quality);
             $bytes = (string) ob_get_clean();
-            if (strlen($bytes) <= $maxBytes) {
+            if ($bytes !== '' && strlen($bytes) <= $maxBytes) {
                 imagedestroy($image);
 
                 return ['bytes' => $bytes, 'width' => $width, 'height' => $height, 'quality' => $quality];

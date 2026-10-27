@@ -5,6 +5,8 @@ namespace Tests\Feature;
 use App\Models\Person;
 use App\Models\User;
 use App\Models\UserRole;
+use App\Services\AcademicDataAccess;
+use Carbon\CarbonImmutable;
 use Database\Seeders\AccountAccessSeeder;
 use Database\Seeders\ReferenceDataSeeder;
 use Illuminate\Support\Facades\DB;
@@ -204,5 +206,74 @@ class MysqlTeachingApiTest extends MysqlAuthTestCase
         $this->postJson('/api/v1/teaching/meetings/'.$meeting['id'].'/realizations', [
             'execution_status' => 'held', 'material' => 'Menimpa catatan pengganti', 'actual_jp' => 1, 'reason' => 'Percobaan menimpa',
         ], $teacherHeaders)->assertStatus(422);
+    }
+
+    public function test_quantity_current_revision_and_filtered_history_contract(): void
+    {
+        [$operator, $op] = $this->operator();
+        [, $headers, $employeeId] = $this->teacher();
+        $this->seedOneMeeting($op, $employeeId);
+        $meetingId = DB::table('meetings')->value('id');
+        foreach ([[99, 1], [3, 120], [1, 1], [0, 80]] as [$jp, $minutes]) {
+            $this->postJson('/api/v1/teaching/meetings/'.$meetingId.'/realizations', ['execution_status' => 'held', 'material' => 'Materi uji batas JP', 'actual_jp' => $jp, 'actual_minutes' => $minutes], $headers)->assertUnprocessable();
+        }
+        $first = $this->postJson('/api/v1/teaching/meetings/'.$meetingId.'/realizations', ['execution_status' => 'held', 'material' => 'Draf awal', 'actual_jp' => 2], $headers)->assertCreated()->json('data');
+        $second = $this->postJson('/api/v1/teaching/meetings/'.$meetingId.'/realizations', ['execution_status' => 'held', 'material' => 'Draf baru', 'actual_jp' => 0.5, 'actual_minutes' => 20, 'revision_reason' => 'Perbaikan durasi aktual pertemuan'], $headers)->assertCreated()->json('data');
+        $this->postJson('/api/v1/teaching/revisions/'.$first['id'].'/submit', ['reason' => 'Pengajuan revisi yang sudah digantikan'], $headers)->assertConflict();
+        $this->postJson('/api/v1/teaching/revisions/'.$second['id'].'/submit', ['reason' => 'Pengajuan revisi terkini untuk diverifikasi'], $headers)->assertOk();
+        $this->grantVerifyMandate($operator, $operator->id);
+        $this->postJson('/api/v1/teaching/revisions/'.$second['id'].'/decision', ['action' => 'approve'], $op)->assertOk();
+        $this->getJson('/api/v1/teaching/realizations?date_from=2026-07-01&date_to=2026-07-31', $headers)->assertOk()
+            ->assertJsonPath('data.rows.data.0.meeting.classPeriod.display_name', 'VII-A 2026/2027')
+            ->assertJsonPath('data.totals.approved_jp', 0.5);
+        $this->getJson('/api/v1/teaching/realizations?date_from=2026-11-01&date_to=2026-11-30', $headers)->assertOk()->assertJsonPath('data.rows.meta.total', 0)->assertJsonPath('data.totals.approved_meetings', 0);
+    }
+
+    public function test_verifier_scope_applies_to_queue_detail_and_decision(): void
+    {
+        [$operator, $op] = $this->operator();
+        [, $headers, $employeeId] = $this->teacher();
+        [, , $period] = $this->seedOneMeeting($op, $employeeId);
+        $meetingId = DB::table('meetings')->value('id');
+        $draft = $this->postJson('/api/v1/teaching/meetings/'.$meetingId.'/realizations', ['execution_status' => 'held', 'material' => 'Materi untuk uji cakupan mandat', 'actual_jp' => 2], $headers)->assertCreated()->json('data');
+        $this->postJson('/api/v1/teaching/revisions/'.$draft['id'].'/submit', ['reason' => 'Pengajuan uji cakupan verifikator'], $headers)->assertOk();
+        $class = $this->postJson('/api/v1/academic/classes', ['code' => '7B', 'name' => 'Kelas 7B', 'grade' => 7, 'reason' => 'Kelas pembanding mandat verifikasi'], $op)->assertCreated()->json('data');
+        $other = $this->postJson('/api/v1/academic/class-periods', ['class_id' => $class['id'], 'academic_year_id' => $period['academic_year_id'], 'display_name' => 'VII-B', 'reason' => 'Periode pembanding mandat verifikasi'], $op)->assertCreated()->json('data');
+        $mandateId = $this->grantVerifyMandate($operator, $operator->id);
+        DB::table('authorization_mandates')->where('id', $mandateId)->update(['scope_type' => 'class', 'class_period_id' => $other['id']]);
+        $this->getJson('/api/v1/teaching/verifications', $op)->assertOk()->assertJsonCount(0, 'data');
+        $this->getJson('/api/v1/teaching/revisions/'.$draft['id'], $op)->assertForbidden();
+        $this->postJson('/api/v1/teaching/revisions/'.$draft['id'].'/decision', ['action' => 'approve'], $op)->assertForbidden();
+        DB::table('authorization_mandates')->where('id', $mandateId)->update(['class_period_id' => $period['id']]);
+        $this->getJson('/api/v1/teaching/verifications', $op)->assertOk()->assertJsonCount(1, 'data');
+        $this->postJson('/api/v1/teaching/revisions/'.$draft['id'].'/decision', ['action' => 'approve'], $op)->assertOk();
+    }
+
+    public function test_cancelled_and_calendar_blocked_meetings_cannot_be_approved_or_counted(): void
+    {
+        [$operator, $op] = $this->operator();
+        [, $headers, $employeeId] = $this->teacher();
+        [, , $period] = $this->seedOneMeeting($op, $employeeId);
+        $meeting = $this->getJson('/api/v1/academic/meetings', $op)->assertOk()->json('data.0');
+        $draft = $this->postJson('/api/v1/teaching/meetings/'.$meeting['id'].'/realizations', ['execution_status' => 'held', 'material' => 'Materi sebelum pembatalan', 'actual_jp' => 2], $headers)->assertCreated()->json('data');
+        $this->postJson('/api/v1/teaching/revisions/'.$draft['id'].'/submit', ['reason' => 'Pengajuan sebelum pertemuan dibatalkan'], $headers)->assertOk();
+        $this->grantVerifyMandate($operator, $operator->id);
+        $this->postJson('/api/v1/academic/calendar', ['academic_year_id' => $period['academic_year_id'], 'class_period_id' => $period['id'], 'title' => 'Libur uji', 'event_type' => 'holiday', 'start_date' => '2026-07-13', 'end_date' => '2026-07-14', 'blocks_teaching' => true, 'reason' => 'Kalender libur setelah pertemuan dihasilkan'], $op)->assertCreated();
+        $this->postJson('/api/v1/teaching/revisions/'.$draft['id'].'/decision', ['action' => 'approve'], $op)->assertUnprocessable();
+        $this->postJson('/api/v1/academic/meetings/'.$meeting['id'].'/cancel', ['expected_updated_at' => $meeting['updated_at'], 'reason' => 'Pembatalan pertemuan setelah pengajuan'], $op)->assertOk();
+        $this->postJson('/api/v1/teaching/revisions/'.$draft['id'].'/decision', ['action' => 'approve'], $op)->assertUnprocessable();
+        DB::table('realization_revisions')->where('id', $draft['id'])->update(['verification_status' => 'approved']);
+        $this->getJson('/api/v1/teaching/realizations', $headers)->assertOk()->assertJsonPath('data.totals.approved_meetings', 0);
+    }
+
+    public function test_open_ended_assignment_expires_with_its_semester(): void
+    {
+        [, $op] = $this->operator();
+        [$teacher, , $employeeId] = $this->teacher();
+        $this->seedOneMeeting($op, $employeeId);
+        $this->assertNotEmpty(AcademicDataAccess::classPeriodScope($teacher->fresh()));
+        $this->travelTo(CarbonImmutable::parse('2027-01-04 09:00:00', 'Asia/Jakarta'));
+        $this->assertSame([], AcademicDataAccess::classPeriodScope($teacher->fresh()));
+        $this->travelBack();
     }
 }

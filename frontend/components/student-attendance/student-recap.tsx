@@ -6,6 +6,7 @@ import {
   DateFilter,
   FilterSelect,
 } from "@/components/academic/academic-shared";
+import { DataFailure, DataLoading } from "@/components/layout/data-feedback";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
@@ -15,10 +16,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useAsyncData } from "@/hooks/use-async-data";
 import {
   type ClassSummary,
   dateOnly,
-  studentAttendanceError,
   studentAttendanceRequest,
   todayWib,
   wibMonthRange,
@@ -50,48 +51,38 @@ type RecapPayload = {
 
 export function StudentRecap() {
   const month = wibMonthRange();
-  const [classes, setClasses] = useState<ClassSummary[]>([]);
   const [classId, setClassId] = useState("");
   const [from, setFrom] = useState(month.from);
   const [to, setTo] = useState(month.to);
-  const [recap, setRecap] = useState<RecapPayload | null>(null);
-  const [failure, setFailure] = useState("");
-  const [loading, setLoading] = useState(false);
-
+  const classesQuery = useAsyncData(
+    useCallback(
+      () => studentAttendanceRequest<{ data: ClassSummary[] }>("classes"),
+      [],
+    ),
+  );
+  const classes = classesQuery.data?.data ?? [];
   useEffect(() => {
-    let active = true;
-    studentAttendanceRequest<{ data: ClassSummary[] }>("classes")
-      .then((result) => {
-        if (!active) return;
-        setClasses(result.data);
-        if (result.data.length > 0) setClassId(String(result.data[0].id));
-      })
-      .catch((error) => active && setFailure(studentAttendanceError(error)));
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  const load = useCallback(async () => {
-    if (!classId) return;
-    setLoading(true);
-    try {
-      const result = await studentAttendanceRequest<{ data: RecapPayload }>(
+    const first = classesQuery.data?.data[0];
+    if (first) setClassId((current) => current || String(first.id));
+  }, [classesQuery.data]);
+  const recapQuery = useAsyncData(
+    useCallback(async () => {
+      if (!classId || !from || !to) return null;
+      return studentAttendanceRequest<{ data: RecapPayload }>(
         `recap?class_period_id=${classId}&date_from=${from}&date_to=${to}`,
       );
-      setRecap(result.data);
-      setFailure("");
-    } catch (error) {
-      setRecap(null);
-      setFailure(studentAttendanceError(error));
-    } finally {
-      setLoading(false);
-    }
-  }, [classId, from, to]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+    }, [classId, from, to]),
+  );
+  const loading = classesQuery.loading || recapQuery.loading;
+  const payload = recapQuery.data?.data;
+  const recap =
+    !loading &&
+    String(payload?.class_period.id) === classId &&
+    payload?.range.from === from &&
+    payload?.range.to === to
+      ? payload
+      : null;
+  const failure = classesQuery.error || recapQuery.error;
 
   return (
     <div className="animate-enter space-y-6">
@@ -100,7 +91,7 @@ export function StudentRecap() {
         title="Rekap kehadiran siswa"
         description="Rekap per tanggal dan per siswa; kolom belum dicatat menandakan pengisian yang belum dilakukan — bukan alpa."
       />
-      {failure && <p className="text-sm text-destructive">{failure}</p>}
+      {failure && <DataFailure message={failure} />}
       <div className="flex flex-wrap items-end gap-3">
         <FilterSelect
           label="Kelas"
@@ -117,6 +108,7 @@ export function StudentRecap() {
         <DateFilter label="Sampai" value={to} onChange={setTo} />
       </div>
 
+      {loading && <DataLoading />}
       {recap && (
         <>
           <Card className="min-w-0 rounded-2xl border border-border/70 py-0 ring-0">

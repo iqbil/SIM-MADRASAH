@@ -108,6 +108,7 @@ export function MasterField({
             <Input
               {...common}
               type={field.type ?? "text"}
+              step={field.step}
               defaultValue={String(value ?? "")}
               maxLength={field.max}
               pattern={field.pattern}

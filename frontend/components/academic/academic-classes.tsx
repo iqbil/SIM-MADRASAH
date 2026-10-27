@@ -125,10 +125,8 @@ export function AcademicClasses({ access }: { access: string[] }) {
             label: "Rombel",
             cell: (row) => (
               <div>
-                <p className="text-[13px] font-medium">{row.name}</p>
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  {row.code}
-                </p>
+                <p className="text-sm font-medium">{row.name}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{row.code}</p>
               </div>
             ),
           },
@@ -204,9 +202,7 @@ export function AcademicClasses({ access }: { access: string[] }) {
             {
               label: "Periode kelas",
               cell: (row) => (
-                <span className="text-[13px] font-medium">
-                  {row.display_name}
-                </span>
+                <span className="text-sm font-medium">{row.display_name}</span>
               ),
             },
             {

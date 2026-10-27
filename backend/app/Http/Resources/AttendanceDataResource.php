@@ -40,12 +40,23 @@ class AttendanceDataResource extends JsonResource
                 $data['workDay']['calendarEvent'] = $day->calendarEvent->only(['id', 'title']);
             }
         }
+        if ($this->resource->relationLoaded('attendance')) {
+            $data['attendance'] = $this->resource->attendance === null ? null : (new self($this->resource->attendance))->toArray($request);
+        }
         if ($this->resource instanceof AttendanceCorrection && $this->resource->relationLoaded('employeeAttendance') && $this->resource->employeeAttendance !== null) {
             $attendance = $this->resource->employeeAttendance;
             $data['attendance'] = $attendance->only(['id', 'check_in_at', 'check_out_at', 'late_minutes', 'entry_mode', 'notes', 'lock_version', 'updated_at']);
             if ($attendance->relationLoaded('attendanceStatus') && $attendance->attendanceStatus !== null) {
                 $data['attendance']['status'] = $attendance->attendanceStatus->only(['code', 'name']);
             }
+            $data['employeeAttendance'] = (new self($attendance))->toArray($request);
+        }
+        if ($this->resource instanceof AttendanceCorrection && $this->resource->relationLoaded('studentDailyAttendance') && $this->resource->studentDailyAttendance !== null) {
+            $attendance = $this->resource->studentDailyAttendance;
+            $data['studentDailyAttendance'] = $attendance->only(['id', 'attendance_date', 'class_period_id', 'student_id', 'lock_version']);
+            $data['studentDailyAttendance']['student'] = ['id' => $attendance->student_id,
+                'person' => $attendance->student?->person?->only(['id', 'full_name'])];
+            $data['studentDailyAttendance']['classPeriod'] = $attendance->classPeriod?->only(['id', 'display_name']);
         }
         if ($this->resource->relationLoaded('captures')) {
             $data['captures'] = $this->resource->captures->map(fn ($capture): array => $capture->only([

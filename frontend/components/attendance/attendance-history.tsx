@@ -5,6 +5,7 @@ import {
   AcademicHeading,
   DateFilter,
 } from "@/components/academic/academic-shared";
+import { DataFailure } from "@/components/layout/data-feedback";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -97,10 +98,11 @@ export function AttendanceHistory() {
   return (
     <div className="animate-enter space-y-6">
       <AcademicHeading
+        category="Absensi pegawai"
         title="Riwayat absensi saya"
         description="Kehadiran pribadi per hari kerja beserta bukti foto dan lokasi; bukti hanya dapat dilihat oleh Anda dan petugas absensi."
       />
-      {failure && <p className="text-sm text-destructive">{failure}</p>}
+      {failure && <DataFailure message={failure} />}
       <div className="flex flex-wrap items-end gap-3">
         <DateFilter label="Dari tanggal" value={from} onChange={setFrom} />
         <DateFilter label="Sampai" value={to} onChange={setTo} />
@@ -144,19 +146,19 @@ export function AttendanceHistory() {
                           row.attendance?.attendance_status ? (
                             <Badge
                               variant="secondary"
-                              className="bg-primary/8 text-[10px] text-primary"
+                              className="bg-primary/8 text-xs text-primary"
                             >
                               {statusLabels[
                                 row.attendance.attendance_status.code
                               ] ?? row.attendance.attendance_status.name}
                             </Badge>
                           ) : (
-                            <Badge variant="outline" className="text-[10px]">
+                            <Badge variant="outline" className="text-xs">
                               Belum dicatat
                             </Badge>
                           )
                         ) : (
-                          <Badge variant="outline" className="text-[10px]">
+                          <Badge variant="outline" className="text-xs">
                             Libur
                           </Badge>
                         )}

@@ -54,7 +54,7 @@ class TeachingController extends Controller
     /** Riwayat realisasi + total JP disetujui milik guru pelaksana. */
     public function ownRealizations(Request $request, TeachingService $service): JsonResponse
     {
-        return response()->json(['data' => $service->ownHistory($request->user(), $request->all())]);
+        return response()->json(['data' => $service->ownHistory($request->user(), $request->all(), $request)]);
     }
 
     public function storeRevision(Request $request, int $meeting, TeachingService $service): JsonResponse
@@ -83,6 +83,7 @@ class TeachingController extends Controller
                 ->when($data['date_from'] ?? null, fn (Builder $q, string $from): Builder => $q->where('meeting_date', '>=', $from))
                 ->when($data['date_to'] ?? null, fn (Builder $q, string $to): Builder => $q->where('meeting_date', '<=', $to)));
         $query->where('verification_status', $data['verification_status'] ?? 'pending');
+        TeachingDataAccess::scopeVerifications($query, $request->user());
 
         return TeachingDataResource::collection($query->orderByDesc('id')->paginate($data['per_page'] ?? 25)->withQueryString());
     }
@@ -97,7 +98,7 @@ class TeachingController extends Controller
         $user = $request->user();
         $record = RealizationRevision::query()->with(['meeting.classPeriod.schoolClass', 'meeting.subject', 'actualEmployee.person',
             'substituteAssignment', 'submitter.person', 'verification.verifier.person'])->findOrFail($revision);
-        $mayVerify = TeachingDataAccess::verifyMandate($user) !== null;
+        $mayVerify = TeachingDataAccess::verifyMandate($user, $record->meeting, $record->actual_employee_id) !== null;
         if (! $mayVerify) {
             TeachingDataAccess::authorizeOwn($user);
             $employeeId = AcademicDataAccess::employeeId($user);

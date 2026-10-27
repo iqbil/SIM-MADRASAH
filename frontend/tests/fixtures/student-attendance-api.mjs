@@ -125,6 +125,7 @@ export function handleStudentAttendance({
         { message: "Akses absensi siswa tidak diberikan." },
         403,
       );
+    roster.date = url.searchParams.get("date") ?? today();
     syncRoster();
 
     return ok(response, { data: roster });
@@ -138,7 +139,7 @@ export function handleStudentAttendance({
         403,
       );
     if (method === "POST") {
-      if (body.date !== roster.date)
+      if (body.date !== today())
         return ok(
           response,
           {

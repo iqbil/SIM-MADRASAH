@@ -53,6 +53,9 @@ test("teacher records, revises nothing, and submits a realization", async ({
     page.getByRole("heading", { name: "Realisasi & riwayat JP saya" }),
   ).toBeVisible();
   await expect(page.getByText("Menunggu verifikasi").first()).toBeVisible();
+  await expect(
+    page.getByRole("row", { name: /VII-A 2026\/2027/ }).first(),
+  ).toBeVisible();
 });
 
 test("mandated verifier approves the pending realization", async ({ page }) => {
@@ -93,6 +96,12 @@ test("mandated verifier approves the pending realization", async ({ page }) => {
   await page.goto("/realisasi/riwayat");
   await expect(page.getByText("Disetujui").first()).toBeVisible();
   await expect(page.getByText("2", { exact: true }).first()).toBeVisible();
+  await page.getByLabel("Dari tanggal", { exact: true }).fill("2027-01-01");
+  await page.getByLabel("Sampai", { exact: true }).fill("2027-01-31");
+  await expect(
+    page.getByText("Belum ada realisasi pada filter ini"),
+  ).toBeVisible();
+  await expect(page.getByText("0", { exact: true }).first()).toBeVisible();
 });
 
 test("pages follow navigation tokens", async ({ page }) => {

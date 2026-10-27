@@ -69,6 +69,22 @@ function ok(response, payload, status = 200) {
 
 const revisionShape = (revision) => ({
   ...revision,
+  meeting: (() => {
+    const meeting = meetings.find(
+      (item) => realizations.get(item.id)?.id === revision.realization_id,
+    );
+    return meeting
+      ? {
+          id: meeting.id,
+          meeting_date: meeting.meeting_date,
+          start_time_snapshot: meeting.start_time_snapshot,
+          planned_jp_snapshot: meeting.planned_jp_snapshot,
+          is_cancelled: meeting.is_cancelled,
+          classPeriod: meeting.classPeriod,
+          subject: meeting.subject,
+        }
+      : null;
+  })(),
   actualEmployee: {
     id: revision.actual_employee_id,
     person: { full_name: "Guru Ahmad" },
@@ -190,7 +206,16 @@ export function handleTeaching({
     const rows = [...realizations.values()]
       .map((realization) => revisionShape(realization.revisions[0]))
       .sort((a, b) => b.id - a.id);
-    const approved = rows.filter(
+    const from = url.searchParams.get("date_from");
+    const to = url.searchParams.get("date_to");
+    const status = url.searchParams.get("verification_status");
+    const filtered = rows.filter(
+      (row) =>
+        (!from || row.meeting.meeting_date >= from) &&
+        (!to || row.meeting.meeting_date <= to) &&
+        (!status || row.verification_status === status),
+    );
+    const approved = filtered.filter(
       (row) =>
         row.verification_status === "approved" &&
         row.execution_status === "held",
@@ -198,7 +223,7 @@ export function handleTeaching({
 
     return ok(response, {
       data: {
-        rows: page(rows),
+        rows: page(filtered),
         totals: {
           approved_jp: approved.reduce(
             (sum, row) => sum + Number(row.actual_jp),

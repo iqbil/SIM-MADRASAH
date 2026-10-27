@@ -51,7 +51,7 @@ async function AcademicPageContent({
   const allowed =
     required === "class.own"
       ? nav.has("class.own")
-      : nav.has("academic.manage") || nav.has(required);
+      : nav.has("academic.manage") || access.includes(required);
   if (!allowed) notFound();
   return (
     <AcademicWorkspace section={section as AcademicSection} access={access} />

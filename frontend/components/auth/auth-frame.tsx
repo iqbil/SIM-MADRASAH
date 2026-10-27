@@ -38,7 +38,7 @@ export function AuthFrame({ children }: { children: ReactNode }) {
         <Brand light />
         <div className="hidden flex-1 items-center lg:flex">
           <div className="max-w-md py-16">
-            <p className="text-[11px] font-semibold tracking-[0.18em] text-white/70 uppercase">
+            <p className="text-xs font-semibold tracking-[0.18em] text-white/70 uppercase">
               Portal internal madrasah
             </p>
             <span
@@ -56,7 +56,7 @@ export function AuthFrame({ children }: { children: ReactNode }) {
               {PORTAL_POINTS.map((point) => (
                 <li
                   key={point.text}
-                  className="flex items-center gap-3 text-[13px] leading-6 text-white/85"
+                  className="flex items-center gap-3 text-sm leading-6 text-white/85"
                 >
                   <point.icon
                     className="size-4 shrink-0 text-white/70"
@@ -68,7 +68,7 @@ export function AuthFrame({ children }: { children: ReactNode }) {
             </ul>
           </div>
         </div>
-        <p className="hidden text-[10px] tracking-wide text-white/60 lg:block">
+        <p className="hidden text-xs tracking-wide text-white/60 lg:block">
           © MTs Al Karimiyyah · Sistem Informasi Madrasah
         </p>
       </div>
@@ -76,7 +76,7 @@ export function AuthFrame({ children }: { children: ReactNode }) {
         <Card className="mx-auto w-full max-w-[440px] overflow-visible rounded-none bg-white p-0 shadow-none ring-0 lg:rounded-[1.75rem] lg:p-9 lg:shadow-2xl lg:shadow-black/15 xl:p-10">
           <CardContent className="p-0">{children}</CardContent>
         </Card>
-        <footer className="mx-auto mt-auto pt-8 text-center text-[10px] text-muted-foreground lg:hidden">
+        <footer className="mx-auto mt-auto pt-8 text-center text-xs text-muted-foreground lg:hidden">
           © MTs Al Karimiyyah · Sistem Informasi Madrasah
         </footer>
       </section>

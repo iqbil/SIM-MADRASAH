@@ -1,13 +1,14 @@
 "use client";
 
 import { Plus } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import {
   AcademicFormDialog,
   AcademicHeading,
   AcademicList,
   ConfirmAction,
 } from "@/components/academic/academic-shared";
+import { DataFailure, DataLoading } from "@/components/layout/data-feedback";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -15,9 +16,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAsyncData } from "@/hooks/use-async-data";
 import type { AcademicPage, AcademicRecord, Option } from "@/lib/academic";
 import {
-  attendanceError,
   attendanceRequest,
   dateOnly,
   dayLabel,
@@ -89,52 +90,53 @@ function patternSummary(pattern: PatternRow): string {
 
 export function AttendancePatterns() {
   const [tab, setTab] = useState("patterns");
-  const [employees, setEmployees] = useState<Option[]>([]);
   const [creating, setCreating] = useState(false);
   const [versioning, setVersioning] = useState<PatternRow | null>(null);
   const [assigning, setAssigning] = useState<PatternRow | null>(null);
   const [generating, setGenerating] = useState(false);
-  const [policy, setPolicy] = useState<Policy | null>(null);
   const [policying, setPolicying] = useState(false);
-  const [failure, setFailure] = useState("");
   const [tick, setTick] = useState(0);
-  const reload = useCallback(() => setTick((value) => value + 1), []);
-
-  // biome-ignore lint/correctness/useExhaustiveDependencies: tick memuat ulang kebijakan setelah mutasi
-  useEffect(() => {
-    let active = true;
-    masterRequest<AcademicPage<AcademicRecord>>(
-      "employees?per_page=100&is_active=1",
-    )
-      .then((data) => {
-        if (active)
-          setEmployees(
-            data.data.map((row) => ({
-              value: String(row.id),
-              label: String(
-                (row as { person?: { full_name?: string } }).person
-                  ?.full_name ?? `#${row.id}`,
-              ),
-            })),
-          );
-      })
-      .catch(() => {});
-    attendanceRequest<{ data: Policy }>("policy")
-      .then((data) => active && setPolicy(data.data))
-      .catch((error) => setFailure(attendanceError(error)));
-
-    return () => {
-      active = false;
-    };
-  }, [tick]);
+  const employeeQuery = useAsyncData(
+    useCallback(
+      () =>
+        masterRequest<AcademicPage<AcademicRecord>>(
+          "employees?per_page=100&is_active=1",
+        ),
+      [],
+    ),
+  );
+  const policyQuery = useAsyncData(
+    useCallback(() => attendanceRequest<{ data: Policy }>("policy"), []),
+  );
+  const employees: Option[] = (employeeQuery.data?.data ?? []).map((row) => ({
+    value: String(row.id),
+    label: String(
+      (row as { person?: { full_name?: string } }).person?.full_name ??
+        `#${row.id}`,
+    ),
+  }));
+  const policy = policyQuery.data?.data;
+  const reloadEmployees = employeeQuery.reload;
+  const reloadPolicy = policyQuery.reload;
+  const reload = useCallback(() => {
+    setTick((value) => value + 1);
+    void reloadEmployees();
+    void reloadPolicy();
+  }, [reloadEmployees, reloadPolicy]);
 
   return (
     <div className="animate-enter space-y-6">
       <AcademicHeading
+        category="Absensi pegawai"
         title="Pola kerja & kebijakan"
         description="Pola kerja berversi per hari kerja; penetapan pegawai menggantikan pola lama secara efektif; generator hari kerja menandai libur kalender tanpa dianggap alpa."
       />
-      {failure && <p className="text-sm text-destructive">{failure}</p>}
+      {employeeQuery.error && (
+        <DataFailure
+          message={`Daftar pegawai: ${employeeQuery.error}`}
+          retry={() => void reloadEmployees()}
+        />
+      )}
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="mb-5 h-14! w-full justify-start gap-1 rounded-xl bg-secondary p-1 sm:w-auto">
           <TabsTrigger
@@ -177,7 +179,7 @@ export function AttendancePatterns() {
               {
                 label: "Kode",
                 cell: (row) => (
-                  <span className="text-[13px] font-medium">{row.code}</span>
+                  <span className="text-sm font-medium">{row.code}</span>
                 ),
               },
               { label: "Nama", cell: (row) => row.name },
@@ -188,12 +190,12 @@ export function AttendancePatterns() {
                   row.is_active ? (
                     <Badge
                       variant="secondary"
-                      className="bg-primary/8 text-[10px] text-primary"
+                      className="bg-primary/8 text-xs text-primary"
                     >
                       Aktif
                     </Badge>
                   ) : (
-                    <Badge variant="outline" className="text-[10px]">
+                    <Badge variant="outline" className="text-xs">
                       Nonaktif
                     </Badge>
                   ),
@@ -217,6 +219,7 @@ export function AttendancePatterns() {
                 <Button
                   variant="outline"
                   className="h-11 text-xs"
+                  disabled={employeeQuery.loading || !!employeeQuery.error}
                   onClick={() => setAssigning(row)}
                 >
                   Tetapkan
@@ -248,7 +251,7 @@ export function AttendancePatterns() {
               {
                 label: "Pegawai",
                 cell: (row) => (
-                  <span className="text-[13px] font-medium">
+                  <span className="text-sm font-medium">
                     {row.employee?.person?.full_name ?? `#${row.employee_id}`}
                   </span>
                 ),
@@ -280,7 +283,14 @@ export function AttendancePatterns() {
         </TabsContent>
 
         <TabsContent value="policy" className="space-y-4">
-          {policy && (
+          {policyQuery.loading && <DataLoading />}
+          {policyQuery.error && (
+            <DataFailure
+              message={policyQuery.error}
+              retry={() => void reloadPolicy()}
+            />
+          )}
+          {policy && !policyQuery.loading && !policyQuery.error && (
             <Card className="rounded-2xl border border-border/70 py-0 ring-0">
               <CardContent className="space-y-4 p-4 sm:p-6">
                 <div className="flex flex-wrap items-center justify-between gap-3">
@@ -322,6 +332,14 @@ export function AttendancePatterns() {
                   </div>
                   <div>
                     <dt className="text-xs text-muted-foreground">
+                      Pembatasan lokasi
+                    </dt>
+                    <dd className="font-medium">
+                      Tanpa titik pusat atau radius
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-muted-foreground">
                       Kesegaran foto/lokasi
                     </dt>
                     <dd className="font-medium">
@@ -347,6 +365,11 @@ export function AttendancePatterns() {
                     </dd>
                   </div>
                 </dl>
+                <p className="text-sm leading-6 text-muted-foreground">
+                  Akurasi GPS adalah perkiraan ketelitian posisi perangkat,
+                  bukan jarak dari madrasah. Lokasi dicatat sebagai bukti
+                  kehadiran tanpa pembatasan titik atau radius.
+                </p>
               </CardContent>
             </Card>
           )}
@@ -449,6 +472,7 @@ export function AttendancePatterns() {
             {
               name: "gps_max_accuracy_meters",
               label: "Akurasi GPS maksimal (meter)",
+              hint: "Batas ketelitian posisi perangkat, bukan radius absensi dari madrasah.",
               required: true,
               type: "number",
               max: 4,

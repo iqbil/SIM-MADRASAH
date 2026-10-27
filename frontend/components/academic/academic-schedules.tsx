@@ -263,7 +263,7 @@ export function AcademicSchedules({ access }: { access: string[] }) {
       {
         label: "Tanggal",
         cell: (row: Meeting) => (
-          <span className="text-[13px] font-medium">
+          <span className="text-sm font-medium">
             {row.meeting_date.slice(0, 10)}
           </span>
         ),
@@ -301,17 +301,17 @@ export function AcademicSchedules({ access }: { access: string[] }) {
         label: "Status",
         cell: (row: Meeting) =>
           row.is_cancelled ? (
-            <Badge variant="outline" className="text-[10px]">
+            <Badge variant="outline" className="text-xs">
               Dibatalkan
             </Badge>
           ) : row.activeSubstitute ? (
-            <Badge variant="secondary" className="text-[10px]">
+            <Badge variant="secondary" className="text-xs">
               Digantikan
             </Badge>
           ) : (
             <Badge
               variant="secondary"
-              className="bg-primary/8 text-[10px] text-primary"
+              className="bg-primary/8 text-xs text-primary"
             >
               Terjadwal
             </Badge>
@@ -415,7 +415,7 @@ export function AcademicSchedules({ access }: { access: string[] }) {
                 {
                   label: "Versi",
                   cell: (row) => (
-                    <span className="text-[13px] font-medium">
+                    <span className="text-sm font-medium">
                       Versi {row.version_number}
                     </span>
                   ),
@@ -429,8 +429,8 @@ export function AcademicSchedules({ access }: { access: string[] }) {
                       }
                       className={
                         row.status === "published"
-                          ? "bg-primary/8 text-[10px] text-primary"
-                          : "text-[10px]"
+                          ? "bg-primary/8 text-xs text-primary"
+                          : "text-xs"
                       }
                     >
                       {versionStatusLabel(row.status)}
@@ -505,7 +505,7 @@ export function AcademicSchedules({ access }: { access: string[] }) {
                   {
                     label: "Hari",
                     cell: (row) => (
-                      <span className="text-[13px] font-medium">
+                      <span className="text-sm font-medium">
                         {dayLabel(row.day_of_week)}
                       </span>
                     ),
